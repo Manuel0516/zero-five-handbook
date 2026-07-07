@@ -1,0 +1,9 @@
+{
+  "title": "Homelab Handbook",
+  "pages": [
+    "index", 
+    "components",
+    "documentation",
+    "infrastructure"
+  ]
+}

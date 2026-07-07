@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import "../styles/themes/neon.css";
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+:root {
+  --font-nerd: "JetBrainsMono Nerd Font", monospace;
+}
+
+code,
+pre,
+kbd,
+.nerd,
+.terminal {
+  font-family: var(--font-nerd), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+}

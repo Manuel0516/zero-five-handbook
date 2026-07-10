@@ -1,0 +1,49 @@
+---
+title: LaTeX — MacTeX
+description: Full TeX Live distribution via the mactex-no-gui cask, integrated with VS Code through the LaTeX Workshop extension.
+---
+
+LaTeX is installed through the `mactex-no-gui` Homebrew cask — the full [MacTeX](https://www.tug.org/mactex/) / TeX Live distribution without the GUI applications (TeXShop, BibDesk, etc.), since editing happens in VS Code.
+
+---
+
+## Installation
+
+```bash
+brew install --cask mactex-no-gui
+```
+
+Binaries land in `/Library/TeX/texbin` (added to `PATH` automatically by the installer): `pdflatex`, `latex`, `xelatex`, `lualatex`, `bibtex`, `latexmk`, and the rest of TeX Live.
+
+> **Note:** The cask is ~5 GB. There is no lighter setup documented here on purpose — partial TeX installs (BasicTeX) tend to cost more time in missing packages than they save in disk.
+
+---
+
+## VS Code integration
+
+The [LaTeX Workshop](https://marketplace.visualstudio.com/items?itemName=James-Yu.latex-workshop) extension (`james-yu.latex-workshop`) provides build-on-save, PDF preview, SyncTeX, and diagnostics inside VS Code. See [Applications](/docs/macbook/apps) for the full extension list.
+
+Typical workflow:
+
+1. Open a `.tex` file in VS Code
+2. Save — LaTeX Workshop builds automatically with `latexmk`
+3. Preview the PDF in the side panel (`⌘K V`)
+
+---
+
+## Usage
+
+| Task | Command |
+|------|---------|
+| Compile once | `pdflatex document.tex` |
+| Compile with bibliography/refs resolved | `latexmk -pdf document.tex` |
+| Clean build artifacts | `latexmk -c` |
+| Update TeX Live packages | `sudo tlmgr update --self --all` |
+
+---
+
+## Resources
+
+- [MacTeX](https://www.tug.org/mactex/) — Distribution homepage
+- [LaTeX Workshop wiki](https://github.com/James-Yu/LaTeX-Workshop/wiki) — Extension docs
+- [Overleaf LaTeX guides](https://www.overleaf.com/learn) — Best general LaTeX reference

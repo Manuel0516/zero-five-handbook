@@ -1,0 +1,88 @@
+---
+title: Applications
+description: Every GUI application installed on this MacBook, plus the full VS Code extension list and Rectangle window-manager settings.
+---
+
+GUI applications on this machine were mostly installed manually (downloaded from the vendor), not via Homebrew casks.
+
+---
+
+## Installed applications
+
+| App | Purpose | Install from |
+|-----|---------|--------------|
+| **Visual Studio Code** | Main code editor | [code.visualstudio.com](https://code.visualstudio.com) |
+| **Ghostty** | Terminal emulator — see [Terminal](/docs/macbook/terminal) | [ghostty.org](https://ghostty.org) |
+| **Claude** | Anthropic AI chat — see [AI Coding Tools](/docs/macbook/ai-tools) | [claude.ai](https://claude.ai/download) |
+| **Codex** | OpenAI coding agent — see [AI Coding Tools](/docs/macbook/ai-tools) | [openai.com/codex](https://openai.com/codex/) |
+| **Firefox** | Main browser | [mozilla.org](https://www.mozilla.org/firefox/) |
+| **Rectangle** | Window snapping/tiling | [rectangleapp.com](https://rectangleapp.com) |
+| **Notion** | Notes and docs | [notion.com](https://www.notion.com) |
+| **Notion Calendar** | Calendar | [notion.com/product/calendar](https://www.notion.com/product/calendar) |
+| **Slack** | Team chat | [slack.com](https://slack.com) |
+| **Discord** | Community chat | [discord.com](https://discord.com) |
+| **BambuStudio** | 3D-printing slicer (Bambu Lab printers) | [bambulab.com](https://bambulab.com/en/download/studio) |
+
+---
+
+## Rectangle settings
+
+Non-default preferences worth restoring:
+
+| Setting | Value |
+|---------|-------|
+| Launch on login | Enabled |
+| Hide menu bar icon | Enabled |
+| Allow any shortcut | Enabled |
+| Alternate default shortcuts | Enabled (the "Spectacle" preset) |
+
+---
+
+## VS Code extensions
+
+Install the full set on a new machine:
+
+```bash
+code --install-extension anthropic.claude-code \
+     --install-extension openai.chatgpt \
+     --install-extension ms-python.python \
+     --install-extension ms-python.vscode-pylance \
+     --install-extension ms-python.debugpy \
+     --install-extension ms-python.vscode-python-envs \
+     --install-extension ms-toolsai.jupyter \
+     --install-extension marimo-team.vscode-marimo \
+     --install-extension ms-vscode.cpptools-extension-pack \
+     --install-extension platformio.platformio-ide \
+     --install-extension james-yu.latex-workshop \
+     --install-extension shd101wyy.markdown-preview-enhanced \
+     --install-extension esbenp.prettier-vscode \
+     --install-extension ms-azuretools.vscode-containers \
+     --install-extension ms-vsliveshare.vsliveshare \
+     --install-extension janisdd.vscode-edit-csv \
+     --install-extension phplasma.csv-to-table \
+     --install-extension meijiahao.vscode-h5-viewer \
+     --install-extension ms-ceintl.vscode-language-pack-es \
+     --install-extension vscode-icons-team.vscode-icons \
+     --install-extension zhuangtongfa.material-theme \
+     --install-extension robbowen.synthwave-vscode
+```
+
+By area:
+
+| Area | Extensions |
+|------|-----------|
+| AI | Claude Code, ChatGPT/Codex |
+| Python | Python, Pylance, Debugpy, Python Environments, Jupyter, marimo |
+| C/C++ / embedded | C/C++ Extension Pack, PlatformIO IDE |
+| LaTeX / Markdown | LaTeX Workshop, Markdown Preview Enhanced |
+| Data files | Edit CSV, CSV to Table, H5 Viewer |
+| Collaboration | Live Share, Containers |
+| Formatting | Prettier |
+| UI | vscode-icons, One Dark Pro, SynthWave '84, Spanish language pack |
+
+---
+
+## Resources
+
+- [Rectangle](https://rectangleapp.com) — Window manager
+- [VS Code extension marketplace](https://marketplace.visualstudio.com/vscode) — Search extensions

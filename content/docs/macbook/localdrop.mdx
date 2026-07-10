@@ -1,0 +1,157 @@
+---
+title: LocalDrop — Shared Clipboard
+description: Self-built clipboard sync and file transfer between this MacBook and the Linux desktop, over the local network. Covers config, auto-start, and the file-picker shortcut.
+---
+
+[LocalDrop](https://github.com/Manuel0516/localdrop) is a self-built tool that syncs the clipboard bidirectionally between this MacBook and the Linux desktop (CachyOS + Hyprland), and sends files between them. No cloud, no accounts — two small Python daemons talking over the local network.
+
+- **Bidirectional clipboard sync** — copy on one device, paste on the other
+- **File transfer** — `send` command plus a file-picker shortcut on both devices
+- **Zero third-party dependencies** — pure Python standard library (3.11+)
+- **Token authentication** — plain HTTP with a shared token, for trusted LANs only
+
+> **Warning:** LocalDrop is designed for trusted local networks. Never expose port `8765` to the internet.
+
+---
+
+## How it works
+
+Both devices run the same program. Each one is simultaneously a tiny HTTP server (receives clipboard text and files) and a client (pushes local clipboard changes to the peer):
+
+```text
+Linux daemon  ⇄  Mac daemon
+```
+
+Clipboard access uses `pbcopy`/`pbpaste` on macOS and `wl-copy`/`wl-paste` on Linux (Wayland).
+
+---
+
+## Installation
+
+The project lives at the same path on **both** devices — the scripts, systemd service, and LaunchAgent assume it:
+
+```bash
+mkdir -p ~/projects
+git clone https://github.com/Manuel0516/localdrop ~/projects/localdrop
+cd ~/projects/localdrop
+cp examples/config.example.toml config.toml
+```
+
+- **macOS:** nothing extra needed — `pbcopy`, `pbpaste`, and `osascript` are built in
+- **Linux:** `sudo pacman -S python wl-clipboard libnotify zenity`
+
+---
+
+## Configuration
+
+One file per device: `~/projects/localdrop/config.toml`. This machine's config:
+
+```toml
+[device]
+name = "macbook"
+platform = "macos"
+
+[server]
+host = "192.168.1.104"   # this MacBook's LAN IP
+port = 8765
+
+[peer]
+name = "linux"
+host = "192.168.1.110"   # the Linux desktop's LAN IP
+port = 8765
+
+[clipboard]
+enabled = true
+poll_interval = 0.7      # seconds between clipboard checks
+
+[files]
+enabled = true
+download_dir = "~/Downloads"
+
+[security]
+encryption = false       # v1 is token-auth over plain HTTP
+shared_token = "<shared-token>"   # secret — must be identical on both devices
+
+[notifications]
+enabled = true
+```
+
+The Linux config is identical except `device.name`/`device.platform`/`peer.*` are swapped. The `shared_token` value is not documented here on purpose — read it from the config on either machine when setting up a new device.
+
+> **Note:** The IPs are the current DHCP leases. If clipboard sync stops after a router restart, check both machines' IPs and update `peer.host` on each side.
+
+---
+
+## Usage
+
+All commands run from `~/projects/localdrop`:
+
+| Task | Command |
+|------|---------|
+| Run the daemon (server + clipboard watcher) | `python3 main.py daemon` |
+| Check the peer is reachable | `python3 main.py ping` |
+| Send a file to the peer | `python3 main.py send ~/path/to/file.png` |
+
+Received files land in `download_dir` (`~/Downloads` on this Mac). Existing names are kept by adding a `-1`, `-2`, … suffix.
+
+### File-picker shortcut
+
+`scripts/localdrop-send-mac.sh` opens a native file picker and sends the chosen file — bind it to a keyboard shortcut via Automator. On the Linux side, `scripts/localdrop-send.sh` does the same with `zenity`, bound to a Hyprland keybind (`SUPER SHIFT D`). Full integration guide: `docs/shortcuts.md` in the repo.
+
+---
+
+## Auto-start
+
+### macOS (LaunchAgent) — installed on this machine
+
+The daemon starts at login via `~/Library/LaunchAgents/com.localdrop.plist`, which runs `main.py daemon` with `RunAtLoad` and `KeepAlive`:
+
+```bash
+cp com.localdrop.plist ~/Library/LaunchAgents/com.localdrop.plist
+launchctl load ~/Library/LaunchAgents/com.localdrop.plist
+```
+
+Check it's running:
+
+```bash
+launchctl list | grep localdrop
+```
+
+### Linux (systemd user service)
+
+```bash
+cp examples/localdrop.service.example ~/.config/systemd/user/localdrop.service
+systemctl --user daemon-reload
+systemctl --user enable --now localdrop.service
+```
+
+Logs: `journalctl --user -u localdrop.service -f`
+
+---
+
+## Troubleshooting
+
+### Clipboard not syncing
+
+1. Ping the peer from each side: `python3 main.py ping`
+2. If unreachable, verify both IPs match `peer.host` in each config (DHCP may have changed them)
+3. Check the daemon is running: `launchctl list | grep localdrop` (Mac) / `systemctl --user status localdrop` (Linux)
+
+### `401` / rejected requests
+
+The `shared_token` values differ between the two configs — set them to the same value.
+
+### Restart the daemon on the Mac
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.localdrop.plist
+launchctl load ~/Library/LaunchAgents/com.localdrop.plist
+```
+
+---
+
+## Resources
+
+- [LocalDrop repository](https://github.com/Manuel0516/localdrop) — Source, README, examples
+- `~/projects/localdrop/docs/shortcuts.md` — Keybind and Automator integration guide
+- `~/projects/localdrop/localdrop_project_guidelines.md` — Full design spec

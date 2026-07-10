@@ -1,0 +1,232 @@
+---
+title: Conventions
+description: Naming rules, folder structure, frontmatter schema, and consistency patterns for this documentation project.
+---
+
+This page defines the rules every documentation page should follow. Sticking to these conventions keeps the handbook consistent, searchable, and easy to maintain.
+
+---
+
+## Folder Structure
+
+Every top-level topic gets its own folder under `content/docs/`.
+
+```
+content/docs/
+├── index.mdx              # Home page
+├── meta.json              # Top-level sidebar config
+├── test.mdx               # Component sandbox
+├── getting-started/       # (coming soon)
+├── guide/                 # Documentation guide (this section)
+│   ├── meta.json
+│   ├── index.mdx
+│   ├── conventions.mdx
+│   ├── writing.mdx
+│   └── fumadocs.mdx
+├── infrastructure/        # (coming soon)
+├── macbook/               # MacBook setup handbook
+│   ├── meta.json
+│   ├── index.mdx
+│   └── lama-cpp.mdx
+└── documentation/         # (coming soon)
+```
+
+### Rules
+
+| Rule | Explanation |
+|------|-------------|
+| One folder per topic | If a topic would have 3+ pages, give it its own folder |
+| Every folder gets a `meta.json` | Controls sidebar order and page grouping |
+| Every folder gets an `index.mdx` | Serves as the topic's overview / landing page |
+| Use lowercase-with-dashes | File names: `lama-cpp.mdx` ✅, `lama_cpp.mdx` ❌, `LamaCPP.mdx` ❌ |
+| No spaces in file/folder names | Use hyphens to separate words |
+
+---
+
+## File Naming
+
+```
+kebab-case.mdx      # ✅ Correct
+snake_case.mdx      # ❌ No underscores
+camelCase.mdx       # ❌ No camelCase
+PascalCase.mdx      # ❌ No PascalCase
+spaces and caps.mdx # ❌ No spaces or uppercase
+```
+
+### Exceptions
+
+- `index.mdx` — Always exactly `index.mdx` (Fumadocs convention for the folder landing page)
+- `meta.json` — Always exactly `meta.json` (Fumadocs convention for sidebar config)
+
+---
+
+## Frontmatter
+
+Every `.mdx` file **must** have frontmatter at the top.
+
+### Required fields
+
+```yaml
+---
+title: Page Title
+description: A one- or two-sentence summary of this page.
+---
+```
+
+| Field | Required | Rules |
+|-------|----------|-------|
+| `title` | ✅ | Use Title Case. Keep under 80 chars. No trailing punctuation. |
+| `description` | ✅ | A clear, scannable summary. Used in search results, cards, and meta tags. 1–2 sentences. |
+
+### Optional fields
+
+```yaml
+---
+title: My Page
+description: What this page is about.
+icon: terminal        # A Lucide icon name (requires plugin)
+badge: New            # A status badge label
+---
+```
+
+> **Note:** The schema is defined in `source.config.ts` and can be extended with custom fields via Zod.
+
+---
+
+## Writing Style
+
+### Tone
+
+- **Clear and practical** — Write like a senior engineer explaining to a peer
+- **Concise** — Say what's needed, nothing more. Prefer lists and tables over paragraphs
+- **Neutral** — Avoid jokes, opinions, or casual language. Let the facts speak
+
+### Headings
+
+```markdown
+# Page Title (H1) — Only one per page, matches frontmatter title
+
+## Section (H2) — Major sections
+
+### Sub-section (H3) — Grouping within a section
+
+#### Detail (H4) — Rare, only for deep nesting
+```
+
+- Use sentence case for headings (capitalize first word only), **not** Title Case
+  - ✅ `## Running the server`
+  - ❌ `## Running The Server`
+- Never skip heading levels (don't jump from H2 to H4)
+
+### Inline formatting
+
+| Style | When to use |
+|-------|-------------|
+| `` `code` `` | File paths, commands, flags, env vars, function names, CLI output |
+| **bold** | UI labels, terms being defined, emphasis |
+| *italic* | Rare. Only for slight emphasis or introducing a new term |
+| `~~strikethrough~~` | Never |
+| `> blockquote` | Tips, warnings, notes, side information |
+
+### Lists
+
+- Use **unordered lists** (`-`) for items without a specific order
+- Use **ordered lists** (`1.`) for step-by-step instructions
+- Capitalize the first word of each list item
+- End each list item with a period if it's a full sentence, otherwise omit
+
+### Code blocks
+
+````markdown
+```bash
+# Shell commands
+brew install llama.cpp
+```
+
+```jsonc
+// JSON with comments (for config files)
+{
+  "key": "value"
+}
+```
+
+```ts
+// TypeScript code
+function greet(name: string): string {
+  return `Hello, ${name}!`;
+}
+```
+````
+
+Always specify a language tag for syntax highlighting. Use `text` as fallback if no language applies.
+
+### Links
+
+```markdown
+[Visible link text](https://example.com)
+```
+
+- Prefer **descriptive link text** over "click here" or "link"
+- Internal links: use relative paths starting with `/docs/`
+  - ✅ `[llama.cpp guide](/docs/macbook/lama-cpp)`
+  - ❌ `[llama.cpp guide](https://localhost:3000/docs/macbook/lama-cpp)`
+- External links: always use full URLs
+
+---
+
+## Sidebar Configuration (`meta.json`)
+
+Each `meta.json` controls the order and grouping of pages in the sidebar.
+
+```json
+{
+  "title": "Section Title",
+  "pages": [
+    "index",
+    "page-one",
+    "page-two"
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `title` | The section heading shown in the sidebar |
+| `pages` | Array of file names (without `.mdx` extension) in the order they should appear |
+
+### Special entries
+
+- `"index"` — Maps to `index.mdx` (the section landing page). Usually the first entry
+- `"..."` — A spread operator that includes all remaining pages in alphabetical order (useful for large sections)
+- Nested folder — You can reference sub-folders: `"macbook"` in the top-level `meta.json` links to the `macbook/` folder
+
+---
+
+## Component Usage Guidelines
+
+| Component | When to use |
+|-----------|-------------|
+| `Card` / `Cards` | Navigation between related pages. Use on index/landing pages. |
+| `Accordion` | Collapsing optional details (configs, changelogs, long references). |
+| `Callout` | Highlighting important notes, warnings, or tips in-line. |
+| `Steps` | Multi-step tutorials where order matters. |
+| `Tabs` | Showing the same content in different languages or tools. |
+| `Files` / `File` / `Folder` | Displaying file/directory structures. |
+| `TypeTable` | API parameters, configuration fields, or any key-value spec. |
+| `InlineTOC` | Long pages that benefit from an on-page table of contents. |
+| `ImageZoom` | Screenshots or diagrams that benefit from zooming. |
+| `CodeBlock` / `CodeBlockTabs` | Multi-file code examples or tabbed code snippets. |
+
+For usage examples of each, see the [Fumadocs Reference](/docs/guide/fumadocs).
+
+---
+
+## When to Create a New Section
+
+Create a new top-level folder when:
+
+1. You have **3+ pages** about a single topic
+2. The topic is **self-contained** (could be read independently)
+3. It describes something you'd need to **replicate or reference** on a new machine
+
+Otherwise, add the page to an existing section.

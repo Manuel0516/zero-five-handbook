@@ -1,0 +1,90 @@
+---
+title: SSH Configuration
+description: SSH keys, host aliases, and config on this MacBook — GitHub authentication and the Contabo VPS. Key material itself is never documented here.
+---
+
+SSH is used for two things on this machine: authenticating to **GitHub** and connecting to the **Contabo VPS**. Everything lives in `~/.ssh/`.
+
+> **Warning:** This page documents the *configuration only*. Private keys are never stored in this handbook — generate a new key on a new machine instead of copying the old one.
+
+---
+
+## Keys
+
+One ed25519 keypair is used for everything:
+
+| File | Purpose |
+|------|---------|
+| `~/.ssh/id_ed25519` | Private key — **never leaves this machine** |
+| `~/.ssh/id_ed25519.pub` | Public key — registered with GitHub and the VPS |
+
+### Generate on a new machine
+
+```bash
+ssh-keygen -t ed25519 -C "manuellore05@gmail.com"
+```
+
+Then register the new public key:
+
+1. **GitHub:** [Settings → SSH and GPG keys](https://github.com/settings/keys) → paste the output of `cat ~/.ssh/id_ed25519.pub`
+2. **VPS:** `ssh-copy-id contabo` (authenticate with password once)
+
+---
+
+## Config file
+
+`~/.ssh/config`:
+
+```text
+Include /Users/manuel/.colima/ssh_config
+
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile ~/.ssh/id_ed25519
+
+Host contabo
+  HostName 95.111.229.142
+  User manuel
+  Port 2020
+```
+
+### Breakdown
+
+| Entry | What it does |
+|-------|--------------|
+| `Include ~/.colima/ssh_config` | Added automatically by [Colima](/docs/macbook/docker) so `ssh colima` reaches the container VM — don't remove it |
+| `Host github.com` | Uses the ed25519 key, loads it into the agent, and stores the passphrase in the macOS Keychain (`UseKeychain yes`) — no passphrase prompts after the first use |
+| `Host contabo` | Alias for the Contabo VPS: `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` |
+
+---
+
+## Usage
+
+| Task | Command |
+|------|---------|
+| Connect to the VPS | `ssh contabo` |
+| Test GitHub authentication | `ssh -T git@github.com` |
+| Copy a file to the VPS | `scp file.txt contabo:~/` |
+| List keys loaded in the agent | `ssh-add -l` |
+
+---
+
+## Troubleshooting
+
+### `Permission denied (publickey)` on GitHub
+
+1. Check the key is loaded: `ssh-add -l`
+2. If empty, add it with the Keychain flag: `ssh-add --apple-use-keychain ~/.ssh/id_ed25519`
+3. Confirm the public key is registered on GitHub: `ssh -T git@github.com`
+
+### VPS connection refused
+
+The VPS uses port `2020`, not 22 — connecting with a raw `ssh manuel@95.111.229.142` fails. Use the `contabo` alias, which sets the port.
+
+---
+
+## Resources
+
+- [GitHub SSH documentation](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) — Key setup and troubleshooting
+- [ssh_config manual](https://man.openbsd.org/ssh_config) — All config options

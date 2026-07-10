@@ -1,0 +1,75 @@
+---
+title: Docker — Colima Container Runtime
+description: Containers on this MacBook run through Colima instead of Docker Desktop — lightweight, free, and CLI-only. Covers installation, starting the VM, and daily usage.
+---
+
+Containers run through [Colima](https://github.com/abiosoft/colima) — a lightweight container runtime VM that replaces Docker Desktop (no license, no GUI, less RAM). The standard `docker` and `docker compose` CLIs work unchanged against it.
+
+---
+
+## Installation
+
+```bash
+brew install colima docker docker-compose
+```
+
+- `colima` — The VM that runs the Docker daemon (uses macOS Virtualization.framework)
+- `docker` — The Docker CLI only (no daemon, no Desktop app)
+- `docker-compose` — Compose v2 CLI
+
+---
+
+## Usage
+
+### Start the runtime
+
+```bash
+colima start
+```
+
+The first start creates the VM. After that, `colima start` resumes it in seconds. Current setup runs with the defaults:
+
+| Setting | Value |
+|---------|-------|
+| Virtualization | macOS Virtualization.framework |
+| Architecture | `aarch64` (Apple Silicon native) |
+| Runtime | Docker |
+| Mount type | `virtiofs` |
+
+> **Note:** On an 8 GB machine, don't leave Colima running when not needed — `colima stop` frees the VM's memory.
+
+### Daily commands
+
+| Task | Command |
+|------|---------|
+| Start / stop the VM | `colima start` / `colima stop` |
+| Check VM status | `colima status` |
+| Run a container | `docker run --rm -it alpine sh` |
+| List containers | `docker ps -a` |
+| Compose up/down | `docker compose up -d` / `docker compose down` |
+| Clean up disk space | `docker system prune` |
+
+---
+
+## Troubleshooting
+
+### `Cannot connect to the Docker daemon`
+
+Colima isn't running — `colima start`. Verify with `colima status` and `docker context ls` (the `colima` context should be active).
+
+### Out of memory / slow containers
+
+The default VM gets limited resources. Resize with:
+
+```bash
+colima stop
+colima start --memory 4 --cpu 2
+```
+
+---
+
+## Resources
+
+- [Colima GitHub](https://github.com/abiosoft/colima) — Docs, FAQ, options
+- [Docker CLI reference](https://docs.docker.com/reference/cli/docker/) — All commands
+- [Docker Compose reference](https://docs.docker.com/compose/) — Compose files and CLI

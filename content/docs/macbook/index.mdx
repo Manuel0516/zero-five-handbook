@@ -1,0 +1,104 @@
+---
+title: MacBook Handbook
+description: A complete guide to everything set up on this MacBook — designed so you can replicate the entire setup on a brand-new machine.
+---
+
+## Purpose
+
+This handbook catalogs **everything** installed, configured, and customized on this MacBook. The goal is **reproducibility**: if this machine dies or you buy a new one, you can follow these docs step by step to get back to the exact same state — no guesswork, no forgotten configs.
+
+## The machine
+
+| Property | Value |
+|----------|-------|
+| Model | MacBook Pro (Apple M2) |
+| Memory | 8 GB |
+| macOS | 26.5 |
+
+---
+
+## What's here
+
+<Cards>
+  <Card
+    title="Homebrew — Package Manager"
+    description="Every formula and cask installed, and how to maintain them"
+    href="/docs/macbook/homebrew"
+  />
+  <Card
+    title="Terminal — Ghostty, Zsh and Starship"
+    description="Terminal emulator, prompt, aliases, and font configuration"
+    href="/docs/macbook/terminal"
+  />
+  <Card
+    title="Git and GitHub"
+    description="Git identity, global ignore rules, and the GitHub CLI"
+    href="/docs/macbook/git"
+  />
+  <Card
+    title="SSH Configuration"
+    description="Keys, host aliases for GitHub and the VPS — config only, no secrets"
+    href="/docs/macbook/ssh"
+  />
+  <Card
+    title="Python — Miniforge and uv"
+    description="Conda environments, the physics env, uv, marimo and Jupyter"
+    href="/docs/macbook/python"
+  />
+  <Card
+    title="Docker — Colima"
+    description="Containers without Docker Desktop, via the Colima runtime VM"
+    href="/docs/macbook/docker"
+  />
+  <Card
+    title="LaTeX — MacTeX"
+    description="Full TeX Live install with VS Code integration"
+    href="/docs/macbook/latex"
+  />
+  <Card
+    title="AI Coding Tools"
+    description="Claude Code, Codex, and OpenCode — setup and when to use which"
+    href="/docs/macbook/ai-tools"
+  />
+  <Card
+    title="llama.cpp — Local AI Models"
+    description="Installation, models, server setup, and OpenCode integration for running LLMs locally"
+    href="/docs/macbook/lama-cpp"
+  />
+  <Card
+    title="LocalDrop — Shared Clipboard"
+    description="Self-built clipboard sync and file transfer with the Linux desktop"
+    href="/docs/macbook/localdrop"
+  />
+  <Card
+    title="Applications"
+    description="Every GUI app, VS Code extensions, and Rectangle settings"
+    href="/docs/macbook/apps"
+  />
+</Cards>
+
+---
+
+## Quick start for a new MacBook
+
+If you're setting up a fresh machine, follow the pages in this order:
+
+1. **[Homebrew](/docs/macbook/homebrew)** — Install the package manager first; everything else depends on it
+2. **[Terminal](/docs/macbook/terminal)** — Ghostty, Starship, aliases, and fonts
+3. **[Git and GitHub](/docs/macbook/git)** — Identity and authentication
+4. **[SSH](/docs/macbook/ssh)** — Generate a new key, register it with GitHub and the VPS
+5. **[Python](/docs/macbook/python)** — Miniforge and the conda environments
+6. **[Docker](/docs/macbook/docker)** — Colima container runtime
+7. **[LaTeX](/docs/macbook/latex)** — MacTeX distribution
+8. **[AI Coding Tools](/docs/macbook/ai-tools)** — Claude Code, Codex, OpenCode
+9. **[llama.cpp](/docs/macbook/lama-cpp)** — Local LLM backend
+10. **[LocalDrop](/docs/macbook/localdrop)** — Shared clipboard with the Linux desktop
+11. **[Applications](/docs/macbook/apps)** — GUI apps and VS Code extensions
+
+> **Tip:** Keep this handbook open on the old MacBook (or on GitHub) while setting up the new one, and check off each section as you complete it.
+
+---
+
+## Contribution
+
+Found something missing? Spotted an outdated step? Update the docs in this handbook so the next setup is even smoother.

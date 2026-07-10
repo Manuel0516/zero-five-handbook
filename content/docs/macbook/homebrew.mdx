@@ -1,0 +1,88 @@
+---
+title: Homebrew — Package Manager
+description: Homebrew is the package manager for everything CLI on this MacBook. This page lists every intentionally installed formula and cask, and how to maintain them.
+---
+
+[Homebrew](https://brew.sh) is the macOS package manager. Almost every CLI tool on this machine was installed through it — this page is the canonical list of what to install on a new MacBook.
+
+---
+
+## Installation
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+On Apple Silicon, Homebrew installs to `/opt/homebrew`. The shell integration is loaded from `~/.zprofile`:
+
+```bash
+eval "$(/opt/homebrew/bin/brew shellenv zsh)"
+```
+
+---
+
+## Installed formulae
+
+These are the **explicitly installed** packages (`brew leaves` — dependencies not listed). Install everything in one command:
+
+```bash
+brew install alembic bat colima curl docker docker-compose eza gh git \
+  htop llama.cpp node python@3.14 starship tree uv wget
+```
+
+| Formula | Purpose | Documented in |
+|---------|---------|---------------|
+| `alembic` | Database migration tool for SQLAlchemy | — |
+| `bat` | `cat` replacement with syntax highlighting (aliased to `cat`) | [Terminal](/docs/macbook/terminal) |
+| `colima` | Container runtime VM — replaces Docker Desktop | [Docker](/docs/macbook/docker) |
+| `curl` | HTTP client (newer than the system one) | — |
+| `docker` | Docker CLI | [Docker](/docs/macbook/docker) |
+| `docker-compose` | Multi-container orchestration | [Docker](/docs/macbook/docker) |
+| `eza` | `ls` replacement with icons (aliased to `ls`, `ll`, `la`) | [Terminal](/docs/macbook/terminal) |
+| `gh` | GitHub CLI | [Git and GitHub](/docs/macbook/git) |
+| `git` | Version control (newer than the Xcode one) | [Git and GitHub](/docs/macbook/git) |
+| `htop` | Interactive process viewer | — |
+| `llama.cpp` | Local LLM inference engine | [llama.cpp](/docs/macbook/lama-cpp) |
+| `node` | Node.js runtime (currently v26) | — |
+| `python@3.14` | Homebrew Python (conda is the main Python — see [Python](/docs/macbook/python)) | [Python](/docs/macbook/python) |
+| `starship` | Cross-shell prompt | [Terminal](/docs/macbook/terminal) |
+| `tree` | Directory tree printer | — |
+| `uv` | Fast Python package/project manager | [Python](/docs/macbook/python) |
+| `wget` | File downloader | — |
+
+> **Note:** Tools like `tesseract`, `ghostscript`, and `gcc` appear in `brew list` but are dependencies of the packages above — Homebrew manages them automatically.
+
+## Installed casks
+
+```bash
+brew install --cask font-jetbrains-mono-nerd-font mactex-no-gui
+```
+
+| Cask | Purpose | Documented in |
+|------|---------|---------------|
+| `font-jetbrains-mono-nerd-font` | Terminal/editor font with icon glyphs | [Terminal](/docs/macbook/terminal) |
+| `mactex-no-gui` | Full TeX Live distribution without GUI apps | [LaTeX](/docs/macbook/latex) |
+
+> Most GUI apps on this machine were installed manually, not via casks — see [Applications](/docs/macbook/apps).
+
+---
+
+## Maintenance
+
+| Task | Command |
+|------|---------|
+| Update Homebrew + package index | `brew update` |
+| Upgrade all packages | `brew upgrade` |
+| List explicitly installed formulae | `brew leaves` |
+| List casks | `brew list --cask` |
+| Remove unused dependencies | `brew autoremove` |
+| Clean old downloads/versions | `brew cleanup` |
+| Health check | `brew doctor` |
+
+---
+
+## Resources
+
+- [Homebrew homepage](https://brew.sh) — Install instructions
+- [Homebrew documentation](https://docs.brew.sh) — Full docs
+- [Homebrew formulae search](https://formulae.brew.sh) — Search packages and casks

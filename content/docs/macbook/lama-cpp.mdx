@@ -1,0 +1,193 @@
+---
+title: llama.cpp — Local AI Models
+description: Run LLMs locally on your MacBook using llama.cpp. Covers installation, model downloads, server setup, and integration with OpenCode.
+---
+
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+
+[llama.cpp](https://github.com/ggml-org/llama.cpp) is a high-performance C/C++ inference engine for running large language models (LLMs) locally on consumer hardware. It uses the **GGUF** model format and supports GPU acceleration via Apple Silicon (Metal).
+
+On this MacBook, llama.cpp serves as the local AI backend for [OpenCode](https://opencode.ai) (the AI coding assistant).
+
+---
+
+## Installation
+
+### Via Homebrew
+
+```bash
+brew install llama.cpp
+```
+
+This installs several binaries. The most relevant ones:
+
+| Binary | Purpose |
+|--------|---------|
+| `llama-server` | HTTP server with OpenAI-compatible API |
+| `llama-cli` | CLI for interactive chat / one-shot inference |
+| `llama-quantize` | Quantize models to reduce size / improve speed |
+
+> **Official docs:** [llama.cpp README](https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#quick-start)
+
+---
+
+## Available Models
+
+### Qwen2.5-Coder-3B-Instruct (Q4\_K\_M) — ✅ Recommended
+
+A lightweight 3-billion-parameter coding model. Runs comfortably on 8 GB+ RAM MacBooks with good speed.
+
+| Property | Value |
+|----------|-------|
+| Model | [Qwen2.5-Coder-3B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF) |
+| Quantization | `Q4_K_M` (4-bit, medium quality/size balance) |
+| File size | ~2.0 GB |
+| RAM usage | ~3–4 GB |
+| Performance | Fast on Apple Silicon |
+
+### Qwen2.5-Coder-7B-Instruct (Q4\_K\_M) — ⚠️ May be slow
+
+A more capable 7-billion-parameter model. Requires ~6–8 GB RAM and may be sluggish on base-model MacBooks.
+
+| Property | Value |
+|----------|-------|
+| Model | [Qwen2.5-Coder-7B-Instruct-GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF) |
+| Quantization | `Q4_K_M` (4-bit) |
+| File size | ~4.5 GB |
+| RAM usage | ~6–8 GB |
+| Performance | Noticeably slower on base M-series chips |
+
+> **Tip:** Start with the 3B model. It's fast enough for practical coding assistance and leaves room for other apps.
+
+---
+
+## Running the Server
+
+The `llama-server` binary starts an HTTP server with an **OpenAI-compatible API** endpoint at `http://127.0.0.1:8080/v1`. This lets any OpenAI-compatible client (OpenCode, custom scripts) use your local model.
+
+### Start the 3B Model
+
+```bash
+llama-server \
+  -hf Qwen/Qwen2.5-Coder-3B-Instruct-GGUF:Q4_K_M \
+  -c 8192 \
+  --host 127.0.0.1 \
+  --port 8080
+```
+
+### Start the 7B Model
+
+```bash
+llama-server \
+  -hf Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M \
+  -c 8192 \
+  --host 127.0.0.1 \
+  --port 8080
+```
+
+### Parameter Reference
+
+| Flag | Description |
+|------|-------------|
+| `-hf <repo:quant>` | Download model from Hugging Face Hub and run it. Format: `org/model:quantization` |
+| `-c <N>` | Context size in tokens (e.g., `8192`). Higher = more memory. |
+| `--host <ip>` | Bind address. `127.0.0.1` for local-only. |
+| `--port <port>` | Port number (default: `8080`). |
+| `-ngl <N>` | Number of GPU layers to offload to Metal. `-ngl 99` offloads all layers. |
+| `-t <N>` | Number of CPU threads to use. |
+| `--mlock` | Lock model in RAM to prevent swapping (improves performance). |
+| `--no-mmap` | Load model fully into RAM instead of memory-mapping. |
+
+> **Full CLI reference:** `llama-server --help` or the [llama.cpp server docs](https://github.com/ggml-org/llama.cpp/blob/master/examples/server/README.md)
+
+---
+
+## Integration with OpenCode
+
+[OpenCode](https://opencode.ai) is configured to use the local llama.cpp server as its AI provider. The config lives in `opencode.jsonc` in the project root:
+
+<Accordions>
+  <Accordion title="opencode.jsonc">
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llamacpp/qwen2.5-coder-3b",
+  "provider": {
+    "llamacpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1",
+        "apiKey": "local"
+      },
+      "models": {
+        "qwen2.5-coder-3b": {
+          "name": "Qwen2.5 Coder 3B Local"
+        }
+      }
+    }
+  }
+}
+```
+
+  </Accordion>
+</Accordions>
+
+### Configuration Breakdown
+
+| Field | Value | Notes |
+|-------|-------|-------|
+| `model` | `llamacpp/qwen2.5-coder-3b` | Default model ID for OpenCode |
+| `provider.llamacpp.npm` | `@ai-sdk/openai-compatible` | AI SDK adapter for OpenAI-compatible APIs |
+| `provider.llamacpp.options.baseURL` | `http://127.0.0.1:8080/v1` | Must match the `llama-server` address |
+| `provider.llamacpp.options.apiKey` | `"local"` | llama.cpp doesn't require auth, but the SDK expects a key |
+
+### Workflow
+
+1. **Start the server** in a terminal:
+   ```bash
+   llama-server -hf Qwen/Qwen2.5-Coder-3B-Instruct-GGUF:Q4_K_M -c 8192 --host 127.0.0.1 --port 8080
+   ```
+2. **Keep it running** in the background (or use a terminal multiplexer like `tmux`)
+3. **Open OpenCode** — it will connect to the local server automatically
+4. **Stop the server** with `Ctrl+C` when done to free up RAM
+
+> **Note:** The server must be running **before** you start OpenCode. If you see connection errors, check that `llama-server` is still alive.
+
+---
+
+## Troubleshooting
+
+### "Model is too big for this system"
+
+- Try a smaller model (switch to 3B instead of 7B)
+- Reduce context size: `-c 4096` instead of `-c 8192`
+- Close memory-hungry apps (browser tabs, Docker, etc.)
+- Use `--mlock` to prevent swapping
+
+### "Connection refused" from OpenCode
+
+1. Verify `llama-server` is running:
+   ```bash
+   curl http://127.0.0.1:8080/v1/models
+   ```
+2. Check the port and host match between the server command and `opencode.jsonc`
+3. Restart both the server and OpenCode
+
+### Slow inference
+
+- Ensure Metal acceleration is active (look for `ggml_metal_init` in the server logs)
+- Increase GPU layers: `-ngl 99`
+- Close other GPU-intensive apps
+
+---
+
+## Official Resources
+
+- [llama.cpp GitHub](https://github.com/ggml-org/llama.cpp) — Main repo, releases, issues
+- [llama.cpp Server Docs](https://github.com/ggml-org/llama.cpp/blob/master/examples/server/README.md) — Full server API reference
+- [Hugging Face GGUF Models](https://huggingface.co/models?library=gguf) — Directory of downloadable GGUF models
+- [Qwen2.5-Coder 3B GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF) — The 3B model used on this MacBook
+- [Qwen2.5-Coder 7B GGUF](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF) — The 7B model
+- [OpenCode Providers Docs](https://opencode.ai/docs/providers) — How to configure custom AI providers

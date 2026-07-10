@@ -1,0 +1,115 @@
+---
+title: Python — Miniforge, Conda Environments and uv
+description: The Python setup on this MacBook — miniforge3 with conda/mamba, the physics environment for scientific work, uv for fast tooling, and marimo/Jupyter notebooks.
+---
+
+The primary Python installation is [miniforge3](https://github.com/conda-forge/miniforge) (conda + mamba, conda-forge channel). [uv](https://docs.astral.sh/uv/) is available for fast, project-based Python work, and Homebrew's `python@3.14` exists only as a dependency for other tools.
+
+---
+
+## Installation
+
+### Miniforge
+
+Download and run the installer from [conda-forge/miniforge](https://github.com/conda-forge/miniforge#install):
+
+```bash
+curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+bash Miniforge3-$(uname)-$(uname -m).sh
+```
+
+It installs to `~/miniforge3`. Then initialize the shell (writes the managed blocks in `~/.zshrc`):
+
+```bash
+conda init zsh
+mamba shell init --shell zsh
+```
+
+### uv
+
+```bash
+brew install uv
+```
+
+---
+
+## Environments
+
+| Environment | Python | Purpose |
+|-------------|--------|---------|
+| `base` | 3.11 | Kept minimal — don't install packages here |
+| `physics` | 3.11 | Scientific computing and coursework |
+
+### The `physics` environment
+
+Key packages:
+
+| Package | Purpose |
+|---------|---------|
+| `numpy`, `scipy` | Numerical computing |
+| `sympy` | Symbolic math |
+| `pandas` | Data analysis |
+| `matplotlib` | Plotting |
+| `uncertainties` | Error propagation for lab measurements |
+| `jupyterlab` | Notebook environment |
+| `marimo` | Reactive notebook alternative |
+
+Recreate it on a new machine:
+
+```bash
+conda create -n physics python=3.11 numpy scipy sympy pandas matplotlib uncertainties jupyterlab
+conda activate physics
+pip install marimo
+```
+
+> **Tip:** Export the exact environment from the old machine with `conda env export -n physics > physics.yml`, then recreate it with `conda env create -f physics.yml`.
+
+---
+
+## Usage
+
+| Task | Command |
+|------|---------|
+| Activate the physics env | `conda activate physics` |
+| Deactivate | `conda deactivate` |
+| List environments | `conda env list` |
+| Install a package (prefer mamba — faster) | `mamba install <pkg>` |
+| Start JupyterLab | `jupyter lab` |
+| Start a marimo notebook | `marimo edit notebook.py` |
+
+### When to use uv instead
+
+Use `uv` for standalone projects with their own `pyproject.toml` (fast installs, lockfiles) or one-off scripts:
+
+```bash
+uv init my-project      # new project
+uv add requests         # add dependency
+uv run script.py        # run in the project env
+uvx ruff check .        # run a tool without installing it
+```
+
+### marimo
+
+[marimo](https://marimo.io) is a reactive notebook (cells re-run automatically when dependencies change, stored as pure Python files — git-friendly). Config lives at `~/.config/marimo/marimo.toml`. There's also a VS Code extension (see [Applications](/docs/macbook/apps)).
+
+---
+
+## Troubleshooting
+
+### `conda: command not found`
+
+The `~/.zshrc` init block is missing — rerun `conda init zsh` and restart the terminal.
+
+### Slow package resolution
+
+Use `mamba install` instead of `conda install` — same syntax, much faster solver.
+
+---
+
+## Resources
+
+- [Miniforge](https://github.com/conda-forge/miniforge) — Installer and docs
+- [Conda documentation](https://docs.conda.io) — Environment management
+- [uv documentation](https://docs.astral.sh/uv/) — Projects, tools, scripts
+- [marimo documentation](https://docs.marimo.io) — Reactive notebooks
+- [JupyterLab documentation](https://jupyterlab.readthedocs.io) — Notebooks

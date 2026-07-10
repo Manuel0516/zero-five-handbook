@@ -1,0 +1,16 @@
+{
+  "title": "MacBook",
+  "pages": [
+    "homebrew",
+    "terminal",
+    "git",
+    "ssh",
+    "python",
+    "docker",
+    "latex",
+    "ai-tools",
+    "lama-cpp",
+    "localdrop",
+    "apps"
+  ]
+}

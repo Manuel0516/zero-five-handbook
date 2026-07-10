@@ -1,0 +1,70 @@
+---
+title: Git and GitHub
+description: Git configuration, global ignore rules, and the GitHub CLI setup on this MacBook.
+---
+
+Git is installed via Homebrew (newer than the version bundled with Xcode), plus the [GitHub CLI](https://cli.github.com) for working with PRs and issues from the terminal.
+
+---
+
+## Installation
+
+```bash
+brew install git gh
+```
+
+---
+
+## Configuration
+
+### User identity (`~/.gitconfig`)
+
+```ini
+[user]
+	name = Manuel Lorente Rodriguez
+	email = manuellore05@gmail.com
+```
+
+Set it on a new machine with:
+
+```bash
+git config --global user.name "Manuel Lorente Rodriguez"
+git config --global user.email "manuellore05@gmail.com"
+```
+
+### Global ignore (`~/.config/git/ignore`)
+
+```text
+**/.claude/settings.local.json
+```
+
+This keeps Claude Code's per-machine local settings out of every repository without needing a `.gitignore` entry in each project.
+
+---
+
+## GitHub CLI
+
+Authenticate once per machine:
+
+```bash
+gh auth login
+```
+
+> **Status:** `gh` is currently **not logged in** on this machine — run the command above to authenticate.
+
+Common commands:
+
+| Task | Command |
+|------|---------|
+| Clone a repo | `gh repo clone owner/repo` |
+| Create a PR | `gh pr create` |
+| Check out a PR | `gh pr checkout <number>` |
+| View CI status | `gh pr checks` |
+| Open repo in browser | `gh browse` |
+
+---
+
+## Resources
+
+- [Git documentation](https://git-scm.com/doc) — Official reference
+- [GitHub CLI manual](https://cli.github.com/manual/) — All `gh` commands

@@ -1,0 +1,240 @@
+---
+title: Writing Documentation
+description: How to read, create, edit, and publish documentation pages in this handbook.
+---
+
+This guide covers the full editorial workflow — from deciding what to document, to writing the page, to previewing and publishing.
+
+---
+
+## Before You Write
+
+### What should be documented?
+
+Document anything that would be **painful to rediscover or redo**:
+
+- Software installed via Homebrew, pip, npm, or other package managers
+- Configuration files (`opencode.jsonc`, `.zshrc`, `gitconfig`, etc.)
+- CLI commands you had to look up more than once
+- Steps you followed from a tutorial (with a link to the original)
+- Manual tweaks to system settings
+- Any setup step you'd need on a brand-new machine
+
+### What should NOT be documented?
+
+- Trivial commands everyone knows (`ls`, `cd`, `pwd`)
+- Official docs that are well-maintained — just link to them
+- Personal preferences that don't affect setup reproducibility
+
+---
+
+## The Writing Workflow
+
+### 1. Plan the page
+
+Decide where the page belongs based on the [Conventions](/docs/guide/conventions):
+
+- Existing section? Add a new `.mdx` file in that folder.
+- New topic? Create a new folder, `meta.json`, `index.mdx`, and your page.
+- Single page about an existing topic? Add it to the appropriate folder.
+
+Pick a descriptive, kebab-case file name, e.g., `homebrew-packages.mdx`.
+
+### 2. Write the frontmatter
+
+Every page starts with metadata:
+
+```mdx
+---
+title: My Page Title
+description: A clear summary of what this page covers.
+---
+```
+
+### 3. Write the content
+
+Follow the structure:
+
+```markdown
+# Only one H1 per page (matches the title)
+
+## Overview
+
+Brief context: what is this, why does it matter, how does it relate to the rest of the setup?
+
+## Installation
+
+Step-by-step instructions. Include the exact commands.
+
+## Configuration
+
+Config files, environment variables, settings. Show the actual config.
+
+## Usage
+
+How to use it day-to-day. Common commands, workflows, tips.
+
+## Troubleshooting
+
+Common errors and how to fix them.
+
+## Resources
+
+Links to official docs, GitHub repos, related pages in this handbook.
+```
+
+Not every page needs every section — adapt as needed.
+
+### 4. Review locally
+
+Run the dev server to preview:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000` in the browser. Check:
+
+- [ ] Page appears in the sidebar in the right position
+- [ ] Frontmatter `title` and `description` render correctly
+- [ ] All internal links work (no broken paths)
+- [ ] Code blocks have proper language tags
+- [ ] Tables render cleanly
+- [ ] No markdown syntax errors
+
+### 5. Run type checks
+
+```bash
+npm run types:check
+```
+
+This runs `fumadocs-mdx` (generates the collection files), Next.js typegen, and TypeScript type-checking. Fix any errors before committing.
+
+---
+
+## Reading Documentation
+
+This handbook is designed to be **scanned quickly**. Here's how to navigate:
+
+### From the home page
+
+The home page (`/docs`) has cards linking to each major section. Click through to a topic.
+
+### From the sidebar
+
+The left sidebar shows the full page tree. Sections with a folder icon can be expanded. Click any page title to jump to it.
+
+### Search
+
+Use the **Ask AI** button (floating on docs pages) or the search bar to find content across all pages.
+
+### In-page navigation
+
+Long pages have a table of contents on the right side. Click any heading to jump to that section.
+
+### Following setup instructions
+
+Pages in the `macbook/` section are designed to be followed **in sidebar order**. Start with the overview, then work through each page. Check off items as you go.
+
+---
+
+## Markdown Basics
+
+### Paragraphs and line breaks
+
+Separate paragraphs with a blank line. For a line break without a new paragraph, end a line with two spaces.
+
+### Headings
+
+```markdown
+## Section
+### Sub-section
+#### Detail
+```
+
+### Emphasis
+
+```markdown
+**bold** for UI labels and key terms
+*italic* for slight emphasis (rare)
+~~strikethrough~~ — don't use
+```
+
+### Lists
+
+```markdown
+- Unordered item
+- Another item
+
+1. First step
+2. Second step
+```
+
+### Code
+
+```markdown
+Inline `code` for commands and paths.
+
+```bash
+# Fenced code block for multi-line code
+echo "hello"
+```
+```
+
+### Links
+
+```markdown
+[visible text](/docs/macbook/lama-cpp)
+```
+
+### Images
+
+```markdown
+![Alt text](/path/to/image.png)
+```
+
+### Tables
+
+```markdown
+| Header 1 | Header 2 |
+|----------|----------|
+| Cell 1   | Cell 2   |
+```
+
+---
+
+## MDX — JavaScript in Markdown
+
+This project uses **MDX**, which means you can use JSX components inside markdown files.
+
+### Importing components
+
+```mdx
+import { Callout, Steps } from 'fumadocs-ui/components/callout';
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+```
+
+Imports go at the top of the file, right after the frontmatter block.
+
+### Using components in markdown
+
+```mdx
+<Callout type="info">
+  This is an info callout.
+</Callout>
+```
+
+Components can be mixed with regular markdown freely. See the [Fumadocs Reference](/docs/guide/fumadocs) for every component available.
+
+---
+
+## Quick Reference Card
+
+| Task | Command / Action |
+|------|-----------------|
+| Start dev server | `npm run dev` |
+| Create new page | Create `.mdx` file in the appropriate folder |
+| Add to sidebar | Update the folder's `meta.json` |
+| Preview | Open `http://localhost:3000` |
+| Type-check | `npm run types:check` |
+| Build for production | `npm run build` |

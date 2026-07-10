@@ -1,0 +1,750 @@
+---
+title: Fumadocs Reference
+description: Complete guide to every Fumadocs component, markdown feature, and API available in this project.
+---
+
+import {
+  Accordion,
+  Accordions,
+} from 'fumadocs-ui/components/accordion';
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'fumadocs-ui/components/tabs';
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+import { ImageZoom } from 'fumadocs-ui/components/image-zoom';
+import { Files, File, Folder } from 'fumadocs-ui/components/files';
+import defaultMdxComponents from 'fumadocs-ui/mdx';
+
+This project uses [Fumadocs](https://fumadocs.dev) — a documentation framework built on Next.js 16 and MDX. This reference covers **every component and feature** available for writing documentation pages.
+
+<InlineTOC items={[
+  { title: 'Project Architecture', url: '#project-architecture', depth: 2 },
+  { title: 'Available Components', url: '#available-components', depth: 2 },
+  { title: 'Adding New Components', url: '#adding-new-components', depth: 2 },
+  { title: 'Markdown Features', url: '#markdown-features', depth: 2 },
+  { title: 'Source API', url: '#source-api', depth: 2 },
+  { title: 'Theming and Styling', url: '#theming-and-styling', depth: 2 },
+  { title: 'Search', url: '#search', depth: 2 },
+  { title: 'Troubleshooting', url: '#troubleshooting', depth: 2 },
+  { title: 'Official Resources', url: '#official-resources', depth: 2 },
+]} />
+
+---
+
+## Project Architecture
+
+```
+zero-five-handbook/
+├── content/docs/          # 📝 All documentation lives here — write MDX files
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx              # Root layout (fonts, provider)
+│   │   ├── docs/layout.tsx         # Docs layout (sidebar, search)
+│   │   ├── (home)/page.tsx         # Home page
+│   │   └── api/
+│   │       ├── search/route.ts     # Search API endpoint
+│   │       └── chat/route.ts       # AI chat API endpoint
+│   ├── components/
+│   │   ├── mdx.tsx                 # MDX component provider
+│   │   └── markdown.tsx            # Markdown renderer (for LLM export)
+│   ├── lib/
+│   │   ├── source.ts              # Fumadocs source loader
+│   │   └── shared.ts              # Shared route config
+│   └── styles/
+│       └── themes/                # Theme CSS files
+├── source.config.ts               # Fumadocs-MDX collection config
+├── opencode.jsonc                  # OpenCode AI provider config
+└── package.json
+```
+
+### How it works
+
+1. **`source.config.ts`** — Defines the `docs` collection pointing to `content/docs/`
+2. **`fumadocs-mdx`** — Processes all `.mdx` files and `meta.json` files at build time, generating a typed collection
+3. **`src/lib/source.ts`** — The `loader()` creates a Fumadocs source from the collection, building the page tree
+4. **`src/app/docs/layout.tsx`** — Renders the sidebar navigation using the page tree
+5. **`src/app/docs/[[...slug]]/page.tsx`** — Renders individual documentation pages
+
+### Collection config (`source.config.ts`)
+
+```ts
+import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
+import { metaSchema, pageSchema } from 'fumadocs-core/source/schema';
+
+export const docs = defineDocs({
+  dir: 'content/docs',
+  docs: {
+    schema: pageSchema,
+    postprocess: {
+      includeProcessedMarkdown: true,
+    },
+  },
+  meta: {
+    schema: metaSchema,
+  },
+});
+
+export default defineConfig({
+  mdxOptions: {
+    // MDX options
+  },
+});
+```
+
+- `includeProcessedMarkdown: true` — Makes rendered markdown available for LLM export (see `src/lib/source.ts`)
+- `pageSchema` — The Zod schema for frontmatter (title, description, etc.)
+- `metaSchema` — The Zod schema for `meta.json` sidebar config
+
+### Source loader (`src/lib/source.ts`)
+
+```ts
+import { docs } from 'collections/server';
+import { loader } from 'fumadocs-core/source';
+import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
+
+export const source = loader({
+  baseUrl: '/docs',
+  source: docs.toFumadocsSource(),
+  plugins: [lucideIconsPlugin()],
+});
+```
+
+The `loader()` builds the page tree. The `lucideIconsPlugin` lets you reference [Lucide icons](https://lucide.dev/icons/) in `meta.json` by name.
+
+---
+
+## Available Components
+
+All components are imported from `fumadocs-ui/components/*`. Import statements go at the top of your MDX file, after the frontmatter block.
+
+### Components available by default in MDX
+
+These are included in `defaultMdxComponents` (configured in `src/components/mdx.tsx`) and available **without** an explicit import:
+
+- `<Card>` / `<Cards>` — Navigation cards
+- `<Callout>` / `<CalloutContainer>` / `<CalloutTitle>` / `<CalloutDescription>` — Callout boxes
+- `<CodeBlockTab>` / `<CodeBlockTabs>` — Tabbed code blocks
+- `<Heading>` — Anchor-linked headings (used automatically for h1–h6)
+- `<Pre>` — Code block wrapper (used automatically for fenced code)
+- Smart `<a>` — Internal links automatically use Fumadocs' smart link component
+- Smart `<img>` — Images get rounded corners and responsive sizing automatically
+
+### `<Card>` / `<Cards>` — Navigation Cards
+
+Used on landing pages to link to related pages. Automatically available (no import needed).
+
+```mdx
+<Cards>
+  <Card
+    title="Getting Started"
+    description="Installation and first steps"
+    href="/docs/getting-started"
+  />
+  <Card
+    title="API Reference"
+    description="Full API documentation"
+    href="/docs/api"
+  />
+</Cards>
+```
+
+Prop reference:
+
+<TypeTable
+  type={{
+    title: { type: "string", description: "Card heading" },
+    description: { type: "string", description: "Short summary (rendered below title)" },
+    href: { type: "string", description: "Link URL — internal or external" },
+    icon: { type: "ReactNode", description: "Optional icon element" },
+  }}
+/>
+
+---
+
+### `<Callout>` — Callout Boxes
+
+Automatically available (no import needed). Used for notes, warnings, tips, and errors.
+
+```mdx
+<Callout type="info">
+  This is an informational callout.
+</Callout>
+
+<Callout type="warn">
+  Watch out for this common pitfall.
+</Callout>
+
+<Callout type="error">
+  This will break if you do it wrong.
+</Callout>
+
+<Callout type="tip">
+  Pro tip: use the 3B model for daily use.
+</Callout>
+
+<Callout type="success">
+  You've successfully completed the setup.
+</Callout>
+```
+
+<Callout type="info">
+  This is how an info callout looks.
+</Callout>
+
+<Callout type="warn">
+  This is how a warning callout looks.
+</Callout>
+
+<Callout type="error">
+  This is how an error callout looks.
+</Callout>
+
+<Callout type="tip">
+  This is how a tip callout looks.
+</Callout>
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `type` | `"info" \| "warn" \| "error" \| "tip" \| "success"` | `"info"` | Callout variant |
+
+---
+
+### `<Accordion>` / `<Accordions>` — Collapsible Sections
+
+Used to hide long optional content (config files, changelogs, reference tables). Requires import.
+
+````mdx
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
+
+<Accordions>
+  <Accordion title="opencode.jsonc">
+    ```jsonc
+    {
+      "model": "llamacpp/qwen2.5-coder-3b"
+    }
+    ```
+  </Accordion>
+  <Accordion title="Troubleshooting">
+    If it doesn't work, restart the server.
+  </Accordion>
+</Accordions>
+````
+
+<Accordions>
+  <Accordion title="Example accordion (click to expand)">
+    This content is hidden until the user clicks the title. Great for config dumps, extended examples, or optional deep-dives.
+  </Accordion>
+</Accordions>
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `title` | `string` | The clickable header |
+| `Accordions` wrapper | — | Groups multiple accordion items together (optional — a single `<Accordion>` works standalone) |
+
+---
+
+### `<Steps>` / `<Step>` — Numbered Step Lists
+
+For multi-step tutorials where order is critical. Requires import.
+
+````mdx
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+<Steps>
+  <Step>
+    ### Install the package
+
+    ```bash
+    brew install llama.cpp
+    ```
+  </Step>
+  <Step>
+    ### Start the server
+
+    ```bash
+    llama-server -hf Qwen/Qwen2.5-Coder-3B-Instruct-GGUF:Q4_K_M -c 8192
+    ```
+  </Step>
+  <Step>
+    ### Connect OpenCode
+
+    Open OpenCode and it will detect the local server.
+  </Step>
+</Steps>
+````
+
+<Steps>
+  <Step>
+    ### First step
+
+    Step content goes here. You can use markdown inside steps.
+  </Step>
+  <Step>
+    ### Second step
+
+    Steps are automatically numbered.
+  </Step>
+</Steps>
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `Step` children | `ReactNode` | Content inside each step. Can include headings, code blocks, images, etc. |
+
+---
+
+### `<Tabs>` — Tabbed Content
+
+For showing the same content in different languages, platforms, or tools. Requires import.
+
+````mdx
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'fumadocs-ui/components/tabs';
+
+<Tabs>
+  <TabsList>
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+  </TabsList>
+  <TabsContent value="npm">
+    ```bash
+    npm install fumadocs-ui
+    ```
+  </TabsContent>
+  <TabsContent value="pnpm">
+    ```bash
+    pnpm add fumadocs-ui
+    ```
+  </TabsContent>
+</Tabs>
+````
+
+| Prop | Description |
+|------|-------------|
+| `TabsList` | Wrapper for tab triggers |
+| `TabsTrigger value` | Identifies the tab. Must match `TabsContent value` |
+| `TabsContent value` | The panel shown when the matching trigger is active |
+
+---
+
+### `<Files>` / `<File>` / `<Folder>` — File Tree Display
+
+For showing file/directory structure with visual icons. Requires import.
+
+```mdx
+import { Files, File, Folder } from 'fumadocs-ui/components/files';
+
+<Files>
+  <Folder name="src">
+    <File name="index.ts" />
+    <Folder name="components">
+      <File name="button.tsx" />
+    </Folder>
+  </Folder>
+  <File name="package.json" />
+</Files>
+```
+
+| Prop | Description |
+|------|-------------|
+| `<Folder name>` | Creates a collapsible folder |
+| `<File name>` | Creates a file entry |
+| `<Files>` wrapper | Groups the tree together |
+
+---
+
+### `<TypeTable>` — API / Config Reference Tables
+
+For documenting parameters, options, or configuration fields. Requires import.
+
+```mdx
+import { TypeTable } from 'fumadocs-ui/components/type-table';
+
+<TypeTable
+  type={{
+    fieldName: {
+      type: "string",
+      description: "What this field does",
+      default: "\"default-value\"",
+      required: true,
+    },
+    optionalField: {
+      type: "number",
+      description: "Another field",
+      default: "42",
+    },
+  }}
+/>
+```
+
+Each entry accepts:
+
+<TypeTable
+  type={{
+    type: { type: "string", description: "The data type (string, number, boolean, etc.)" },
+    description: { type: "string", description: "What this field does" },
+    default: { type: "string", description: "Optional default value" },
+    required: { type: "boolean", description: "Whether the field is required", default: "false" },
+  }}
+/>
+
+---
+
+### `<InlineTOC>` — In-page Table of Contents
+
+For long pages that benefit from an on-page outline at the top. Requires import.
+
+```mdx
+import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+
+<InlineTOC
+  items={[
+    { title: 'Section One', url: '#section-one', depth: 2 },
+    { title: 'Section Two', url: '#section-two', depth: 2 },
+    { title: 'Subsection', url: '#subsection', depth: 3 },
+  ]}
+/>
+```
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `items` | `Array<{ title: ReactNode; url: string; depth: number }>` | The visible label, the anchor link (slugified heading ID prefixed with `#`), and its nesting level |
+
+The URL's anchor is the slugified version of your heading text. For example, `## My Section` becomes `#my-section`.
+
+---
+
+### `<ImageZoom>` — Zoomable Images
+
+For screenshots or diagrams that benefit from a closer look. Requires import.
+
+```mdx
+import { ImageZoom } from 'fumadocs-ui/components/image-zoom';
+
+<ImageZoom src="/path/to/screenshot.png" alt="Description of image" />
+```
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `src` | `string` | Image path |
+| `alt` | `string` | Alt text for accessibility |
+
+---
+
+### `<CodeBlockTabs>` — Tabbed Code Blocks
+
+Automatically available (no import needed). For showing multiple files or code variations in a single block.
+
+````mdx
+<CodeBlockTabs group="my-group">
+  <CodeBlockTab fileName="index.ts">
+    ```ts
+    console.log('hello');
+    ```
+  </CodeBlockTab>
+  <CodeBlockTab fileName="utils.ts">
+    ```ts
+    export const greet = (name: string) => `Hello, ${name}`;
+    ```
+  </CodeBlockTab>
+</CodeBlockTabs>
+````
+
+| Prop | Description |
+|------|-------------|
+| `CodeBlockTabs group` | Groups tabs across the page (same group = same selected tab) |
+| `CodeBlockTab fileName` | The label shown on the tab |
+
+---
+
+### `<Banner>` — Site Banner
+
+For site-wide announcements. Import from `fumadocs-ui/components/banner`. Used in layouts, not usually in content pages.
+
+```mdx
+import { Banner } from 'fumadocs-ui/components/banner';
+
+<Banner>This handbook is a work in progress.</Banner>
+```
+
+---
+
+### `<GithubInfo>` — GitHub Repository Card
+
+Shows stars, forks, and description of a GitHub repo. Import from `fumadocs-ui/components/github-info`.
+
+```mdx
+import { GithubInfo } from 'fumadocs-ui/components/github-info';
+
+<GithubInfo owner="ggml-org" repo="llama.cpp" />
+```
+
+---
+
+## Adding New Components
+
+Some fumadocs components need to be installed as additional npm packages. Here's how.
+
+### Check if the component exists
+
+First, look in `node_modules/fumadocs-ui/components/` to see what's already available. Most components are already installed with `fumadocs-ui`.
+
+### Install additional packages
+
+If a component requires an external dependency:
+
+```bash
+npm install <package-name>
+```
+
+For example, `ImageZoom` requires `react-medium-image-zoom` (check if it's already a dependency).
+
+### Add to the MDX provider (optional)
+
+If you want a component to be available project-wide without imports, add it to `src/components/mdx.tsx`:
+
+```ts
+import defaultMdxComponents from 'fumadocs-ui/mdx';
+import { MyComponent } from 'fumadocs-ui/components/my-component';
+import type { MDXComponents } from 'mdx/types';
+
+export function getMDXComponents(components?: MDXComponents) {
+  return {
+    ...defaultMdxComponents,
+    MyComponent,
+    ...components,
+  } satisfies MDXComponents;
+}
+```
+
+<Callout type="warn">
+  Only add components to the provider if they're used across many pages. For one-off usage, import them directly in the MDX file — it's cleaner and avoids global bloat.
+</Callout>
+
+### Add MDX plugins
+
+If you need remark or rehype plugins (like `remark-gfm`), add them to `source.config.ts`:
+
+```ts
+export default defineConfig({
+  mdxOptions: {
+    remarkPlugins: [
+      // add remark plugins here
+    ],
+    rehypePlugins: [
+      // add rehype plugins here
+    ],
+  },
+});
+```
+
+---
+
+## Markdown Features
+
+### Basic markdown
+
+| Feature | Syntax |
+|---------|--------|
+| Bold | `**text**` |
+| Italic | `*text*` |
+| Code | `` `code` `` |
+| Link | `[text](url)` |
+| Image | `![alt](src)` |
+| Blockquote | `> text` |
+| Unordered list | `- item` |
+| Ordered list | `1. item` |
+| Table | `\| col1 \| col2 \|` |
+| Horizontal rule | `---` |
+
+### Code blocks
+
+````markdown
+```javascript
+console.log('Hello');
+```
+````
+
+Supported languages: `bash`, `ts`, `tsx`, `js`, `jsx`, `json`, `jsonc`, `yaml`, `mdx`, `css`, `html`, `python`, `go`, `rust`, `sql`, and many more.
+
+### GFM (GitHub Flavored Markdown)
+
+This project includes `remark-gfm`, so these GitHub-specific features work:
+
+- ~~Strikethrough~~ — `~~text~~`
+- [x] Task lists — `- [x] done` / `- [ ] todo`
+- Tables with alignment — `| :--- | :---: | ---: |`
+- Autolinks — `https://example.com` becomes a clickable link
+- Footnotes (if configured)
+
+### Math (LaTeX)
+
+Fumadocs supports LaTeX math if the `remark-math` / `rehype-katex` plugins are configured. Inline: `$E = mc^2$` or block:
+
+```latex
+$$
+\frac{1}{\pi} = \frac{2\sqrt{2}}{9801} \sum_{k=0}^{\infty} \frac{(4k)!(1103+26390k)}{(k!)^4 396^{4k}}
+$$
+```
+
+---
+
+## Source API
+
+The `source` object in `src/lib/source.ts` provides the page tree and utilities used by the layouts.
+
+### `source.getPageTree()`
+
+Returns the hierarchical page tree for the sidebar. Used in `src/app/docs/layout.tsx`:
+
+```tsx
+<DocsLayout tree={source.getPageTree()} {...baseOptions()}>
+```
+
+### `source.getPages()`
+
+Returns a flat list of all pages:
+
+```ts
+const pages = source.getPages();
+// pages[0].url      -> "/docs/macbook/lama-cpp"
+// pages[0].data.title -> "llama.cpp — Local AI Models"
+```
+
+### `source.getPage(slugs)`
+
+Gets a single page by its slugs:
+
+```ts
+const page = source.getPage(['macbook', 'lama-cpp']);
+```
+
+### Source plugins
+
+The project uses the **Lucide Icons plugin**:
+
+```ts
+import { lucideIconsPlugin } from 'fumadocs-core/source/lucide-icons';
+```
+
+This lets you reference Lucide icon names in `meta.json`:
+
+```json
+{
+  "title": "MacBook",
+  "pages": ["index", "lama-cpp"]
+}
+```
+
+---
+
+## Theming and Styling
+
+### Available themes
+
+Theme CSS files live in `src/styles/themes/`:
+
+- `neon.css` — Neon/cyberpunk theme
+- `warm.css` — Warm tones theme
+- `mix.css` — Mixed theme
+
+### Global styles
+
+Main styles are in `src/app/global.css`. Fumadocs uses Tailwind CSS v4.
+
+### Typography
+
+The project uses JetBrains Mono Nerd Font (loaded locally from `src/app/fonts/`):
+
+```tsx
+const jetbrainsNerd = localFont({
+  src: [
+    { path: './fonts/JetBrainsMono-Regular.ttf', weight: '400' },
+    { path: './fonts/JetBrainsMono-Bold.ttf', weight: '700' },
+  ],
+  variable: '--font-nerd',
+});
+```
+
+### Custom CSS in MDX
+
+You can use `<span className="...">` in MDX files for inline styling:
+
+```mdx
+<span className="nerd">󰣇 Linux</span>
+```
+
+Custom class names are defined in `global.css` or a theme CSS file.
+
+---
+
+## Search
+
+This project includes an AI-powered search. The search API is at `/api/search` (defined in `src/app/api/search/route.ts`).
+
+### Using search
+
+Press the **Ask AI** button (floating on docs pages) or use the search bar to find content. The search uses FlexSearch for local indexing and the AI SDK for semantic answers.
+
+### Configuration
+
+Search is configured in `src/app/docs/layout.tsx`:
+
+```tsx
+<AISearch>
+  <AISearchPanel />
+  <AISearchTrigger position="float" className={...}>
+    <MessageCircleIcon className="size-4.5" />
+    Ask AI
+  </AISearchTrigger>
+</AISearch>
+```
+
+---
+
+## Troubleshooting
+
+### Page not showing in sidebar
+
+1. Make sure the page file exists in `content/docs/`
+2. Add it to the folder's `meta.json` under `pages`
+3. If it's in a sub-folder, ensure the parent `meta.json` references the folder name
+4. Run `npm run types:check` to regenerate the collections
+5. Restart the dev server
+
+### MDX syntax errors
+
+Common issues:
+
+- Unclosed JSX tags: `<Card>` needs `</Card>`
+- Invalid frontmatter: YAML must be properly formatted
+- Missing imports: Components not in the default provider need explicit `import`
+- Wrong code fence: Use triple backticks ` ``` `, not single or double
+
+### Build failing
+
+```bash
+npm run build
+```
+
+Check the error output. Common fixes:
+
+- Run `npm run types:check` to find type issues
+- Run `npx fumadocs-mdx` to regenerate collections manually
+- Clear `.next/` cache: `rm -rf .next`
+
+### "Module not found" for a component
+
+The component might not be in the default provider. Check if you need to import it explicitly in your MDX file, or install the package if it's missing.
+
+---
+
+## Official Resources
+
+- [Fumadocs Documentation](https://fumadocs.dev) — The official docs
+- [Fumadocs GitHub](https://github.com/fuma-nama/fumadocs) — Source code, issues, discussions
+- [Fumadocs MDX Collections](https://fumadocs.dev/docs/mdx/collections) — How collections and meta.json work
+- [Fumadocs Source API](https://fumadocs.dev/docs/headless/source-api) — Page tree, loader, plugins
+- [Fumadocs UI Components](https://fumadocs.dev/docs/ui) — All UI components
+- [Lucide Icons](https://lucide.dev/icons/) — Icon library used in the source plugin
+- [Next.js Docs](https://nextjs.org/docs) — Framework docs
+- [MDX Docs](https://mdxjs.com) — MDX specification and guide

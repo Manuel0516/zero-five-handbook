@@ -1,0 +1,68 @@
+---
+title: AI Coding Tools
+description: The AI assistants installed on this MacBook — Claude Code, Codex, and OpenCode — where each is installed, how it's configured, and when to use which.
+---
+
+Three AI coding assistants are set up on this machine, plus a local inference backend ([llama.cpp](/docs/macbook/lama-cpp)).
+
+| Tool | Type | Installed at |
+|------|------|--------------|
+| [Claude Code](https://claude.com/claude-code) | CLI + VS Code extension + desktop app | `claude` CLI, `/Applications/Claude.app` |
+| [Codex](https://openai.com/codex/) | CLI + desktop app | `codex` CLI (`~/.local/bin`), `/Applications/Codex.app` |
+| [OpenCode](https://opencode.ai) | CLI/TUI | `~/.opencode/bin` |
+
+---
+
+## Claude Code
+
+Anthropic's agentic coding tool. Used in the terminal (`claude`) and inside VS Code via the `anthropic.claude-code` extension.
+
+```bash
+# Install
+npm install -g @anthropic-ai/claude-code
+# or: brew install --cask claude-code
+
+claude          # start in any project directory
+```
+
+Configuration lives in `~/.claude/` (settings, hooks, plugins, projects). Machine-local settings (`.claude/settings.local.json`) are excluded from git globally — see [Git and GitHub](/docs/macbook/git).
+
+The **Claude** desktop app (`/Applications/Claude.app`) is installed separately for chat outside the editor.
+
+## Codex
+
+OpenAI's coding agent. The CLI was installed with the official installer script, which put it in `~/.local/bin` (already on `PATH` via `~/.zprofile`).
+
+```bash
+codex           # start the CLI
+```
+
+Configuration lives in `~/.codex/`. The desktop app is at `/Applications/Codex.app`, and the `openai.chatgpt` VS Code extension provides editor integration.
+
+## OpenCode
+
+Open-source terminal coding agent. Installed with the official script, which puts the binary in `~/.opencode/bin` (added to `PATH` in `~/.zshrc`).
+
+```bash
+curl -fsSL https://opencode.ai/install | bash
+opencode        # start the TUI
+```
+
+Global config: `~/.config/opencode/opencode.jsonc` (currently defaults only). The interesting setup is **per-project**: this handbook's repo configures OpenCode to use the local llama.cpp server as its provider — full walkthrough in [llama.cpp — Local AI Models](/docs/macbook/lama-cpp).
+
+---
+
+## Which one to use
+
+- **Claude Code** — Primary daily driver for real work in the terminal and VS Code
+- **Codex** — Second opinion / trying OpenAI's agent
+- **OpenCode + llama.cpp** — Fully local, offline, free — useful when privacy matters or without internet
+
+---
+
+## Resources
+
+- [Claude Code documentation](https://code.claude.com/docs) — Official docs
+- [Codex documentation](https://developers.openai.com/codex/) — Official docs
+- [OpenCode documentation](https://opencode.ai/docs) — Official docs
+- [llama.cpp page in this handbook](/docs/macbook/lama-cpp) — Local model backend

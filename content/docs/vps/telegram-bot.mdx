@@ -1,0 +1,69 @@
+---
+title: Telegram Translation Bot
+description: A self-hosted bot that silently translates messages between Spanish, English, and Swedish using the local Ollama models — no cloud AI APIs.
+---
+
+The [telegram-translation-bot](https://github.com/Manuel0516/telegram-translation-bot) (`~/services/telegram-translation-bot`) sits in Telegram chats and translates every message into the other two languages:
+
+```text
+Spanish  →  🇬🇧 English  +  🇸🇪 Swedish
+English  →  🇪🇸 Spanish  +  🇸🇪 Swedish
+Swedish  →  🇪🇸 Spanish  +  🇬🇧 English
+```
+
+## How it works
+
+1. [lingua](https://github.com/pemistahl/lingua-py) detects the language **locally, offline** — no API call
+2. Two parallel requests to [Ollama](/docs/vps/ollama) translate into the other two languages
+3. The bot replies with both translations
+
+Emoji-only messages, photos, videos, and stickers are ignored, and each chat can toggle the bot independently.
+
+| File | Responsibility |
+|------|----------------|
+| `bot.py` | Telegram commands, per-chat state, message flow |
+| `translator.py` | Language detection and Ollama calls |
+| `prompts.py` | Translation prompt builders |
+| `config.py` | Settings from environment variables |
+
+## Deployment on the VPS
+
+Runs as a **standalone container** (built from the repo's Dockerfile, started with `docker run` — not Compose, which is why `docker ps` shows a random name like `blissful_darwin`). It publishes no ports; it only makes outbound calls to Telegram and to Ollama at `10.8.0.1:11434`.
+
+Configuration in `.env` (see `.env.example`):
+
+| Variable | Value on the VPS | Notes |
+|----------|------------------|-------|
+| `TELEGRAM_BOT_TOKEN` | secret | From [@BotFather](https://t.me/BotFather) |
+| `OLLAMA_URL` | `http://10.8.0.1:11434/api/chat` | The VPN-bound host Ollama |
+| `OLLAMA_MODEL` | `translategemma:4b` | Purpose-built translation model |
+| `MAX_CONTEXT_MESSAGES` | `6` (default) | Context window for better translations |
+| `REQUEST_TIMEOUT` | `60` (default) | Seconds per Ollama request |
+
+### Deploy / redeploy
+
+```bash
+cd ~/services/telegram-translation-bot
+git pull
+docker build -t telegram-translation-bot .
+docker rm -f $(docker ps -q --filter ancestor=telegram-translation-bot) 2>/dev/null
+docker run -d --restart unless-stopped --name translation-bot --env-file .env telegram-translation-bot
+```
+
+> **Tip:** Passing `--name translation-bot` (as above) avoids the random Docker name and makes the container easier to find. Adding `hub.*` labels would surface it on the [dashboard](/docs/vps/hub) as a `bot` card.
+
+## In-chat commands
+
+| Command | Description |
+|---------|-------------|
+| `/on` / `/off` | Enable / disable translation in this chat |
+| `/status` | Show whether translation is active |
+| `/help` | Usage instructions |
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| No replies | `docker logs -f translation-bot`; is Ollama up? `curl http://10.8.0.1:11434/api/tags` |
+| Slow replies | `translategemma:4b` may be cold-loading (first request after 10-min keep-alive) |
+| Wrong language detected | lingua struggles with very short messages — expected behavior |

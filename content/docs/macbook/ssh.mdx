@@ -3,7 +3,7 @@ title: SSH Configuration
 description: SSH keys, host aliases, and config on this MacBook — GitHub authentication and the Contabo VPS. Key material itself is never documented here.
 ---
 
-SSH is used for two things on this machine: authenticating to **GitHub** and connecting to the **Contabo VPS**. Everything lives in `~/.ssh/`.
+SSH is used for two things on this machine: authenticating to **GitHub** and connecting to the **Contabo VPS** (documented in full in the [VPS Handbook](/docs/vps)). Everything lives in `~/.ssh/`.
 
 > **Warning:** This page documents the *configuration only*. Private keys are never stored in this handbook — generate a new key on a new machine instead of copying the old one.
 
@@ -55,7 +55,7 @@ Host contabo
 |-------|--------------|
 | `Include ~/.colima/ssh_config` | Added automatically by [Colima](/docs/macbook/docker) so `ssh colima` reaches the container VM — don't remove it |
 | `Host github.com` | Uses the ed25519 key, loads it into the agent, and stores the passphrase in the macOS Keychain (`UseKeychain yes`) — no passphrase prompts after the first use |
-| `Host contabo` | Alias for the Contabo VPS: `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` |
+| `Host contabo` | Alias for the [Contabo VPS](/docs/vps): `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps/security) for the server side |
 
 ---
 

@@ -1,0 +1,76 @@
+---
+title: Second Brain
+description: The self-hosted life OS at brain.zero-five.space — React + FastAPI + PostgreSQL + MinIO, with CI-gated auto-deploys from GitHub.
+---
+
+[Second Brain](https://github.com/Manuel0516/second-brain) is a private, self-hosted life OS — calendar, notes, finances, fitness, food, and AI-assisted capture. Live at **[brain.zero-five.space](https://brain.zero-five.space)**, deployed at `~/services/second-brain`.
+
+## Stack
+
+Four containers, Compose project `secondbrain` (`compose.yaml`):
+
+| Service | Image | Role | Network exposure |
+|---------|-------|------|------------------|
+| `web` | built — nginx + React (Vite) | Frontend, proxies `/api` | `traefik` network → HTTPS |
+| `api` | built — FastAPI (Python 3.13, uv) | Backend | internal + egress only |
+| `db` | `postgres:18.3-alpine` | Database | internal only |
+| `minio` | `quay.io/minio/minio` | Object storage (files, images) | internal only |
+
+Network design is strict: `internal` is a Docker **internal** network (no outbound), only `api` also joins `egress` (it needs outbound HTTPS for Google Calendar / ICS sync and OpenRouter), and only `web` joins the external `traefik` network. The database and MinIO can never reach or be reached from the internet.
+
+The web container also carries `hub.*` labels, so it appears on the [Hub dashboard](/docs/vps/hub) as an admin-only card (🧠).
+
+## Configuration
+
+`.env` on the server (documented by the committed `.env.example`). Key variables:
+
+| Group | Variables |
+|-------|-----------|
+| Database | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` |
+| Object storage | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` |
+| Auth | `JWT_SECRET_KEY`, access/refresh expiry, `TOTP_ENCRYPTION_KEY`, login rate limits |
+| Initial user | `INITIAL_USER_USERNAME` / `EMAIL` / `PASSWORD` |
+| Google Calendar | `GOOGLE_CLIENT_ID` / `SECRET` / `REDIRECT_URI` / `TOKEN_ENCRYPTION_KEY`, `CALENDAR_SYNC_INTERVAL_MINUTES` |
+| AI capture | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` (default `google/gemini-2.5-flash`) |
+
+> **Note:** Unlike the rest of the AI stack, second-brain's AI features call **OpenRouter** (cloud), not the local Ollama.
+
+## CI/CD
+
+Two GitHub Actions workflows:
+
+1. **CI** (`ci.yml`) — on every push/PR: Node 24 + uv, `npm run check` (frontend format/lint/types/tests/build + backend format/lint/types/tests), and validates the production compose config.
+2. **Deploy** (`deploy.yml`) — runs only after CI **succeeds** on `main` (`workflow_run` trigger, `production` environment, concurrency-locked). SSHes to the VPS and redeploys the exact tested SHA.
+
+Manual deploy:
+
+```bash
+cd ~/services/second-brain && git pull && docker compose up -d --build web api
+```
+
+## Setup from scratch
+
+```bash
+cd ~/services
+git clone git@github.com:Manuel0516/second-brain.git && cd second-brain
+cp .env.example .env && vim .env      # every :?-marked variable is required
+docker compose up -d --build
+```
+
+The API creates the initial user from the `INITIAL_USER_*` variables on first boot. Traefik picks up the `web` container automatically (`brain.zero-five.space`).
+
+## Data and backups
+
+| Volume | Contents |
+|--------|----------|
+| `secondbrain_postgres-data` | All structured data |
+| `secondbrain_minio-data` | Uploaded files/objects |
+
+```bash
+# Postgres dump without stopping the stack
+docker exec secondbrain-db-1 pg_dump -U secondbrain secondbrain | gzip > ~/backups/secondbrain-$(date +%F).sql.gz
+```
+
+## Development
+
+Local development happens on the MacBook/laptop, not the VPS — see the repo README: Vite dev server on `:5173` proxying to FastAPI on `:8000`, with only `db` and `minio` in Docker (`compose.dev.yaml`). The repo also defines the multi-agent workflow (`AGENTS.md`, Ponytail plugin for Claude Code/Codex).

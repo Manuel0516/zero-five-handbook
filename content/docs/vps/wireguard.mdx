@@ -1,0 +1,124 @@
+---
+title: WireGuard VPN
+description: The private network between the VPS and the Linux laptop that carries all Ollama traffic — topology, configs, and how to verify it.
+---
+
+WireGuard creates a private `10.8.0.0/24` network between the VPS and the CachyOS laptop. Its single job: let the two [Ollama](/docs/vps/ollama) instances talk to each other **without ever being exposed to the public internet**. Configs and docs live in the [personal-ai repo](https://github.com/Manuel0516/personal-ai) under `wireguard/`.
+
+## Topology
+
+```text
+VPS (server)                          Laptop (peer)
+wg0: 10.8.0.1/24                      wg0: 10.8.0.2/24
+ListenPort 51820/udp   ◀──────────    Endpoint VPS_IP:51820
+                                      PersistentKeepalive 25
+Ollama bound to        ──────────▶    Ollama bound to
+10.8.0.1:11434                        10.8.0.2:11434
+```
+
+| Machine | VPN IP | Role |
+|---------|--------|------|
+| VPS | `10.8.0.1` | Server — listens on UDP `51820` (UFW-allowed) |
+| Laptop | `10.8.0.2` | Peer — dials out, keeps the tunnel alive from behind NAT |
+
+The interface is managed by systemd: `wg-quick@wg0.service` is **enabled** and active on the VPS. Docker bridge containers on the VPS can reach the VPN IPs, which is how `ollama-router` (a container) queries both Ollama backends.
+
+---
+
+## Configuration
+
+The real config is at `/etc/wireguard/wg0.conf` (root-only, contains the private key). Sanitized templates are committed in the repo:
+
+### Server — `wireguard/server/wg0.conf.example`
+
+```ini
+[Interface]
+Address = 10.8.0.1/24
+ListenPort = 51820
+PrivateKey = SERVER_PRIVATE_KEY
+
+[Peer]
+# Laptop
+PublicKey = LAPTOP_PUBLIC_KEY
+AllowedIPs = 10.8.0.2/32
+```
+
+### Laptop — `wireguard/laptop/wg0.conf.example`
+
+```ini
+[Interface]
+Address = 10.8.0.2/24
+PrivateKey = LAPTOP_PRIVATE_KEY
+
+[Peer]
+# Server
+PublicKey = SERVER_PUBLIC_KEY
+Endpoint = SERVER_PUBLIC_IP:51820
+AllowedIPs = 10.8.0.1/32
+PersistentKeepalive = 25
+```
+
+`PersistentKeepalive = 25` keeps the NAT mapping open so the VPS can reach the laptop even when the laptop initiated the tunnel.
+
+> **Warning:** `AllowedIPs` is deliberately narrow (`/32` per peer) — the tunnel only routes the two VPN addresses, nothing else. This is a point-to-point link, not a full-tunnel VPN.
+
+---
+
+## Setup from scratch
+
+<Steps>
+
+### Install WireGuard on both machines
+
+```bash
+sudo apt install wireguard        # VPS (Ubuntu)
+sudo pacman -S wireguard-tools    # laptop (CachyOS — official repo, no AUR)
+```
+
+### Generate a keypair on each machine
+
+```bash
+wg genkey | tee private.key | wg pubkey > public.key
+```
+
+Never commit or copy private keys between machines — only exchange the **public** keys.
+
+### Write the configs
+
+Copy the matching template to `/etc/wireguard/wg0.conf` on each machine and fill in keys, the peer's public key, and (on the laptop) the VPS IP `95.111.229.142`.
+
+### Open the firewall on the VPS
+
+```bash
+sudo ufw allow 51820/udp
+```
+
+### Enable on both sides
+
+```bash
+sudo systemctl enable --now wg-quick@wg0
+```
+
+</Steps>
+
+---
+
+## Verifying the tunnel
+
+```bash
+sudo wg                              # handshake age, transfer counters
+ip addr show wg0                     # interface is up with 10.8.0.1/24
+ping 10.8.0.2                        # laptop reachable
+curl http://10.8.0.2:11434/api/tags  # laptop Ollama reachable (only when laptop is on)
+```
+
+A recent `latest handshake` in `sudo wg` output means the tunnel is healthy. No handshake usually means the laptop is off — that is normal; the [ollama-router](/docs/vps/ai-stack#ollama-router) handles laptop absence gracefully.
+
+## Security rules
+
+From the repo's `docs/security.md` — the operating principles:
+
+1. Never expose Ollama publicly; it binds to VPN IPs only.
+2. Only UDP `51820` is open on the VPS for WireGuard.
+3. The laptop's Ollama binds to `10.8.0.2:11434`, never to LAN or public interfaces.
+4. Private keys never leave their machine and are never committed.

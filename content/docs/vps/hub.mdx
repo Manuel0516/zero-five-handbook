@@ -1,0 +1,123 @@
+---
+title: Hub Dashboard
+description: The self-hosted control panel at hub.zero-five.space — architecture, the hub-agent systemd bridge, and auto-deploy from GitHub.
+---
+
+[Project Hub](https://github.com/Manuel0516/hub) is the dashboard at **[hub.zero-five.space](https://hub.zero-five.space)** that monitors and controls every VPS service. FastAPI + React + SQLite, served behind [Traefik](/docs/vps/traefik). Deployed at `~/services/hub`.
+
+## Features (v2)
+
+| Feature | Detail |
+|---------|--------|
+| Public dashboard | `visibility: all` cards are visible without login |
+| Auto-discovery | Containers with `hub.*` Docker labels appear within ~15 s |
+| Service kinds | `web` / `container` / `host-service` / `bot` render differently |
+| Container control | Start / stop / restart / stream logs via docker-socket-proxy |
+| Minecraft control | systemd start/stop/restart via hub-agent; player count via server-list-ping |
+| 3-state cards | 🟢 online · 🔴 offline · 🟡 unknown |
+| Per-user permissions | `can_view` + `can_control` per user per service |
+| Auth | JWT in an httpOnly cookie, `SameSite=strict`; 5 failed logins → 15-min lockout |
+| File browser | Admin-only, scoped to `Service.file_root`, path-traversal protected |
+| Audit log | Every control action and file write recorded |
+
+## Architecture
+
+```text
+hub.zero-five.space (Traefik, HTTPS)
+        │
+   hub-frontend (nginx + React)
+        │  /api/* proxied to hub-backend:8000
+   hub-backend (FastAPI + SQLite)
+        ├──→ docker-socket-proxy :2375   (container control — never the raw socket)
+        └──→ hub-agent :8765             (systemd + RCON on the host)
+```
+
+Two privilege bridges keep the backend contained:
+
+1. **docker-socket-proxy** (`tecnativa/docker-socket-proxy`) exposes only the Docker API endpoints the hub needs (`CONTAINERS`, `START`, `STOP`, `RESTART`, `POST`). The backend never touches `/var/run/docker.sock` directly.
+2. **hub-agent** lets the backend manage *host* systemd units without Docker being involved.
+
+---
+
+## hub-agent
+
+A small FastAPI service at `~/hub-agent/agent.py` (source in the repo's `host-agent/` folder), running as **root** via systemd so it can call `systemctl`. It is the only bridge between the dockerized backend and the host.
+
+| Property | Value |
+|----------|-------|
+| Unit | `/etc/systemd/system/hub-agent.service` (enabled) |
+| Listens | `0.0.0.0:8765` — not reachable externally (no UFW rule), reached by the backend via `host.docker.internal:8765` |
+| Auth | `Authorization: Bearer $HUB_AGENT_SECRET` on every request |
+| Allowlist | Hardcoded `ALLOWED_UNITS = {"minecraft"}` — it can only touch the Minecraft unit |
+| RCON | Sends commands to the Minecraft server on `127.0.0.1:25575` |
+
+Endpoints: `POST /units/{unit}/start|stop|restart`, `GET /units/{unit}/status`, `GET /units/{unit}/logs` (streaming), `POST /units/{unit}/command` (RCON).
+
+Secrets (`HUB_AGENT_SECRET`, `RCON_PASSWORD`) live in `/etc/hub-agent.env` (root:root, mode 600), pulled in by the unit's `EnvironmentFile=` line — never in the unit file itself (unit files are world-readable) and never in git. `RCON_PASSWORD` must match `rcon.password` in the Minecraft `server.properties`, and `HUB_AGENT_SECRET` must match `HOST_AGENT_SECRET` in `~/services/hub/.env`.
+
+### Recreate
+
+```bash
+cd ~/hub-agent
+python3 -m venv venv && venv/bin/pip install -r requirements.txt
+
+# Secrets go in a root-only env file, NOT in the unit
+sudo install -m 600 /dev/null /etc/hub-agent.env
+printf 'HUB_AGENT_SECRET=%s\nRCON_PASSWORD=%s\n' "$(openssl rand -hex 32)" "<rcon.password from server.properties>" \
+  | sudo tee /etc/hub-agent.env > /dev/null
+
+sudo cp hub-agent.service /etc/systemd/system/   # template references /etc/hub-agent.env
+sudo systemctl daemon-reload && sudo systemctl enable --now hub-agent
+```
+
+Remember to copy the same `HUB_AGENT_SECRET` value into `HOST_AGENT_SECRET` in `~/services/hub/.env` and recreate `hub-backend`.
+
+---
+
+## Configuration
+
+`~/services/hub/.env` (from `.env.example`):
+
+| Variable | Purpose |
+|----------|---------|
+| `HUB_SECRET_KEY` | JWT signing key |
+| `HUB_ADMIN_USERNAME` / `HUB_ADMIN_PASSWORD` | Initial admin account |
+| `CF_DNS_API_TOKEN` | Cloudflare token for Traefik's DNS-01 challenge |
+| `HOST_AGENT_SECRET` | Must match the hub-agent unit's `HUB_AGENT_SECRET` |
+| `HOST_AGENT_URL` | Defaults to `http://host.docker.internal:8765` |
+
+Data lives in the `hub_hub-data` volume (SQLite) — back it up.
+
+---
+
+## Deploys
+
+Push to `main` on GitHub → the `Deploy to VPS` workflow (`.github/workflows/deploy.yml`) SSHes in and redeploys:
+
+```yaml
+script: |
+  cd /home/manuel/services/hub
+  git pull origin main
+  docker compose up -d --build
+```
+
+Repo secrets: `VPS_HOST` and `VPS_SSH_KEY` (a deploy key for the `manuel` user on port 2020).
+
+Manual deploy, same thing:
+
+```bash
+cd ~/services/hub && git pull && docker compose up -d --build
+```
+
+## Setup from scratch
+
+```bash
+cd ~/services
+git clone git@github.com:Manuel0516/hub.git && cd hub
+cp .env.example .env && vim .env            # fill in secrets
+htpasswd -nB admin > traefik/.htpasswd      # Traefik dashboard auth
+docker network create traefik               # if not created yet
+docker compose up -d --build
+```
+
+Then set up the [hub-agent](#hub-agent) for Minecraft control, and log in at `https://hub.zero-five.space` with the admin credentials from `.env`.

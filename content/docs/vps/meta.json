@@ -1,0 +1,15 @@
+{
+  "title": "VPS",
+  "pages": [
+    "security",
+    "docker",
+    "traefik",
+    "hub",
+    "wireguard",
+    "ollama",
+    "ai-stack",
+    "second-brain",
+    "minecraft",
+    "telegram-bot"
+  ]
+}

@@ -1,0 +1,178 @@
+---
+title: VPS Handbook
+description: Everything running on the Contabo VPS behind zero-five.space — services, security, VPN, and AI stack — documented so the whole server can be rebuilt from scratch.
+---
+
+## Purpose
+
+This handbook catalogs **everything** installed, configured, and running on the Contabo VPS. Like the [MacBook Handbook](/docs/macbook), the goal is **reproducibility**: if the server dies or you migrate to a new provider, these pages let you rebuild the exact same setup step by step.
+
+All state was verified live on the server on 2026-07-11.
+
+## The machine
+
+| Property | Value |
+|----------|-------|
+| Provider | Contabo VPS (KVM/QEMU) |
+| Hostname | `vmi3072180` |
+| Public IP | `95.111.229.142` (IPv6: `2a02:c207:2307:2180::1`) |
+| OS | Ubuntu 24.04.4 LTS (Noble) |
+| Kernel | 6.8.0-124-generic |
+| CPU | 4 vCPU — Intel Broadwell |
+| Memory | 8 GB (no swap) |
+| Disk | 145 GB (`/dev/sda1`), ~24% used |
+| Domain | `zero-five.space` (Porkbun registrar → Cloudflare DNS) |
+| SSH | `ssh contabo` — port `2020`, key-only (see [Security](/docs/vps/security)) |
+
+> **Note:** The server keeps its own summary at `~/docs/INFRASTRUCTURE.md`, but parts of it are outdated — it references an old IP (`162.255.119.186`) and claims UFW is not installed. The current IP is `95.111.229.142` and UFW is active. This handbook reflects the live state.
+
+---
+
+## Architecture at a glance
+
+```text
+                          Internet
+                             │
+          zero-five.space (Porkbun → Cloudflare DNS)
+                             │
+      ┌──────────────────────┼───────────────────────┐
+      │ :80 / :443           │ :25565                │ :2020
+      ▼                      ▼                       ▼
+  Traefik v2.11          Minecraft (Java 17)       sshd
+      │                  bare metal, systemd     (key-only)
+      │
+      ├─ hub.zero-five.space ──→ hub-frontend ─→ hub-backend
+      │                                │
+      │                                ├─→ docker-socket-proxy → Docker Engine
+      │                                └─→ hub-agent :8765 → systemd + RCON
+      │
+      ├─ ai.zero-five.space ───→ Open WebUI (host :3000)
+      │                                └─→ ollama-router (127.0.0.1:11435)
+      │                                        ├─→ Ollama VPS    10.8.0.1:11434
+      │                                        └─→ Ollama laptop 10.8.0.2:11434
+      │                                                  ▲
+      │                                       WireGuard tunnel (UDP 51820)
+      │
+      ├─ brain.zero-five.space → second-brain web → api → PostgreSQL + MinIO
+      │
+      └─ traefik.zero-five.space → Traefik dashboard (basic auth)
+
+  Telegram translation bot (container) ──→ Ollama VPS 10.8.0.1:11434
+```
+
+Three kinds of workloads coexist:
+
+1. **Docker Compose stacks** behind Traefik — the hub, second-brain, and the AI stack. See [Docker](/docs/vps/docker).
+2. **Native systemd services** — Ollama, the Minecraft server, and the hub-agent bridge.
+3. **A WireGuard VPN** (`wg0`) connecting the VPS (`10.8.0.1`) to the Linux laptop (`10.8.0.2`) so Ollama traffic never touches the public internet. See [WireGuard](/docs/vps/wireguard).
+
+---
+
+## What's here
+
+<Cards>
+  <Card
+    title="Security — SSH, UFW, fail2ban"
+    description="Hardened SSH on port 2020, firewall rules, intrusion banning, and automatic updates"
+    href="/docs/vps/security"
+  />
+  <Card
+    title="Docker — Engine and Compose stacks"
+    description="Every container, the external traefik network, and stack conventions"
+    href="/docs/vps/docker"
+  />
+  <Card
+    title="Traefik — Reverse proxy and HTTPS"
+    description="Cloudflare DNS, Let's Encrypt DNS-01 certificates, and the two routing methods"
+    href="/docs/vps/traefik"
+  />
+  <Card
+    title="Hub — Service dashboard"
+    description="The control panel at hub.zero-five.space, its host-agent, and auto-deploy from GitHub"
+    href="/docs/vps/hub"
+  />
+  <Card
+    title="WireGuard — VPN to the laptop"
+    description="The private 10.8.0.0/24 network that carries all Ollama traffic"
+    href="/docs/vps/wireguard"
+  />
+  <Card
+    title="Ollama — Model server"
+    description="Native Ollama bound to the VPN interface, models, and keep-alive tuning"
+    href="/docs/vps/ollama"
+  />
+  <Card
+    title="AI Stack — Open WebUI, router, SearXNG"
+    description="The personal-ai project: one chat UI over server and laptop models"
+    href="/docs/vps/ai-stack"
+  />
+  <Card
+    title="Second Brain — Life OS"
+    description="Self-hosted calendar, notes, finances app with CI/CD deploys"
+    href="/docs/vps/second-brain"
+  />
+  <Card
+    title="Minecraft — Fabric server"
+    description="Bare-metal LynxHouse server on mc.zero-five.space with 31 mods"
+    href="/docs/vps/minecraft"
+  />
+  <Card
+    title="Telegram Translation Bot"
+    description="Silent ES/EN/SV translator powered by the local Ollama models"
+    href="/docs/vps/telegram-bot"
+  />
+</Cards>
+
+---
+
+## GitHub repositories
+
+Everything deployed on the VPS lives in a repository under [github.com/Manuel0516](https://github.com/Manuel0516):
+
+| Repository | Deployed at | What it is |
+|------------|-------------|------------|
+| [Manuel0516/hub](https://github.com/Manuel0516/hub) | `~/services/hub` | Dashboard, Traefik config, and host-agent |
+| [Manuel0516/personal-ai](https://github.com/Manuel0516/personal-ai) | `~/services/personal-ai` | Open WebUI, ollama-router, SearXNG, WireGuard configs |
+| [Manuel0516/second-brain](https://github.com/Manuel0516/second-brain) | `~/services/second-brain` | Life OS — calendar, notes, finances |
+| [Manuel0516/telegram-translation-bot](https://github.com/Manuel0516/telegram-translation-bot) | `~/services/telegram-translation-bot` | ES/EN/SV Telegram translator |
+| [Manuel0516/physics-degree](https://github.com/Manuel0516/physics-degree) | `~/physics-degree` | Degree coursework (also cloned on the VPS) |
+| [Manuel0516/zero-five-handbook](https://github.com/Manuel0516/zero-five-handbook) | — | This documentation site |
+| [Manuel0516/localdrop](https://github.com/Manuel0516/localdrop) | — (MacBook/desktop) | Clipboard sync tool, see [LocalDrop](/docs/macbook/localdrop) |
+
+The Minecraft server (`~/services/minecraft`) is the only service **not** in git — it is world data plus mod jars, backed up as files instead.
+
+---
+
+## Directory layout on the server
+
+```text
+/home/manuel/
+├── services/              # Everything deployed, one folder per service
+│   ├── hub/               # Dashboard + Traefik (git)
+│   ├── personal-ai/       # AI stack + WireGuard configs (git)
+│   ├── second-brain/      # Life OS (git)
+│   ├── telegram-translation-bot/   # Bot (git)
+│   └── minecraft/LynxHouse/        # Fabric server (not git)
+├── hub-agent/             # systemd bridge service (venv + agent.py)
+├── backups/               # Local backups (docker volumes, legacy projects)
+├── docs/INFRASTRUCTURE.md # Older on-server notes (partly outdated)
+└── physics-degree/        # Coursework clone
+```
+
+---
+
+## Rebuilding from scratch
+
+To recreate the server on a fresh Ubuntu VPS, follow the pages in this order:
+
+1. **[Security](/docs/vps/security)** — Create the user, harden SSH, enable UFW and fail2ban first
+2. **[Docker](/docs/vps/docker)** — Install Docker Engine and create the external `traefik` network
+3. **[WireGuard](/docs/vps/wireguard)** — Bring up the VPN before Ollama, which binds to it
+4. **[Ollama](/docs/vps/ollama)** — Install natively, bind to `10.8.0.1`, pull models
+5. **[Traefik + Hub](/docs/vps/hub)** — Clone the hub repo; its compose file starts Traefik and the dashboard
+6. **[AI Stack](/docs/vps/ai-stack)** — Open WebUI, ollama-router, SearXNG
+7. **[Second Brain](/docs/vps/second-brain)** — Clone, configure `.env`, deploy
+8. **[Minecraft](/docs/vps/minecraft)** — Restore world backup, install Fabric, enable the unit
+9. **[Telegram Bot](/docs/vps/telegram-bot)** — Build and run the container
+
+> **Tip:** DNS (Cloudflare) and the domain survive a server migration — only the A records need to point at the new IP.

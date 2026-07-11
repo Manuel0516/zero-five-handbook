@@ -1,0 +1,129 @@
+---
+title: Traefik and DNS
+description: The reverse proxy for zero-five.space — Cloudflare DNS, Let's Encrypt DNS-01 certificates, and the two ways services get routed.
+---
+
+Traefik v2.11 is the single entry point for all web traffic. It terminates HTTPS for every `*.zero-five.space` subdomain and routes to containers or host services. It is defined inside the [hub repo](https://github.com/Manuel0516/hub)'s `docker-compose.yml`, so the hub stack owns the proxy.
+
+> **Note:** Traefik is pinned to **v2.11** — v3.0 hit a Docker API mismatch on this host. Don't bump the major version without testing.
+
+---
+
+## DNS
+
+| Layer | Provider |
+|-------|----------|
+| Registrar | Porkbun |
+| DNS | Cloudflare (free plan) |
+
+Records (subdomains are **DNS-only / grey cloud** so non-HTTP traffic works):
+
+| Record | Type | Target |
+|--------|------|--------|
+| `*` | A | `95.111.229.142` — wildcard, covers every subdomain |
+| `mc` | A | `95.111.229.142` |
+| `ssh` | A | `95.111.229.142` |
+| `_minecraft._tcp.mc` | SRV | `mc.zero-five.space:25565` |
+
+> **Warning:** Grey cloud (DNS-only) is required for records carrying SSH or Minecraft — Cloudflare's orange-cloud proxy only passes HTTP/HTTPS. The apex `zero-five.space` currently resolves to Cloudflare proxy IPs, while `hub.zero-five.space` resolves directly to the VPS; keep any record used for TCP/UDP services grey.
+
+Because of the wildcard record, **adding a new subdomain requires no DNS work** — just a Traefik route.
+
+---
+
+## HTTPS certificates
+
+Let's Encrypt via the **Cloudflare DNS-01 challenge** — Traefik creates a TXT record through the Cloudflare API instead of answering an HTTP challenge:
+
+```yaml
+- "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+- "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
+- "--certificatesresolvers.letsencrypt.acme.email=manuellore05@gmail.com"
+- "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+```
+
+- The Cloudflare API token lives in `~/services/hub/.env` as `CF_DNS_API_TOKEN` (scoped to DNS edit)
+- Certificates persist in the Docker volume `hub_traefik-certs`
+- Port 80 exists only to redirect to 443 (`entrypoints.web.http.redirections`)
+
+```bash
+# List every domain Traefik holds a cert for
+docker exec traefik grep -oE '[a-z]+\.zero-five\.space' /letsencrypt/acme.json | sort -u
+```
+
+---
+
+## The two routing methods
+
+### 1. Docker labels (containers)
+
+Containers join the external `traefik` network and declare labels. Example from the hub frontend:
+
+```yaml
+networks: [traefik, hub-internal]
+labels:
+  - "traefik.enable=true"
+  - "traefik.docker.network=traefik"
+  - "traefik.http.routers.hub.rule=Host(`hub.zero-five.space`)"
+  - "traefik.http.routers.hub.entrypoints=websecure"
+  - "traefik.http.routers.hub.tls.certresolver=letsencrypt"
+  - "traefik.http.services.hub.loadbalancer.server.port=80"
+```
+
+`exposedbydefault=false` is set, so nothing is routed unless it opts in with `traefik.enable=true`.
+
+### 2. File provider (host services)
+
+Services with `network_mode: host` (like Open WebUI) can't be label-discovered. They get a route in `~/services/hub/traefik/dynamic/host-services.yml`, which Traefik watches live:
+
+```yaml
+http:
+  routers:
+    open-webui:
+      rule: "Host(`ai.zero-five.space`)"
+      entryPoints: [websecure]
+      service: open-webui
+      tls:
+        certResolver: letsencrypt
+  services:
+    open-webui:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:3000"
+```
+
+`host.docker.internal` resolves to the host thanks to `extra_hosts: host.docker.internal:host-gateway` on the Traefik container.
+
+---
+
+## Live routes
+
+| URL | Backend | Method |
+|-----|---------|--------|
+| `https://hub.zero-five.space` | hub-frontend container | labels |
+| `https://brain.zero-five.space` | secondbrain web container | labels |
+| `https://ai.zero-five.space` | Open WebUI on host `:3000` | file provider |
+| `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
+
+The dashboard is protected by basic auth. The credentials hash lives in `~/services/hub/traefik/.htpasswd` (never committed):
+
+```bash
+htpasswd -nB admin > traefik/.htpasswd   # regenerate (apache2-utils package)
+```
+
+---
+
+## Adding a new service
+
+1. DNS: nothing — the wildcard covers it.
+2. Route: add `traefik.*` labels to the container **or** a file-provider entry for host services.
+3. Restart/redeploy the service; Traefik picks it up automatically and issues a certificate on first request.
+4. Optional: add `hub.*` labels so it appears on the [dashboard](/docs/vps/hub).
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| 404 from Traefik | Is the container on the `traefik` network? Is `traefik.docker.network=traefik` set? |
+| No certificate issued | `docker logs traefik` — look for ACME errors; verify `CF_DNS_API_TOKEN` |
+| Host service unreachable | Confirm the service listens on `0.0.0.0` or `127.0.0.1` vs what the file provider targets |

@@ -1,8 +1,9 @@
 {
   "title": "Homelab Handbook",
   "pages": [
-    "index", 
+    "index",
     "macbook",
+    "vps",
     "guide"
   ]
 }

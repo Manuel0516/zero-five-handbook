@@ -1,11 +1,9 @@
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import {
   convertToModelMessages,
-  createUIMessageStreamResponse,
   stepCountIs,
   streamText,
   tool,
-  toUIMessageStream,
 } from 'ai';
 import { z } from 'zod';
 import { source } from '@/lib/source';
@@ -94,9 +92,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/chat">) {
     toolChoice: 'auto',
   });
 
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream }),
-  });
+  return result.toUIMessageStreamResponse();
 }
 
 const searchTool = tool({

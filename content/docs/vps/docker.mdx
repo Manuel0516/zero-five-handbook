@@ -1,0 +1,130 @@
+---
+title: Docker
+description: Docker Engine on the VPS, every Compose stack and container, the external traefik network, and the conventions that tie them together.
+---
+
+Docker runs most of the VPS workloads. Unlike the MacBook (which uses [Colima](/docs/macbook/docker)), the VPS runs **Docker CE natively** on Ubuntu.
+
+| Component | Version |
+|-----------|---------|
+| Docker Engine | 29.6.0 (docker-ce from Docker's apt repo) |
+| Compose | v2 plugin (`docker compose`, not `docker-compose`) |
+| Buildx | installed |
+
+The `manuel` user is in the `docker` group, so no `sudo` is needed.
+
+### Install on a fresh server
+
+Follow the [official Docker Engine install for Ubuntu](https://docs.docker.com/engine/install/ubuntu/) (apt repository method), then:
+
+```bash
+sudo usermod -aG docker manuel   # log out and back in
+docker network create traefik    # the shared external network (see below)
+```
+
+---
+
+## Running containers
+
+Verified live with `docker ps`:
+
+| Container | Image | Stack | Exposure |
+|-----------|-------|-------|----------|
+| `traefik` | `traefik:v2.11` | hub | `:80`, `:443` public |
+| `hub-frontend` | built from repo | hub | via Traefik (`hub.zero-five.space`) |
+| `hub-backend` | built from repo | hub | internal only |
+| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | hub | internal only |
+| `secondbrain-web-1` | built from repo | secondbrain | via Traefik (`brain.zero-five.space`) |
+| `secondbrain-api-1` | built from repo | secondbrain | internal only |
+| `secondbrain-db-1` | `postgres:18.3-alpine` | secondbrain | internal only |
+| `secondbrain-minio-1` | `quay.io/minio/minio` | secondbrain | internal only |
+| `open-webui` | `ghcr.io/open-webui/open-webui:main` | personal-ai/server | host `:3000`, public only via Traefik (`ai.zero-five.space`) |
+| `ollama-router` | `python:3.12-slim` | personal-ai/router | host network, `127.0.0.1:11435` |
+| `searxng` | `searxng/searxng:latest` | personal-ai/web-search | `127.0.0.1:8081` |
+| `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |
+
+## Compose projects
+
+`docker compose ls` maps every project to its file:
+
+| Project | Compose file |
+|---------|-------------|
+| `hub` | `~/services/hub/docker-compose.yml` |
+| `secondbrain` | `~/services/second-brain/compose.yaml` |
+| `server` | `~/services/personal-ai/server/docker-compose.yml` |
+| `router` | `~/services/personal-ai/router/docker-compose.yml` |
+| `web-search` | `~/services/personal-ai/web-search/docker-compose.yml` |
+
+> **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps/telegram-bot).
+
+---
+
+## Conventions
+
+### The external `traefik` network
+
+Any container that should be reachable from the internet joins the pre-created external bridge network named `traefik` and declares Traefik labels. Compose files reference it as:
+
+```yaml
+networks:
+  traefik:
+    external: true
+```
+
+Backend containers (databases, APIs) stay on stack-internal networks and are never published.
+
+### Hub auto-discovery labels
+
+Any container with `hub.*` labels appears automatically on the [dashboard](/docs/vps/hub) within ~15 seconds:
+
+```yaml
+labels:
+  hub.enable: "true"
+  hub.name: "My App"
+  hub.kind: "web"          # web | container | bot
+  hub.url: "https://myapp.zero-five.space"
+  hub.icon: "🚀"
+  hub.visibility: "all"    # all | admin
+```
+
+### Host networking for the AI stack
+
+Open WebUI and ollama-router use `network_mode: host` on purpose — they must reach the WireGuard IPs (`10.8.0.1`, `10.8.0.2`), which are host interfaces. Traefik reaches them back through `host.docker.internal` (see [Traefik](/docs/vps/traefik)).
+
+---
+
+## Common operations
+
+| Task | Command |
+|------|---------|
+| Status of everything | `docker ps` |
+| Update a stack after `git pull` | `cd <stack dir> && docker compose up -d --build` |
+| Restart a stack | `cd <stack dir> && docker compose restart` |
+| Follow logs | `docker logs -f <container>` |
+| Disk usage | `docker system df` |
+| Clean old images | `docker image prune -a` |
+
+> **Tip:** With 8 GB RAM and no swap, the box runs close to full memory. Check with `free -h` before adding new services, and consider stopping the Minecraft server (4–8 GB heap) when it is not in use.
+
+---
+
+## Backups
+
+Named volumes hold the state worth backing up:
+
+| Volume | Contents |
+|--------|----------|
+| `hub_hub-data` | Hub SQLite database (users, permissions, audit log) |
+| `hub_traefik-certs` | Let's Encrypt certificates (`acme.json`) |
+| `secondbrain_postgres-data` | Second-brain PostgreSQL data |
+| `secondbrain_minio-data` | Second-brain object storage |
+| `open-webui` | Open WebUI settings and chat history |
+
+`~/backups/docker-volumes/` exists for local volume dumps, and `rclone` is configured with a `gdrive:` remote for off-site copies:
+
+```bash
+# Example: dump a volume and ship it to Google Drive
+docker run --rm -v hub_hub-data:/data -v ~/backups/docker-volumes:/backup \
+  alpine tar czf /backup/hub-data-$(date +%F).tar.gz -C /data .
+rclone copy ~/backups/docker-volumes gdrive:vps-backups/docker-volumes
+```

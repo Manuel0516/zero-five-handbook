@@ -1,0 +1,181 @@
+---
+title: Security
+description: SSH hardening, UFW firewall, fail2ban, automatic updates, and the secrets policy on the VPS.
+---
+
+The VPS is exposed to the internet 24/7, so security is layered: hardened SSH, a firewall, fail2ban, and unattended security updates. This page documents each layer and how to recreate it.
+
+---
+
+## Users
+
+One human user; service accounts are created by their installers.
+
+| User | UID | Purpose |
+|------|-----|---------|
+| `manuel` | 1000 | The only login user. Groups: `sudo`, `users`, `docker`, `ollama` |
+| `ollama` | system | Runs the Ollama service (created by the Ollama installer) |
+| `root` | 0 | Direct login disabled over SSH |
+
+The `docker` group membership means `docker` commands work without `sudo`. `sudo` itself requires a password (no `NOPASSWD` rules).
+
+### Create on a fresh server
+
+```bash
+adduser manuel
+usermod -aG sudo,docker manuel
+```
+
+---
+
+## SSH
+
+`sshd` listens on the non-default port **2020** with password logins disabled. Effective settings (from `/etc/ssh/sshd_config` and `/etc/ssh/sshd_config.d/`):
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| `Port` | `2020` | Cuts automated scan noise on port 22 |
+| `PermitRootLogin` | `no` | Root can never log in directly |
+| `PasswordAuthentication` | `no` | Key-only — set in `sshd_config.d/60-cloudimg-settings.conf` |
+| `PubkeyAuthentication` | `yes` | The MacBook's ed25519 key is in `~/.ssh/authorized_keys` |
+
+The MacBook connects via the `contabo` alias — see the [MacBook SSH page](/docs/macbook/ssh) for the client side.
+
+### Harden a fresh server
+
+```bash
+# 1. Copy your key first (while password auth still works)
+ssh-copy-id -p 22 manuel@NEW_IP
+
+# 2. Edit the config
+sudo vim /etc/ssh/sshd_config          # Port 2020, PermitRootLogin no
+echo "PasswordAuthentication no" | sudo tee /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
+
+# 3. Allow the new port in UFW BEFORE restarting sshd
+sudo ufw allow 2020/tcp
+sudo systemctl restart ssh
+```
+
+> **Warning:** Always keep one working session open while changing SSH settings, and test the new port from a second terminal before logging out.
+
+---
+
+## Firewall (UFW)
+
+> **History:** until 2026-07-11 the box ran **without an active firewall** — `ufw.service` was enabled in systemd, but the firewall itself reported `Status: inactive`. `systemctl` status says nothing here; **`sudo ufw status` is the only source of truth**. Beware a second trap: while UFW is inactive, `ufw status` hides the rules stored in `/etc/ufw/user.rules` — activation resurrected years-old allows (public `3000/tcp`, `2222/tcp`, port 22) that then had to be deleted. Activation and cleanup produced the rule set below.
+
+| Rule | Purpose |
+|------|---------|
+| `2020/tcp` | SSH |
+| `80/tcp`, `443/tcp` | Traefik (HTTP redirect + HTTPS) |
+| `25565/tcp` | Minecraft |
+| `51820/udp` | WireGuard handshake |
+| `from 172.16.0.0/12 to any port 3000 proto tcp` | Traefik (container) → Open WebUI on the host — while public `:3000` stays closed |
+| `from 172.16.0.0/12 to any port 8765 proto tcp` | hub-backend (container) → hub-agent on the host |
+| `allow in on wg0` | VPN traffic is trusted (laptop → Ollama `10.8.0.1:11434`) |
+
+Everything else is denied by default: Open WebUI is publicly reachable **only** via `https://ai.zero-five.space`, and hub-agent (`:8765`) and Minecraft RCON (`:25575`) — which listen on all interfaces — are no longer exposed. Services bound to `127.0.0.1` (ollama-router `:11435`, SearXNG `:8081`) were never reachable regardless.
+
+### Docker and UFW — two traps
+
+1. Ports **published by Docker** (`ports:` in a compose file, like Traefik's 80/443) bypass UFW completely — Docker's NAT rules run first. Never rely on UFW to protect a published port; bind it to `127.0.0.1` instead, as SearXNG does.
+2. Traffic from containers **to host services** (host-networked or via `host.docker.internal`) *does* hit UFW's input chain. That is why the Docker address space `172.16.0.0/12` gets scoped allows for `3000` and `8765` — enabling UFW without them takes down `ai.zero-five.space` and the hub's Minecraft controls.
+
+### Recreate
+
+Order matters: define every rule first (nothing applies until `enable`), and keep a working SSH session open.
+
+```bash
+sudo ufw default deny incoming && sudo ufw default allow outgoing
+sudo ufw allow 2020/tcp                # SSH — never enable without this
+sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
+sudo ufw allow 25565/tcp && sudo ufw allow 51820/udp
+sudo ufw allow from 172.16.0.0/12 to any port 3000 proto tcp
+sudo ufw allow from 172.16.0.0/12 to any port 8765 proto tcp
+sudo ufw allow in on wg0
+sudo ufw --force enable
+```
+
+Then verify from another machine that SSH, `https://ai.zero-five.space`, and Minecraft still work, and that `http://95.111.229.142:3000` times out.
+
+---
+
+## fail2ban
+
+`fail2ban` watches the journal and bans IPs that fail SSH auth repeatedly. Config in `/etc/fail2ban/jail.local`:
+
+```ini
+[DEFAULT]
+banaction = nftables
+banaction_allports = nftables[type=allports]
+backend = systemd
+
+[sshd]
+enabled = true
+```
+
+| Command | Purpose |
+|---------|---------|
+| `sudo fail2ban-client status sshd` | Current and total bans |
+| `sudo fail2ban-client unban <ip>` | Unban an address |
+
+### Recreate
+
+```bash
+sudo apt install fail2ban
+# write /etc/fail2ban/jail.local as above
+sudo systemctl enable --now fail2ban
+```
+
+---
+
+## Automatic updates
+
+`unattended-upgrades` is active, installing Ubuntu security updates automatically. Nothing custom — the stock Ubuntu configuration.
+
+```bash
+sudo unattended-upgrade --dry-run -d   # see what it would do
+```
+
+Kernel updates still require a manual reboot (`sudo reboot` when convenient).
+
+---
+
+## Secrets policy
+
+Secrets never enter git. Where they actually live:
+
+| Secret | Location |
+|--------|----------|
+| Hub tokens, Cloudflare DNS API token, admin password | `~/services/hub/.env` |
+| Second-brain DB/MinIO/JWT/Google/OpenRouter secrets | `~/services/second-brain/.env` |
+| Telegram bot token | `~/services/telegram-translation-bot/.env` |
+| Traefik dashboard basic-auth hash | `~/services/hub/traefik/.htpasswd` |
+| Hub-agent bearer secret + Minecraft RCON password | `/etc/hub-agent.env` (root:root, mode 600), loaded by the unit via `EnvironmentFile` |
+| WireGuard private keys | `/etc/wireguard/wg0.conf` (root-only) |
+| GitHub Actions deploy key | Repo secrets `VPS_HOST` / `VPS_SSH_KEY` on GitHub |
+
+Every repo ships a committed `.env.example` documenting the required variable names. When rebuilding, copy it and fill in fresh values:
+
+```bash
+cp .env.example .env && vim .env
+```
+
+> **Warning:** Rotate any secret that may have leaked (e.g. a unit file pasted into a chat or issue). The hub-agent secrets originally lived as `Environment=` lines inside the world-readable unit file; `~/security-fixes.sh` (2026-07-11) moved them into root-only `/etc/hub-agent.env` and rotated the bearer secret. Never put secrets back into `*.service` files — they are mode 644 by default.
+
+---
+
+## Open ports summary
+
+Verified live with `ss -tlnpu`:
+
+| Port | Bind | Service | Public? |
+|------|------|---------|---------|
+| 2020 | `0.0.0.0` | sshd | ✅ |
+| 80 / 443 | `0.0.0.0` | Traefik | ✅ |
+| 3000 | `0.0.0.0` | Open WebUI | ❌ UFW-blocked publicly — access only via Traefik at `ai.zero-five.space`; Docker subnets allowed through |
+| 8765 | `0.0.0.0` | hub-agent | ❌ UFW-blocked publicly — Docker subnets allowed through; bearer-token protected |
+| 25565 / 25575 | `*` | Minecraft / RCON | ✅ / ❌ RCON UFW-blocked, reachable from localhost only in practice |
+| 11434 | `10.8.0.1` | Ollama | ❌ VPN only |
+| 11435 | `127.0.0.1` | ollama-router | ❌ localhost only |
+| 8081 | `127.0.0.1` | SearXNG | ❌ localhost only |

@@ -1,0 +1,110 @@
+---
+title: Minecraft Server
+description: The LynxHouse Fabric 1.20.1 server — bare metal under systemd, 31 mods, RCON control through the hub, and the mc.zero-five.space SRV record.
+---
+
+**LynxHouse** is a modded Minecraft **Fabric 1.20.1** server at `~/services/minecraft/LynxHouse`. It is the one service that runs neither in Docker nor from a git repo — bare-metal Java under systemd, with the world data backed up as files.
+
+| Property | Value |
+|----------|-------|
+| Address | `mc.zero-five.space` (SRV record `_minecraft._tcp.mc` → port 25565) |
+| Minecraft | 1.20.1 (Fabric loader, installed with `fabric-installer-0.11.2.jar`) |
+| Java | OpenJDK 17 (headless, from Ubuntu apt) |
+| Heap | `-Xms4G -Xmx8G` |
+| Players | max 5, survival, easy difficulty, online mode on |
+| Whitelist | `white-list=false` (but `enforce-whitelist=true` — flip both to lock the server) |
+| RCON | enabled on `127.0.0.1:25575` — used by the [hub-agent](/docs/vps/hub#hub-agent) |
+
+> **Warning:** The 8 GB heap ceiling equals the machine's total RAM. In practice the JVM stays lower, but memory pressure is real — if the box swaps into OOM territory, this unit is the first suspect. Consider `-Xmx4G` if more services move in.
+
+## systemd unit
+
+`/etc/systemd/system/minecraft.service` (enabled — starts at boot):
+
+```ini
+[Unit]
+Description=Minecraft Fabric Server
+After=network.target
+
+[Service]
+User=manuel
+WorkingDirectory=/home/manuel/services/minecraft/LynxHouse
+ExecStart=/usr/bin/java -Xms4G -Xmx8G -jar fabric-server-launch.jar nogui
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+| Task | Command |
+|------|---------|
+| Start / stop / restart | `sudo systemctl start\|stop\|restart minecraft` |
+| Logs | `journalctl -u minecraft -f` or `LynxHouse/logs/latest.log` |
+| From the browser | [Hub dashboard](/docs/vps/hub) card → start/stop/restart/console |
+
+The hub-agent's hardcoded allowlist only permits the `minecraft` unit, and its `/command` endpoint sends RCON commands (`say`, `whitelist add`, `op`, …) — so day-to-day admin doesn't need SSH at all.
+
+## Mods (31)
+
+Fabric API plus, grouped by what they add:
+
+| Category | Mods |
+|----------|------|
+| Tech | Create (+ Create Addition, Steam Rails), Applied Energistics 2, Tech Reborn, Modern Industrialization, CC: Tweaked |
+| Food & farming | Farmer's Delight, Croptopia |
+| World gen | Regions Unexplored, TerraBlender |
+| Decoration & furniture | Supplementaries, Amendments, Another Furniture, Handcrafted, Chipped, Macaw's Furniture |
+| QoL & maps | Roughly Enough Items, Xaero's Minimap + World Map, Traveler's Backpack, Lithium (performance) |
+| Libraries | Fabric API, Architectury, Cloth Config, Cardinal Components, Moonlight, Resourceful Lib, EpheroLib, Forge Config API Port, Athena |
+
+All jars live in `LynxHouse/mods/` — **client players need matching versions** of the content mods.
+
+## Setup from scratch
+
+<Steps>
+
+### Install Java and open the firewall
+
+```bash
+sudo apt install openjdk-17-jre-headless
+sudo ufw allow 25565/tcp
+```
+
+### Restore or create the server folder
+
+Restore `LynxHouse/` from backup (world + mods + configs), or bootstrap fresh:
+
+```bash
+mkdir -p ~/services/minecraft/LynxHouse && cd ~/services/minecraft/LynxHouse
+# download fabric-installer and the 1.20.1 server jar, then:
+java -jar fabric-installer-0.11.2.jar server -mcversion 1.20.1 -downloadMinecraft
+echo "eula=true" > eula.txt
+```
+
+Set in `server.properties`: `server-port=25565`, `enable-rcon=true`, `rcon.port=25575`, and a strong `rcon.password` (must match the hub-agent's `rcon.conf` drop-in).
+
+### Install the unit
+
+Write the systemd unit shown above, then:
+
+```bash
+sudo systemctl daemon-reload && sudo systemctl enable --now minecraft
+```
+
+### DNS
+
+Cloudflare already has `mc` (A, grey cloud) and the `_minecraft._tcp.mc` SRV record — players connect with just `mc.zero-five.space`.
+
+</Steps>
+
+## Backups
+
+The world is plain files — back up while the server is stopped, or use RCON `save-off`/`save-all` around a live copy:
+
+```bash
+sudo systemctl stop minecraft
+tar czf ~/backups/lynxhouse-$(date +%F).tar.gz -C ~/services/minecraft LynxHouse/world
+sudo systemctl start minecraft
+rclone copy ~/backups/lynxhouse-$(date +%F).tar.gz gdrive:vps-backups/minecraft/
+```

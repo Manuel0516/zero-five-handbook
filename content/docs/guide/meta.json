@@ -1,6 +1,7 @@
 {
   "title": "Guide",
   "pages": [
+    "private-deployment-plan",
     "conventions",
     "writing",
     "fumadocs"

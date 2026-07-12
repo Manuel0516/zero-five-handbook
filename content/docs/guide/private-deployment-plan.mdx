@@ -1,0 +1,247 @@
+---
+title: Private Handbook Deployment Plan
+description: Accepted plan for running the handbook in Docker at docs.zero-five.space for WireGuard peers only.
+---
+
+> **Status:** Accepted design, not deployed. Commands and files on this page are
+> implementation targets, not a description of current VPS state.
+
+## Goal
+
+Run this Next.js handbook at `https://docs.zero-five.space` on the VPS with
+these boundaries:
+
+- Every authenticated device in `10.8.0.0/24` may access it.
+- A device outside WireGuard must be rejected.
+- The application runs in Docker on internal port `3000`.
+- The application does not publish a VPS host port.
+- The existing hub-owned Traefik v2.11 instance terminates HTTPS and proxies to
+  the container.
+- The Mac keeps its narrow `10.8.0.1/32` WireGuard route, so ordinary internet
+  traffic does not use the VPN.
+
+WireGuard membership is therefore the first authorization boundary. Adding a
+future device to this subnet also grants it handbook access. If a future
+restricted peer should not read the handbook, narrow the allowlist or assign
+restricted peers to a separate VPN range before activating that peer.
+
+## Request path
+
+```text
+VPN device
+  docs.zero-five.space -> 10.8.0.1
+              |
+       WireGuard tunnel
+              |
+        Traefik :443
+  IPAllowList: 10.8.0.0/24
+              |
+   zero-five-handbook:3000
+```
+
+The public wildcard DNS record may still resolve the hostname to the VPS public
+address. Privacy therefore requires both private name resolution on VPN clients
+and the Traefik IP allowlist. A valid certificate or private-looking hostname
+does not restrict access by itself.
+
+## Source and deployed files
+
+| Location | File | Purpose |
+| --- | --- | --- |
+| Handbook repository | `next.config.mjs` | Enable Next.js standalone output |
+| Handbook repository | `Dockerfile` | Reproducible multi-stage production image |
+| Handbook repository | `.dockerignore` | Keep local output, Git data, and secrets out of the build context |
+| Handbook repository | `compose.yml` | Define the app, Traefik labels, internal port, and external network |
+| Infrastructure repository | `docs/decisions/ADR-002-private-handbook-over-wireguard.md` | Canonical access and routing decision |
+| Mac | `/opt/homebrew/etc/wireguard/zero-five.conf` | Existing narrow WireGuard client configuration |
+| Mac | `/etc/hosts` | Initial private hostname override |
+| Mac | `/Library/LaunchDaemons/com.zero-five.wireguard.plist` | Planned always-on tunnel service |
+| VPS | `~/services/docs-zero-five` | Deployed Git checkout |
+| VPS | `~/services/docs-zero-five/.env` | Optional runtime-only OpenRouter settings; never committed |
+
+The application repository is
+`git@github.com:Manuel0516/zero-five-handbook.git`. Verify the remote again
+before cloning on the VPS.
+
+## Port and Docker design
+
+Keep Next.js on container port `3000`. This does not conflict with another
+container or host service because the Compose file must use `expose`, not
+`ports`:
+
+```yaml
+services:
+  handbook:
+    expose:
+      - "3000"
+```
+
+`expose` documents container-to-container reachability. It does not create a
+listener on `0.0.0.0:3000` or the VPS public interface. Traefik reaches the
+service by container name through the external Docker network named `traefik`.
+
+The implementation should add these routing properties to the service:
+
+```yaml
+networks:
+  - traefik
+labels:
+  - "traefik.enable=true"
+  - "traefik.docker.network=traefik"
+  - "traefik.http.routers.docs.rule=Host(`docs.zero-five.space`)"
+  - "traefik.http.routers.docs.entrypoints=websecure"
+  - "traefik.http.routers.docs.tls.certresolver=letsencrypt"
+  - "traefik.http.routers.docs.middlewares=docs-vpn-only"
+  - "traefik.http.middlewares.docs-vpn-only.ipallowlist.sourcerange=10.8.0.0/24"
+  - "traefik.http.services.docs.loadbalancer.server.port=3000"
+
+networks:
+  traefik:
+    external: true
+```
+
+Do not add a `ports:` entry. Do not add another Traefik container; the existing
+hub stack remains the sole owner of ports `80` and `443`.
+
+## Application image plan
+
+Implement the image in three small changes:
+
+1. Set `output: 'standalone'` in `next.config.mjs`.
+2. Add a multi-stage `Dockerfile` that installs from `package-lock.json`, runs
+   `npm run build`, and copies `.next/standalone`, `.next/static`, and `public`
+   when present into a non-root runtime image.
+3. Add `.dockerignore` entries for `.git`, `.next`, `node_modules`, `.env*`, and
+   local editor files.
+
+The runtime command should execute the standalone `server.js` and listen on
+container port `3000`. Build and test the image locally before copying or
+pulling anything on the VPS.
+
+The AI chat route reads `OPENROUTER_API_KEY` and optionally
+`OPENROUTER_MODEL`. If chat is enabled in production, store those values only
+in the root-readable VPS `.env` file and reference it with `env_file`. The key
+must never enter the image, Compose file, Git history, or handbook content.
+
+## Private name resolution
+
+For the first Mac-only DNS setup, add this owner-managed entry:
+
+```text
+10.8.0.1 docs.zero-five.space
+```
+
+to `/etc/hosts`. Flush the macOS DNS cache and verify:
+
+```bash
+dscacheutil -q host -a name docs.zero-five.space
+route -n get 10.8.0.1
+```
+
+Expected result: the hostname resolves to `10.8.0.1`, and that address uses the
+dynamic WireGuard `utunN` interface. Do not depend on a fixed `utun` number.
+
+Repeat the private name mapping on every VPN device that should use the
+handbook. Once several devices need it, replace per-device hosts entries with a
+private DNS service rather than maintaining them indefinitely.
+
+## Always-on Mac tunnel
+
+The browser cannot directly ask Homebrew `wg-quick` to start a tunnel for one
+hostname. The planned solution is a system `launchd` service that runs
+`/opt/homebrew/bin/wg-quick up` with
+`/opt/homebrew/etc/wireguard/zero-five.conf` at boot.
+
+Before installing it:
+
+1. Write the plist as tracked, secret-free source in `zero-five-infra`.
+2. Validate it locally with `plutil -lint`.
+3. Include an owner-run install procedure and an unload/removal rollback.
+4. Test a Mac reboot before marking `mac_reboot` verified in canonical
+   inventory.
+
+The existing `AllowedIPs = 10.8.0.1/32` must remain unchanged. Always-on does
+not mean full-tunnel: only the VPS VPN address uses WireGuard.
+
+## Implementation sequence
+
+### 1. Prepare and test locally
+
+1. Add standalone output, Dockerfile, `.dockerignore`, and `compose.yml`.
+2. Run `npm run types:check`, `npm run lint`, and `npm run build`.
+3. Build and start the Compose project locally.
+4. Confirm the container listens on `3000` internally and no unintended secret
+   was copied into the image.
+
+### 2. Prepare the VPS without routing traffic
+
+1. Confirm the external `traefik` network exists.
+2. Clone the repository to `~/services/docs-zero-five`.
+3. Confirm the checkout remote, branch, and commit.
+4. Create the optional root-readable `.env` only if production chat is wanted.
+5. Run `docker compose config` and inspect the resolved labels without printing
+   secret values.
+
+### 3. Start the container
+
+1. Build and start only the handbook Compose project.
+2. Confirm the container is healthy and joined to `traefik`.
+3. Confirm `docker ps` shows no published handbook port.
+4. Inspect Traefik logs for router, middleware, or certificate errors.
+
+### 4. Configure one VPN client
+
+1. Keep `zero-five` active on the Mac.
+2. Add the private hosts entry.
+3. Confirm the hostname resolves to `10.8.0.1`.
+4. Open `https://docs.zero-five.space` and inspect the certificate.
+
+### 5. Prove the security boundary
+
+Test both sides before declaring success:
+
+```bash
+# On an authenticated VPN client
+curl --fail --show-error --head https://docs.zero-five.space
+
+# On a device outside the VPN, with no private hosts override
+curl --show-error --head https://docs.zero-five.space
+```
+
+The VPN request must succeed. The non-VPN request must receive a denial and
+must never reach the Next.js container. Also inspect Traefik access logs and
+confirm it sees the VPN source as `10.8.0.x`; stop if it sees a Docker bridge
+address that would make the allowlist ineffective.
+
+### 6. Add always-on startup
+
+Only after manual access works, install the reviewed `launchd` source on the
+Mac, reboot, and repeat the route and HTTPS tests. Update canonical inventory
+only after direct reboot evidence exists.
+
+## Rollback
+
+Rollback must affect only the handbook deployment:
+
+1. Remove the Mac `/etc/hosts` entry.
+2. Unload and remove the handbook-specific `launchd` service if it was added;
+   keep the manual WireGuard configuration.
+3. Run `docker compose down` from `~/services/docs-zero-five`.
+4. Confirm the handbook router disappears from Traefik.
+5. Keep the Git checkout until logs and configuration have been reviewed.
+
+Do not stop the hub Traefik stack, remove the `traefik` network, alter existing
+WireGuard peers, or change the VPS firewall during this rollback.
+
+## Completion checklist
+
+- [ ] Image builds locally from a clean checkout.
+- [ ] Handbook container publishes no host port.
+- [ ] Traefik router uses HTTPS and the VPN allowlist.
+- [ ] Every intended VPN device resolves the hostname privately.
+- [ ] VPN access succeeds.
+- [ ] Public access is denied and does not reach Next.js.
+- [ ] Existing Traefik services remain healthy.
+- [ ] Mac reboot restores the narrow tunnel automatically.
+- [ ] Deployment and rollback evidence is recorded in `zero-five-infra`.
+

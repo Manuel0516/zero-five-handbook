@@ -1,27 +1,54 @@
 ---
 title: WireGuard VPN
-description: The private network between the VPS and the Linux laptop that carries all Ollama traffic — topology, configs, and how to verify it.
+description: The VPS-centered private network for Ollama and trusted device access — active peers, source files, routing policy, and verification.
 ---
 
-WireGuard creates a private `10.8.0.0/24` network between the VPS and the CachyOS laptop. Its single job: let the two [Ollama](/docs/vps/ollama) instances talk to each other **without ever being exposed to the public internet**. Configs and docs live in the [personal-ai repo](https://github.com/Manuel0516/personal-ai) under `wireguard/`.
+WireGuard creates the private `10.8.0.0/24` network centered on the VPS. The
+network carries traffic between the VPS and CachyOS laptop so the
+two [Ollama](/docs/vps/ollama) instances can communicate **without being exposed
+to the public internet**. The MacBook is also active with VPS-only access.
+
+Exact inventory and architecture decisions now live in `zero-five-infra`.
+Legacy sanitized templates remain in the
+[personal-ai repo](https://github.com/Manuel0516/personal-ai) under
+`wireguard/` until the new source configuration replaces them.
 
 ## Topology
 
 ```text
-VPS (server)                          Laptop (peer)
-wg0: 10.8.0.1/24                      wg0: 10.8.0.2/24
-ListenPort 51820/udp   ◀──────────    Endpoint VPS_IP:51820
-                                      PersistentKeepalive 25
-Ollama bound to        ──────────▶    Ollama bound to
-10.8.0.1:11434                        10.8.0.2:11434
+                                 VPS hub
+                          wg0: 10.8.0.1/24
+                          ListenPort 51820/udp
+                            /              \
+                    active /                \ active
+                          /                  \
+       CachyOS laptop                         MacBook
+       wg0: 10.8.0.2/24                       10.8.0.3/32
+       PersistentKeepalive 25                 VPS-only access
+       Ollama: 10.8.0.2:11434                 runtime verified
 ```
 
 | Machine | VPN IP | Role |
 |---------|--------|------|
 | VPS | `10.8.0.1` | Server — listens on UDP `51820` (UFW-allowed) |
 | Laptop | `10.8.0.2` | Peer — dials out, keeps the tunnel alive from behind NAT |
+| MacBook | `10.8.0.3` | Active peer — reaches VPS services only |
 
-The interface is managed by systemd: `wg-quick@wg0.service` is **enabled** and active on the VPS. Docker bridge containers on the VPS can reach the VPN IPs, which is how `ollama-router` (a container) queries both Ollama backends.
+The interface is managed by systemd: `wg-quick@wg0.service` is **enabled** and
+active on the VPS. `ollama-router` uses Docker host networking, so it shares the
+VPS network namespace and reaches both Ollama backends through the host's
+WireGuard route.
+
+The VPS is the hub, but it does not currently route traffic between clients:
+kernel IPv4 forwarding is enabled while UFW's default routed policy is `deny`.
+The MacBook therefore cannot reach the laptop through WireGuard unless a later
+policy change explicitly permits it.
+
+Runtime Mac connectivity is verified. The Mac can ping `10.8.0.1` and query the
+VPN-bound Ollama API, while `10.8.0.2` and the ordinary default route remain on
+the Mac's normal network interface. The owner also verified that the Mac peer
+is present in the persistent `/etc/wireguard/wg0.conf` configuration. Automatic
+activation after a Mac reboot or login remains unverified.
 
 ---
 
@@ -66,6 +93,11 @@ PersistentKeepalive = 25
 
 ## Setup from scratch
 
+> **Source of truth:** the existing VPS–laptop examples below remain useful for
+> the original link. Mac inventory, peer ownership, secret-free templates, and
+> the complete runtime-first deployment and rollback procedure live in
+> `zero-five-infra`. The Mac private key remains only on the MacBook.
+
 <Steps>
 
 ### Install WireGuard on both machines
@@ -78,6 +110,7 @@ sudo pacman -S wireguard-tools    # laptop (CachyOS — official repo, no AUR)
 ### Generate a keypair on each machine
 
 ```bash
+umask 077
 wg genkey | tee private.key | wg pubkey > public.key
 ```
 
@@ -122,3 +155,4 @@ From the repo's `docs/security.md` — the operating principles:
 2. Only UDP `51820` is open on the VPS for WireGuard.
 3. The laptop's Ollama binds to `10.8.0.2:11434`, never to LAN or public interfaces.
 4. Private keys never leave their machine and are never committed.
+5. New peers know only the VPS by default; client-to-client access requires an explicit policy decision.

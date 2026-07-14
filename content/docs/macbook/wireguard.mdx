@@ -1,150 +1,185 @@
 ---
 title: WireGuard — Private Network
-description: The MacBook WireGuard CLI, deployed VPS-only tunnel, source files, verification, and recovery.
+description: The MacBook WireGuard CLI, VPS-only route, source configuration, verification, deployment procedure, and rollback.
 ---
 
-The MacBook joins the existing `10.8.0.0/24` WireGuard network as a client of
-the [VPS hub](/docs/vps/wireguard). Its policy is deliberately
-narrow: it may reach services on the VPS, but the VPS will not route it to the
-CachyOS laptop.
+The MacBook joins the [VPS-centered WireGuard network](/docs/vps/wireguard) as
+`10.8.0.3/32`. It can reach services on `10.8.0.1`, while ordinary internet
+traffic and the CachyOS laptop remain outside its WireGuard route.
 
-## Current status
+## Current state
 
 | Item | State |
 | --- | --- |
-| WireGuard CLI | Installed through Homebrew |
-| `wireguard-tools` | `1.0.20260223` |
-| `wireguard-go` | `0.0.20250522` — Homebrew dependency |
-| `wg` | `/opt/homebrew/bin/wg` |
-| `wg-quick` | `/opt/homebrew/bin/wg-quick` |
-| Public identity | Generated and recorded in canonical infrastructure metadata |
-| VPN address | Active: `10.8.0.3/32` |
-| Config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
-| Tunnel | Active at runtime; VPS peer persistence verified; Mac reboot activation not yet verified |
-| Access policy | VPS services only |
+| Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` |
+| Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
+| VPN address | `10.8.0.3/32` |
+| Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
+| Runtime | VPS ping and VPN-bound Ollama verified |
+| VPS peer | Runtime and `/etc/wireguard/wg0.conf` persistence verified |
+| Mac startup | Activation after reboot or login remains unverified |
 
-The official App Store application was installed first, but it was not selected
-for ongoing management because this setup is intended to be reproducible from
-the command line. No tunnel was created in the application.
+The App Store WireGuard application was installed initially but is not used for
+this setup. The command-line workflow makes the configuration and inspection
+steps explicit.
 
-## Install the CLI
+## Install and inspect the CLI
 
 ```bash
 brew install wireguard-tools
-```
-
-Verify the installation without creating a tunnel:
-
-```bash
 command -v wg
 command -v wg-quick
 wg --version
 brew list --versions wireguard-tools wireguard-go
 ```
 
-Installing these packages does not generate keys, change routes, or activate a
-VPN. Homebrew installs `wireguard-go` because macOS uses a userspace WireGuard
-implementation and `utun` tunnel interfaces.
+Installing the tools does not create keys, routes, or a tunnel. On macOS,
+`wireguard-go` creates a userspace tunnel attached to a dynamic `utunN`
+interface. The number may change and must never be hard-coded.
 
-## Routing
+## Routing policy
 
 ```text
 MacBook                              VPS
 10.8.0.3/32  -------------------->  10.8.0.1/24
-AllowedIPs: 10.8.0.1/32             public UDP endpoint
+AllowedIPs: 10.8.0.1/32             UDP endpoint :51820
 
-              no routed access to 10.8.0.2
+              no WireGuard route to 10.8.0.2
 ```
 
-The MacBook knows only the VPS peer. It does not receive the laptop's
-WireGuard public key or endpoint. UFW on the VPS currently denies routed traffic
-by default, which preserves this boundary.
+Because the peer's `AllowedIPs` contains only `10.8.0.1/32`, macOS installs one
+host route to the VPS. It does not replace the default route. The VPS firewall
+also denies routed traffic between WireGuard clients.
 
-## File locations
+## Files and ownership
 
-| Machine | Path | Purpose |
+| Location | Path | Purpose |
 | --- | --- | --- |
-| Infrastructure repo | `inventory/network.yml` | Canonical addresses and lifecycle state |
-| Infrastructure repo | `wireguard/peers.yml` | Public identities and peer ownership |
-| Infrastructure repo | `wireguard/templates/` | Secret-free Mac and VPS peer templates |
-| MacBook | `~/.config/wireguard/keys/macbook.key` | Private key — mode `0600`, never committed |
+| Infrastructure repo | `wireguard/macbook.conf.example` | Secret-free operational source |
+| MacBook | `~/.config/wireguard/keys/macbook.key` | Private key, mode `0600` |
 | MacBook | `~/.config/wireguard/keys/macbook.pub` | Public key |
-| MacBook | `/opt/homebrew/etc/wireguard/zero-five.conf` | Active deployed config — mode `0600` |
-| VPS | `/etc/wireguard/wg0.conf` | Persistent VPS config — root-only |
-| VPS | `/etc/wireguard/wg0.conf.pre-macbook` | Pre-change rollback copy |
+| MacBook | `/opt/homebrew/etc/wireguard/zero-five.conf` | Deployed tunnel config, mode `0600` |
+| VPS | `/etc/wireguard/wg0.conf` | Persistent hub config, root-owned and mode `0600` |
 
-The source templates do not contain private keys. The Mac config is rendered
-locally using the private-key file and must remain outside Git.
+The example contains the real public routing metadata and a
+`MACBOOK_PRIVATE_KEY` placeholder. There is no generator. The private value is
+inserted only into the Mac's root-readable deployed copy.
 
-## Repository commands
+## Create or rebuild the Mac configuration
 
-Run from `/Users/manuel/Desktop/zero-five-infra`:
-
-```bash
-make validate  # validate inventory, identities, and route ownership
-make preview   # render a redacted Mac config and public VPS peer block
-```
-
-Render the Mac config directly to its deployed path only on the Mac:
+Generate a keypair only if the Mac does not already have one:
 
 ```bash
-sudo /usr/bin/ruby scripts/render-wireguard.rb macbook \
-  --private-key-file /Users/manuel/.config/wireguard/keys/macbook.key \
-  --output /opt/homebrew/etc/wireguard/zero-five.conf
+umask 077
+mkdir -p ~/.config/wireguard/keys
+wg genkey | tee ~/.config/wireguard/keys/macbook.key \
+  | wg pubkey > ~/.config/wireguard/keys/macbook.pub
+chmod 600 ~/.config/wireguard/keys/macbook.key \
+  ~/.config/wireguard/keys/macbook.pub
 ```
 
-Render the public-only VPS peer fragment:
+Never regenerate an active keypair casually: doing so changes the public
+identity expected by the VPS.
+
+Validate and copy the source:
 
 ```bash
-ruby scripts/render-wireguard.rb vps-peer \
-  --output /tmp/macbook-peer.conf
+cd /Users/manuel/Desktop/zero-five/zero-five-infra
+make validate
+sudo install -m 600 wireguard/macbook.conf.example \
+  /opt/homebrew/etc/wireguard/zero-five.conf
+sudoedit /opt/homebrew/etc/wireguard/zero-five.conf
 ```
 
-The renderer refuses to write secret-bearing output inside Git and creates
-rendered files with mode `0600`.
+In `sudoedit`, replace `MACBOOK_PRIVATE_KEY` with the existing private key.
+Review the file without pasting it into chat or logs. Confirm permissions:
 
-## Deployment order
+```bash
+sudo stat -f '%Sp %Su:%Sg %N' \
+  /opt/homebrew/etc/wireguard/zero-five.conf
+```
 
-1. Validate inventory, peer ownership, and redacted template rendering.
-2. Render the public-only Mac peer fragment for the VPS.
-3. Keep two working VPS SSH sessions open and create the root-only rollback
-   copy.
-4. Add the Mac peer to the running VPS `wg0` interface without restarting it.
-5. Start `zero-five` on the Mac and verify the handshake, VPS-only route, and
-   unchanged default route.
-6. Append the reviewed public peer block to `/etc/wireguard/wg0.conf` only after
-   runtime validation succeeds.
+Expected mode is `-rw-------`. A failed edit can be rolled back by stopping the
+tunnel and restoring the previous root-owned copy.
 
-If validation fails, stop `zero-five`, remove only the Mac runtime peer, and
-restore the VPS backup if the persistent file was changed. The CachyOS laptop
-peer must remain untouched throughout.
+## Add the Mac peer safely
 
-## Verified runtime behavior
+This procedure is already complete for the current Mac identity. Use it only
+for recovery or an intentional identity replacement.
 
-Observed on 2026-07-12:
+1. Run `make validate` locally.
+2. Keep the existing VPS SSH session open and establish a second session.
+3. On the VPS, back up `/etc/wireguard/wg0.conf` with root ownership and mode
+   `0600`.
+4. Add the Mac public key to the running interface first:
 
-- `10.8.0.1` routes through dynamic WireGuard interface `utun6`;
-- `10.8.0.2` routes through the ordinary gateway on `en0`, not WireGuard;
-- the default route remains on `en0`;
-- ping to `10.8.0.1` succeeds with no packet loss;
-- the VPN-bound Ollama API at `10.8.0.1:11434` responds.
+```bash
+sudo wg set wg0 peer MACBOOK_PUBLIC_KEY allowed-ips 10.8.0.3/32
+```
 
-The `utun` number is dynamic and must not be stored in configuration. The owner
-verified that the Mac peer is present in the VPS runtime and persistent
-`/etc/wireguard/wg0.conf` configuration. Automatic activation after a Mac
-reboot or login still needs a direct owner-run test.
+5. Start the Mac tunnel and validate both machines.
+6. Only after runtime validation, add the same public peer block to the VPS
+   persistent config. Do not overwrite its private key or laptop peer.
 
-Never add a real private key to this handbook or any Git repository. The private
-key must remain on the MacBook.
+The runtime-first sequence protects the existing tunnel. `wg set` changes the
+kernel's live WireGuard device without restarting `wg0`; a bad new peer can be
+removed without disrupting the established laptop peer.
 
-## Remove the CLI
+## Start and validate
 
-To remove the CLI, first stop the tunnel with `sudo wg-quick down zero-five`.
-Then:
+```bash
+sudo wg-quick up zero-five
+sudo wg show
+route -n get 10.8.0.1
+route -n get 10.8.0.2
+route -n get default
+ping -c 3 10.8.0.1
+curl --fail --show-error http://10.8.0.1:11434/api/tags
+```
+
+Expected results:
+
+- `10.8.0.1` uses a dynamic `utunN` interface;
+- `10.8.0.2` does not use the WireGuard tunnel;
+- the default route remains on the normal network interface;
+- the VPS responds to ping and the private Ollama API;
+- `sudo wg show` reports a recent handshake.
+
+On the VPS, also confirm the laptop peer, UFW, and `wg-quick@wg0` remain in their
+previous state. A handshake alone does not prove route or application policy.
+
+## Common failures
+
+| Symptom | Check |
+| --- | --- |
+| `wg-quick` rejects the config | Private-key placeholder was not replaced, syntax, or permissions |
+| No handshake | VPS endpoint, UDP firewall, public-key match, internet access |
+| Handshake but no VPS access | `AllowedIPs`, macOS route, VPS UFW, service binding |
+| Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` |
+| Works manually but not after reboot | No verified startup service yet |
+
+## Rollback
+
+Stop the Mac tunnel:
+
+```bash
+sudo wg-quick down zero-five
+```
+
+If this was a new or replacement peer, remove only that live peer on the VPS:
+
+```bash
+sudo wg set wg0 peer MACBOOK_PUBLIC_KEY remove
+```
+
+If persistent configuration changed, restore the protected VPS backup and
+restart `wg-quick@wg0` from the still-open SSH session. Recheck the laptop peer
+and private Ollama path. Do not change UFW or SSH during this rollback.
+
+To remove only the Mac CLI after the tunnel is down:
 
 ```bash
 brew uninstall wireguard-tools
 ```
 
-This removes the explicitly installed tools. Run `brew autoremove` separately
-only after reviewing which unused dependencies Homebrew proposes to remove.
+Review `brew autoremove` separately before allowing it to remove dependencies.

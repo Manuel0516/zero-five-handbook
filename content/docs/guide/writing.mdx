@@ -193,6 +193,21 @@ echo "hello"
 ![Alt text](/path/to/image.png)
 ```
 
+Use Mermaid for architecture, topology, request-flow, and trust-boundary
+diagrams that can be explained with labeled nodes and arrows:
+
+````markdown
+```mermaid
+flowchart LR
+    client[Client] -->|HTTPS 443| proxy[Reverse proxy]
+    proxy -->|HTTP 3000| app[Application]
+```
+````
+
+Keep each diagram focused on one question. Label important connections with the
+protocol, port, routing rule, or security decision they represent. Separate
+deployed and planned architecture instead of mixing them in one diagram.
+
 ### Tables
 
 ```markdown

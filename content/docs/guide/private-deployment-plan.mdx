@@ -52,7 +52,7 @@ does not restrict access by itself.
 | Handbook repository | `Dockerfile` | Reproducible multi-stage production image |
 | Handbook repository | `.dockerignore` | Keep local output, Git data, and secrets out of the build context |
 | Handbook repository | `compose.yml` | Define the app, Traefik labels, internal port, and external network |
-| Infrastructure repository | `docs/decisions/ADR-002-private-handbook-over-wireguard.md` | Canonical access and routing decision |
+| Handbook | This page | Canonical access and routing decision |
 | Mac | `/opt/homebrew/etc/wireguard/zero-five.conf` | Existing narrow WireGuard client configuration |
 | Mac | `/etc/hosts` | Initial private hostname override |
 | Mac | `/Library/LaunchDaemons/com.zero-five.wireguard.plist` | Planned always-on tunnel service |
@@ -243,5 +243,4 @@ WireGuard peers, or change the VPS firewall during this rollback.
 - [ ] Public access is denied and does not reach Next.js.
 - [ ] Existing Traefik services remain healthy.
 - [ ] Mac reboot restores the narrow tunnel automatically.
-- [ ] Deployment and rollback evidence is recorded in `zero-five-infra`.
-
+- [ ] Deployed configuration is represented in `zero-five-infra` and verified state is recorded in this handbook.

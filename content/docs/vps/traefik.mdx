@@ -21,6 +21,7 @@ Records (subdomains are **DNS-only / grey cloud** so non-HTTP traffic works):
 | Record | Type | Target |
 |--------|------|--------|
 | `*` | A | `95.111.229.142` — wildcard, covers every subdomain |
+| `docs` | A | `10.8.0.1` — WireGuard hub IP, so the handbook only resolves usefully on the VPN |
 | `mc` | A | `95.111.229.142` |
 | `ssh` | A | `95.111.229.142` |
 | `_minecraft._tcp.mc` | SRV | `mc.zero-five.space:25565` |
@@ -104,6 +105,7 @@ http:
 | `https://brain.zero-five.space` | secondbrain web container | labels |
 | `https://ai.zero-five.space` | Open WebUI on host `:3000` | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
+| `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps/handbook)) | labels |
 
 The dashboard is protected by basic auth. The credentials hash lives in `~/services/hub/traefik/.htpasswd` (never committed):
 

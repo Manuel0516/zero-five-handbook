@@ -1,0 +1,68 @@
+---
+title: Handbook deployment
+description: How this site is deployed — a VPN-only Traefik route at docs.zero-five.space and a push-to-deploy GitHub Actions pipeline.
+---
+
+This handbook deploys itself: every push to `master` of [zero-five-handbook](https://github.com/Manuel0516/zero-five-handbook) rebuilds the site and updates `https://docs.zero-five.space`, which is reachable **only over WireGuard**.
+
+---
+
+## Why a server and not static files
+
+The site is Next.js + Fumadocs with two dynamic API routes — `/api/chat` (AI search via OpenRouter) and `/api/search` — plus a request-time proxy for Markdown content negotiation. A static export would drop those, so it runs as a Node server in a container (`next build` with `output: 'standalone'`).
+
+---
+
+## The VPN-only pattern
+
+Two layers make the site private:
+
+1. **DNS points into the tunnel.** `docs.zero-five.space` has an explicit A record → `10.8.0.1` (grey cloud), overriding the wildcard that points at the public IP. Every WireGuard peer routes `10.8.0.1/32` through `wg0`, so on the VPN the name just works; off the VPN it resolves to an unreachable private address.
+2. **Traefik rejects non-VPN sources.** Anyone can still connect to the *public* IP and send `Host: docs.zero-five.space`, so the router carries an `ipWhiteList` middleware allowing only `10.8.0.0/24`. Docker's NAT preserves source addresses, so requests arriving through `wg0` show their real `10.8.0.x` origin and everything else gets a 403.
+
+HTTPS still works because certificates come from the **DNS-01 challenge** (see [Traefik](/docs/vps/traefik)) — Let's Encrypt never connects to the address the record points at.
+
+> **Note:** No firewall change was needed: Traefik's published `:443` bypasses UFW (Docker trap #1 on the [Security](/docs/vps/security) page), which here works in our favor — the port is already reachable on `wg0`.
+
+---
+
+## The pipeline
+
+`.github/workflows/deploy.yml` in the handbook repo, triggered on push to `master`:
+
+1. **Build** the Docker image on the GitHub runner — the VPS (8 GB, no swap) has no headroom for a Next.js build.
+2. **Ship** it with `docker save zero-five-handbook:latest | gzip | ssh vps 'gunzip | docker load'` — no registry and no registry credentials; the image stays private by construction and the only secret is one SSH key.
+3. **Deploy**: copy `docker-compose.yml` to `~/services/handbook/` and run `docker compose up -d` (Compose recreates the container because the image ID changed), then `docker image prune -f` to drop the previous, now-dangling image.
+
+| Piece | Location |
+|-------|----------|
+| Dockerfile, compose file, workflow | handbook repo root / `.github/workflows/` |
+| Stack on the VPS | `~/services/handbook/` |
+| `OPENROUTER_API_KEY` | `~/services/handbook/.env` (never in git) |
+| Deploy SSH key | private half in repo secret `VPS_SSH_KEY`; public half in `~/.ssh/authorized_keys` on the VPS; `VPS_HOST` holds the address |
+
+The runtime image is Next's **standalone** output: `server.js` plus traced `node_modules` and the static assets, on `node:24-alpine`, listening on `:3000` inside the `traefik` network — never published on the host.
+
+---
+
+## Rollback
+
+Deploys are stateless (no volumes, no migrations), so rollback is git:
+
+```bash
+git revert <bad commit> && git push   # pipeline redeploys the previous state
+```
+
+Or re-run the workflow from an older commit in the Actions tab (`workflow_dispatch` is enabled).
+
+---
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| 403 from Traefik | You are not on WireGuard, or the request reached the public IP — `dig docs.zero-five.space` should return `10.8.0.1` |
+| Name doesn't resolve to `10.8.0.1` | The explicit A record is missing/edited in Cloudflare; the wildcard would take over |
+| Site unreachable on VPN | `ping 10.8.0.1` first (tunnel up?), then `docker ps` on the VPS for the `handbook` container |
+| AI search fails | `docker logs handbook` — usually a missing/invalid `OPENROUTER_API_KEY` in `~/services/handbook/.env` |
+| Deploy job fails at SSH | Key mismatch: repo secret `VPS_SSH_KEY` vs `~/.ssh/authorized_keys` on the VPS |

@@ -5,6 +5,7 @@
     "docker",
     "traefik",
     "hub",
+    "handbook",
     "wireguard",
     "ollama",
     "ai-stack",

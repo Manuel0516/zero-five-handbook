@@ -1,0 +1,33 @@
+# Runs on the VPS at ~/services/handbook/ — copied there by the deploy workflow.
+# The image is built in GitHub Actions and shipped with `docker save | docker load`,
+# so it must never be pulled from a registry.
+services:
+  handbook:
+    image: zero-five-handbook:latest
+    container_name: handbook
+    restart: unless-stopped
+    pull_policy: never
+    env_file: .env
+    networks: [traefik]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.handbook.rule=Host(`docs.zero-five.space`)"
+      - "traefik.http.routers.handbook.entrypoints=websecure"
+      - "traefik.http.routers.handbook.tls.certresolver=letsencrypt"
+      # docs.zero-five.space resolves to 10.8.0.1, so legitimate clients arrive
+      # over wg0 with a 10.8.0.x source address. This middleware rejects anyone
+      # who instead connects to the public IP with the right Host header.
+      - "traefik.http.routers.handbook.middlewares=handbook-vpn-only"
+      - "traefik.http.middlewares.handbook-vpn-only.ipwhitelist.sourcerange=10.8.0.0/24"
+      - "traefik.http.services.handbook.loadbalancer.server.port=3000"
+      - "hub.enable=true"
+      - "hub.name=Handbook"
+      - "hub.kind=web"
+      - "hub.url=https://docs.zero-five.space"
+      - "hub.icon=📚"
+      - "hub.visibility=admin"
+
+networks:
+  traefik:
+    external: true

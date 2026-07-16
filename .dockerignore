@@ -1,0 +1,12 @@
+node_modules
+.next
+.source
+.git
+.github
+.env*
+*.tsbuildinfo
+.opencode
+.claude
+.DS_Store
+Dockerfile
+docker-compose.yml

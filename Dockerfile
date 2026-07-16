@@ -5,13 +5,13 @@ WORKDIR /app
 # Bound the Node heap so a build can never trigger the kernel OOM killer.
 ENV NODE_OPTIONS=--max-old-space-size=1536
 
-# fumadocs-mdx runs as a postinstall script and needs its config and content.
-COPY package.json package-lock.json source.config.ts tsconfig.json ./
-COPY content ./content
-RUN npm ci
+# Skip lifecycle scripts here: the fumadocs-mdx postinstall needs the full
+# project, which isn't copied yet. It runs explicitly before the build instead.
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 
 COPY . .
-RUN npm run build
+RUN npx fumadocs-mdx && npm run build
 
 FROM node:24-alpine AS runner
 WORKDIR /app

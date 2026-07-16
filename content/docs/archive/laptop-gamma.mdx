@@ -1,0 +1,129 @@
+---
+title: Laptop Gamma Archive
+description: Observed state and preservation record for the retired Ubuntu laptop Gamma, including its malware incident.
+---
+
+> **Archived, not active.** Gamma was inspected on 2026-07-16 before its OS
+> replacement. This is a recovery record, not a guide for restoring its
+> services to a network.
+
+## Machine at inspection
+
+| Property | Observed state |
+| --- | --- |
+| Hostname | `gamma` |
+| Hardware | ASUS X555LJ, Intel Core i7-5500U (4 logical CPUs), 8 GB memory |
+| OS | Ubuntu 22.04.5 LTS, kernel 5.15.0-164 |
+| Storage | 931 GB internal disk; 36 GB used and about 841 GB free |
+| Network role | Former LAN-hosted services; not a current Zero Five node |
+| Lifecycle | Retired; OS replacement planned |
+
+At inspection the machine had about 2.3 GB available RAM and 862 MB of swap in
+use. System packages were pending updates. It was not suitable to keep online
+as a service host.
+
+## Preserved artifacts
+
+The recovery scope deliberately contains only the requested services. The
+planned transfer destination is a USB drive prepared directly on Gamma.
+
+| Archive | Source | Contents | Intentional exclusions |
+| --- | --- | --- | --- |
+| Minecraft | `~/MinecraftServer` | The active Java server, world, mods, configuration, and logs | None from the server folder |
+| TelegramBot code | `~/TelegramBot` | Current source and project metadata | `node_modules/` and `.env` |
+| Hall | `~/Hall` | Vite source and built `dist/` site | `node_modules/` |
+
+The Minecraft capture was made while the service was running. It is a valuable
+preservation copy, but not a filesystem-consistent backup. Before relying on it
+for a future server, validate it after extraction and take a clean replacement
+copy with the server stopped or after an in-game save.
+
+The TelegramBot `.env` was intentionally not copied because it may contain a
+Telegram token. Recreate the configuration on the replacement system with a
+new token rather than reusing the old secret.
+
+An attempted network transfer to the MacBook was cancelled because the LAN
+connection repeatedly dropped long transfers. All temporary archives, chunks,
+and copied files from that attempt were removed. The USB transfer is not yet
+complete; do not mark any preservation copy as complete until its SHA-256
+checksums have been verified on the USB.
+
+## Observed workloads
+
+PM2 was enabled at boot and had persisted process definitions. The useful
+workloads discovered were:
+
+| State | Workload | Notes |
+| --- | --- | --- |
+| Running | MinecraftServer | Java Minecraft server on port 25565; `world`, survival, easy difficulty, whitelist enabled |
+| Running | TelegramBot | Current bot source at `~/TelegramBot`; not a Git checkout |
+| Running | TranslateBot and LibreTranslate | Older translation service; not part of the requested preservation scope |
+| Running | therapies-house | Next.js site on port 3001; not part of the requested preservation scope |
+| Running | nginx, SSH, No-IP client | Host services |
+| Stopped | Hall | Preserved Vite site; source plus built output retained |
+| Stopped | SyncPlaylist | Repeated restart history; contains credentials and was intentionally not copied |
+
+The current TelegramBot and Hall folders had no Git metadata. An older
+Telegram Git checkout existed under `~/Old/Telegram-JsBot`, but it was dirty
+and was not treated as the current version. The older Hall checkout had no
+commits and untracked project files. Neither was included in the requested
+archive.
+
+## Security incident
+
+Gamma was compromised at inspection. A user-owned executable impersonating
+`systemd-resolved` ran from a hidden directory in the home folder. It was a
+static 64-bit ELF binary, launched twice by cron, and consumed most of the
+CPU. Additional cron entries attempted to launch transient files from `/tmp`
+and the user runtime directory.
+
+The identified malicious processes were terminated and the user crontab,
+binary, associated configuration, and transient watcher paths were removed.
+That containment action does **not** establish that the machine is clean: it
+could contain other persistence or stolen credentials. The correct recovery is
+an OS reinstall, not continued operation.
+
+### Recovery rules
+
+1. Keep Gamma off untrusted networks until it is wiped.
+2. Rotate the laptop SSH password, dynamic-DNS credentials, Telegram bot token,
+   and any credentials stored in the old home directory from a clean device.
+3. Treat the saved archives as inert data: do not execute scripts or restore
+   dependencies blindly. Scan them on the replacement system before extraction.
+4. Rebuild services from reviewed source, current dependencies, and newly
+   created secrets. Do not restore the old PM2 state, cron entries, or hidden
+   user-system directories.
+
+## Restore checks
+
+After transfer, verify each archive against its recorded SHA-256 checksum and
+list its entries before extracting. Restore Minecraft in an isolated folder
+first; restore TelegramBot and Hall as source projects, reinstall dependencies
+from their manifest files, and provide new runtime configuration manually.
+
+The next operational step is to verify the transferred archive checksums, then
+wipe Gamma and build only the reviewed services on a supported OS.
+
+## USB capture procedure
+
+The recovery script is stored in the infrastructure repository as
+`scripts/gamma_usb_backup.sh` and was copied to Gamma at
+`~/gamma_usb_backup.sh`. It creates one timestamped ZIP directly on a mounted
+USB drive, tests every ZIP entry, writes a SHA-256 checksum file, verifies that
+checksum, and calls `sync` before reporting success.
+
+It stops the Minecraft PM2 process only while copying its world and uses an
+exit trap to restart it even if the ZIP or validation step fails. The script
+excludes `node_modules/` from TelegramBot and Hall, and excludes TelegramBot's
+`.env`. The token must be rotated and recreated on the replacement machine.
+
+After confirming the USB mount path with `lsblk`, run on Gamma:
+
+```bash
+bash ~/gamma_usb_backup.sh /media/manuel/USB_LABEL
+```
+
+Only remove the USB after the script reports that the checksum is `OK` and the
+write cache has been flushed. The resulting USB contents remain untrusted data:
+scan and inspect them on the replacement machine before extracting or running
+anything.

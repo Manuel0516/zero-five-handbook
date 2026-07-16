@@ -1,12 +1,12 @@
-# Runs on the VPS at ~/services/handbook/ — copied there by the deploy workflow.
-# The image is built in GitHub Actions and shipped with `docker save | docker load`,
-# so it must never be pulled from a registry.
+# Runs on the VPS at ~/services/handbook/ — a git clone of this repo.
+# Deploy = `git pull && docker compose up -d --build`, triggered by the
+# GitHub Actions workflow on every push to master.
 services:
   handbook:
+    build: .
     image: zero-five-handbook:latest
     container_name: handbook
     restart: unless-stopped
-    pull_policy: never
     env_file: .env
     networks: [traefik]
     labels:

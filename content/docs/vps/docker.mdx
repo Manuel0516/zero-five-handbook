@@ -42,7 +42,7 @@ Verified live with `docker ps`:
 | `ollama-router` | `python:3.12-slim` | personal-ai/router | host network, `127.0.0.1:11435` |
 | `searxng` | `searxng/searxng:latest` | personal-ai/web-search | `127.0.0.1:8081` |
 | `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |
-| `handbook` | built in GitHub Actions, shipped via `docker load` | handbook | via Traefik (`docs.zero-five.space`, VPN only) |
+| `handbook` | built from repo | handbook | via Traefik (`docs.zero-five.space`, VPN only) |
 
 ## Compose projects
 
@@ -55,7 +55,7 @@ Verified live with `docker ps`:
 | `server` | `~/services/personal-ai/server/docker-compose.yml` |
 | `router` | `~/services/personal-ai/router/docker-compose.yml` |
 | `web-search` | `~/services/personal-ai/web-search/docker-compose.yml` |
-| `handbook` | `~/services/handbook/docker-compose.yml` (copied there by [the deploy pipeline](/docs/vps/handbook)) |
+| `handbook` | `~/services/handbook/docker-compose.yml` (repo clone, updated by [the deploy pipeline](/docs/vps/handbook)) |
 
 > **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps/telegram-bot).
 

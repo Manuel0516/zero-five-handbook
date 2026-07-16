@@ -28,18 +28,20 @@ HTTPS still works because certificates come from the **DNS-01 challenge** (see [
 
 ## The pipeline
 
-`.github/workflows/deploy.yml` in the handbook repo, triggered on push to `master`:
+`.github/workflows/deploy.yml` in the handbook repo, triggered on push to `master`. It follows the same convention as every other stack — *update = `git pull` + `docker compose up -d --build`* — the workflow just automates it:
 
-1. **Build** the Docker image on the GitHub runner — the VPS (8 GB, no swap) has no headroom for a Next.js build.
-2. **Ship** it with `docker save zero-five-handbook:latest | gzip | ssh vps 'gunzip | docker load'` — no registry and no registry credentials; the image stays private by construction and the only secret is one SSH key.
-3. **Deploy**: copy `docker-compose.yml` to `~/services/handbook/` and run `docker compose up -d` (Compose recreates the container because the image ID changed), then `docker image prune -f` to drop the previous, now-dangling image.
+1. GitHub Actions **SSHes into the VPS** using a dedicated deploy key.
+2. The VPS runs **`git pull --ff-only`** in `~/services/handbook/`, which is a clone of this repo (the VPS's own SSH key already authenticates to GitHub).
+3. **`docker compose up -d --build`** rebuilds the image on the VPS and recreates the container, then `docker image prune -f` drops the old, now-dangling image.
 
 | Piece | Location |
 |-------|----------|
 | Dockerfile, compose file, workflow | handbook repo root / `.github/workflows/` |
-| Stack on the VPS | `~/services/handbook/` |
-| `OPENROUTER_API_KEY` | `~/services/handbook/.env` (never in git) |
+| Stack on the VPS | `~/services/handbook/` — a git clone of the repo |
+| `OPENROUTER_API_KEY` | `~/services/handbook/.env` (gitignored, never in git) |
 | Deploy SSH key | private half in repo secret `VPS_SSH_KEY`; public half in `~/.ssh/authorized_keys` on the VPS; `VPS_HOST` holds the address |
+
+> **Warning:** The Next.js build is the heaviest thing this box runs (the 8 GB of RAM have no swap behind them). If a deploy fails with a killed build process, check `free -h` and stop the Minecraft server before retrying.
 
 The runtime image is Next's **standalone** output: `server.js` plus traced `node_modules` and the static assets, on `node:24-alpine`, listening on `:3000` inside the `traefik` network — never published on the host.
 

@@ -7,7 +7,23 @@ services:
     image: zero-five-handbook:latest
     container_name: handbook
     restart: unless-stopped
-    env_file: .env
+    # Compose reads an optional local .env automatically. Keeping these
+    # substitutions here lets the site run without enabling the AI endpoint.
+    environment:
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      OPENROUTER_MODEL: "${OPENROUTER_MODEL:-}"
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     networks: [traefik]
     labels:
       - "traefik.enable=true"

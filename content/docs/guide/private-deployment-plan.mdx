@@ -3,8 +3,10 @@ title: Private Handbook Deployment Plan
 description: Accepted plan for running the handbook in Docker at docs.zero-five.space for WireGuard peers only.
 ---
 
-> **Status:** Accepted design, not deployed. Commands and files on this page are
-> implementation targets, not a description of current VPS state.
+> **Status:** Implemented in the repository; live deployment verification is
+> pending. The current runbook is [Handbook deployment](/docs/vps/handbook).
+> Commands describing VPS, DNS, and client state remain unverified until run by
+> the owner on those systems.
 
 ## Goal
 
@@ -51,7 +53,7 @@ does not restrict access by itself.
 | Handbook repository | `next.config.mjs` | Enable Next.js standalone output |
 | Handbook repository | `Dockerfile` | Reproducible multi-stage production image |
 | Handbook repository | `.dockerignore` | Keep local output, Git data, and secrets out of the build context |
-| Handbook repository | `compose.yml` | Define the app, Traefik labels, internal port, and external network |
+| Handbook repository | `docker-compose.yml` | Define the app, Traefik labels, internal port, health check, and external network |
 | Handbook | This page | Canonical access and routing decision |
 | Mac | `/opt/homebrew/etc/wireguard/zero-five.conf` | Existing narrow WireGuard client configuration |
 | Mac | `/etc/hosts` | Initial private hostname override |

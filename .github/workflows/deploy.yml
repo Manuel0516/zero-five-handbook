@@ -1,7 +1,7 @@
 name: Deploy
 
 # On every push to master, SSH into the VPS, git pull this repo at
-# ~/services/handbook, and rebuild the stack there.
+# ~/services/zero-five-handbook, and rebuild the stack there.
 # Requires two repository secrets:
 #   VPS_HOST     — the VPS address
 #   VPS_SSH_KEY  — private half of the dedicated deploy key
@@ -33,4 +33,4 @@ jobs:
           ssh-keyscan -p 2020 "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Pull and rebuild on the VPS
-        run: ssh vps 'cd ~/services/handbook && git pull --ff-only && docker compose up -d --build && docker image prune -f'
+        run: ssh vps 'cd ~/services/zero-five-handbook && git pull --ff-only && docker compose up -d --build && docker image prune -f'

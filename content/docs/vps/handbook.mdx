@@ -31,14 +31,14 @@ HTTPS still works because certificates come from the **DNS-01 challenge** (see [
 `.github/workflows/deploy.yml` in the handbook repo, triggered on push to `master`. It follows the same convention as every other stack — *update = `git pull` + `docker compose up -d --build`* — the workflow just automates it:
 
 1. GitHub Actions **SSHes into the VPS** using a dedicated deploy key.
-2. The VPS runs **`git pull --ff-only`** in `~/services/handbook/`, which is a clone of this repo (the VPS's own SSH key already authenticates to GitHub).
+2. The VPS runs **`git pull --ff-only`** in `~/services/zero-five-handbook/`, which is a clone of this repo (the VPS's own SSH key already authenticates to GitHub).
 3. **`docker compose up -d --build`** rebuilds the image on the VPS and recreates the container, then `docker image prune -f` drops the old, now-dangling image.
 
 | Piece | Location |
 |-------|----------|
 | Dockerfile, compose file, workflow | handbook repo root / `.github/workflows/` |
-| Stack on the VPS | `~/services/handbook/` — a git clone of the repo |
-| `OPENROUTER_API_KEY` | `~/services/handbook/.env` (gitignored, never in git) |
+| Stack on the VPS | `~/services/zero-five-handbook/` — a git clone of the repo |
+| `OPENROUTER_API_KEY` | `~/services/zero-five-handbook/.env` (gitignored, never in git) |
 | Deploy SSH key | private half in repo secret `VPS_SSH_KEY`; public half in `~/.ssh/authorized_keys` on the VPS; `VPS_HOST` holds the address |
 
 > **Warning:** The Next.js build is the heaviest thing this box runs (the 8 GB of RAM have no swap behind them). If a deploy fails with a killed build process, check `free -h` and stop the Minecraft server before retrying.
@@ -66,5 +66,5 @@ Or re-run the workflow from an older commit in the Actions tab (`workflow_dispat
 | 403 from Traefik | You are not on WireGuard, or the request reached the public IP — `dig docs.zero-five.space` should return `10.8.0.1` |
 | Name doesn't resolve to `10.8.0.1` | The explicit A record is missing/edited in Cloudflare; the wildcard would take over |
 | Site unreachable on VPN | `ping 10.8.0.1` first (tunnel up?), then `docker ps` on the VPS for the `handbook` container |
-| AI search fails | `docker logs handbook` — usually a missing/invalid `OPENROUTER_API_KEY` in `~/services/handbook/.env` |
+| AI search fails | `docker logs handbook` — usually a missing/invalid `OPENROUTER_API_KEY` in `~/services/zero-five-handbook/.env` |
 | Deploy job fails at SSH | Key mismatch: repo secret `VPS_SSH_KEY` vs `~/.ssh/authorized_keys` on the VPS |

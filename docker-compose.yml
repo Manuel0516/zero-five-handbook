@@ -1,4 +1,4 @@
-# Runs on the VPS at ~/services/handbook/ — a git clone of this repo.
+# Runs on the VPS at ~/services/zero-five-handbook/ — a git clone of this repo.
 # Deploy = `git pull && docker compose up -d --build`, triggered by the
 # GitHub Actions workflow on every push to master.
 services:

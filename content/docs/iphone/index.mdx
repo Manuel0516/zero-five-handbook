@@ -1,0 +1,26 @@
+---
+title: iPhone Handbook
+description: The iPhone's place in Zero Five, beginning with restricted WireGuard access to the VPS.
+---
+
+The iPhone is a mobile client of the Zero Five private network. Its first and
+only modeled connection is a WireGuard tunnel to the VPS.
+
+## Current state
+
+| Item | State |
+| --- | --- |
+| VPN address | Reserved as `10.8.0.10/32` |
+| Reachable VPN destination | VPS at `10.8.0.1/32` only |
+| Client configuration | Recorded in infrastructure source |
+| Phone keypair | Not generated or tracked; create it with the QR helper or WireGuard app |
+| VPS peer | Not deployed; waiting for the iPhone public key |
+| Runtime verification | Pending |
+
+<Cards>
+  <Card
+    title="WireGuard — VPS-only access"
+    description="Create, deploy, verify, and safely remove the iPhone tunnel"
+    href="/docs/iphone/wireguard"
+  />
+</Cards>

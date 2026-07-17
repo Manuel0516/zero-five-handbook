@@ -27,7 +27,8 @@ These are the **explicitly installed** packages (`brew leaves` — dependencies 
 
 ```bash
 brew install alembic bat colima curl docker docker-compose eza gh git \
-  htop llama.cpp node python@3.14 starship tree uv wget wireguard-tools
+  htop llama.cpp node python@3.14 qrencode starship tree uv wget \
+  wireguard-tools
 ```
 
 | Formula | Purpose | Documented in |
@@ -45,11 +46,17 @@ brew install alembic bat colima curl docker docker-compose eza gh git \
 | `llama.cpp` | Local LLM inference engine | [llama.cpp](/docs/macbook/lama-cpp) |
 | `node` | Node.js runtime (currently v26) | — |
 | `python@3.14` | Homebrew Python (conda is the main Python — see [Python](/docs/macbook/python)) | [Python](/docs/macbook/python) |
+| `qrencode` | Generates the terminal QR used to import the restricted iPhone WireGuard tunnel | [iPhone WireGuard](/docs/iphone/wireguard) |
 | `starship` | Cross-shell prompt | [Terminal](/docs/macbook/terminal) |
 | `tree` | Directory tree printer | — |
 | `uv` | Fast Python package/project manager | [Python](/docs/macbook/python) |
 | `wget` | File downloader | — |
 | `wireguard-tools` | WireGuard command-line management | [WireGuard](/docs/macbook/wireguard) |
+
+> **Installation status:** `qrencode 4.1.1` was verified on the MacBook on
+> 2026-07-17. It is required by the iPhone WireGuard QR helper. Confirm it with
+> `brew list --versions qrencode` before running `make iphone-qr` in
+> `zero-five-infra`.
 
 > **Note:** Tools like `tesseract`, `ghostscript`, `gcc`, and `wireguard-go`
 > appear in `brew list` but are dependencies of the packages above — Homebrew

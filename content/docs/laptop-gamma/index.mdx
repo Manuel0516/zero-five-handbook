@@ -1,0 +1,35 @@
+---
+title: Laptop - Gamma
+description: The Ubuntu Server laptop that is becoming the first on-premises Zero Five homelab node.
+---
+
+Gamma is an old ASUS laptop rebuilt as a fresh Ubuntu Server machine and the
+first active node physically inside the home network. Its previous installation
+and security incident remain documented in the [Gamma archive](/docs/archive/laptop-gamma);
+that archive describes the erased system, not this clean installation.
+
+## Current state
+
+| Property | State |
+| --- | --- |
+| Hostname | `gamma` |
+| OS | Ubuntu 26.04 |
+| Kernel | `7.0.0-28-generic` |
+| Bootstrap LAN address | `192.168.1.164/24` on `enp2s0` |
+| SSH | Active through systemd socket activation; VPN restriction pending |
+| WireGuard address | `10.8.0.4/32`; identity generated, activation pending |
+| Role | First on-premises homelab node |
+
+The LAN address is only the bootstrap path. Once WireGuard and VPN SSH have
+been tested from a second terminal, routine administration should use the VPN
+address and the LAN path should be closed by the host firewall.
+
+## Build order
+
+1. [Join WireGuard](/docs/laptop-gamma/wireguard) without changing SSH or the firewall.
+2. Prove the tunnel from Gamma and the VPS.
+3. [Move SSH administration to the VPN](/docs/laptop-gamma/ssh).
+4. Only then install workloads, one documented service at a time.
+
+This order keeps recovery simple: networking is proven before access control is
+tightened, and application failures cannot be confused with VPN failures.

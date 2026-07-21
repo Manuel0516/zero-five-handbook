@@ -11,7 +11,7 @@ The defining configuration choice: **Ollama binds to the VPN address, not localh
 OLLAMA_HOST=10.8.0.1:11434
 ```
 
-This makes it reachable from the [WireGuard](/docs/vps/wireguard) network (the laptop) and from Docker containers on the host, while being completely invisible to the internet.
+This makes it reachable from the [WireGuard](/docs/vps-alpha/wireguard) network (the laptop) and from Docker containers on the host, while being completely invisible to the internet.
 
 ---
 
@@ -38,8 +38,8 @@ Verified with `ollama list`:
 
 | Model | Size | Used by |
 |-------|------|---------|
-| `qwen2.5:3b` | 1.9 GB | General chat via [Open WebUI](/docs/vps/ai-stack) |
-| `translategemma:4b` | 3.3 GB | [Telegram translation bot](/docs/vps/telegram-bot) |
+| `qwen2.5:3b` | 1.9 GB | General chat via [Open WebUI](/docs/vps-alpha/ai-stack) |
+| `translategemma:4b` | 3.3 GB | [Telegram translation bot](/docs/vps-alpha/telegram-bot) |
 | `nomic-embed-text` | 274 MB | Embeddings (Open WebUI RAG) |
 
 Heavier models (`deepseek-r1:7b`, `qwen2.5-coder:7b`) intentionally live on the **laptop's** Ollama (`10.8.0.2:11434`) and are reached over the VPN — the VPS doesn't have the RAM for them.
@@ -70,9 +70,9 @@ curl http://10.8.0.1:11434/api/tags
 
 | Consumer | How it connects |
 |----------|-----------------|
-| [ollama-router](/docs/vps/ai-stack#ollama-router) | `SERVER_OLLAMA_URL=http://10.8.0.1:11434` |
-| [Open WebUI](/docs/vps/ai-stack#open-webui) | via the router at `127.0.0.1:11435` |
-| [Telegram bot](/docs/vps/telegram-bot) | `OLLAMA_URL=http://10.8.0.1:11434/api/chat` |
+| [ollama-router](/docs/vps-alpha/ai-stack#ollama-router) | `SERVER_OLLAMA_URL=http://10.8.0.1:11434` |
+| [Open WebUI](/docs/vps-alpha/ai-stack#open-webui) | via the router at `127.0.0.1:11435` |
+| [Telegram bot](/docs/vps-alpha/telegram-bot) | `OLLAMA_URL=http://10.8.0.1:11434/api/chat` |
 | Laptop (any tool) | `http://10.8.0.1:11434` over WireGuard |
 
 ---
@@ -83,7 +83,7 @@ curl http://10.8.0.1:11434/api/tags
 
 ### Bring up WireGuard first
 
-Ollama binds to `10.8.0.1`, which only exists once [wg0 is up](/docs/vps/wireguard). Otherwise the service fails to bind.
+Ollama binds to `10.8.0.1`, which only exists once [wg0 is up](/docs/vps-alpha/wireguard). Otherwise the service fails to bind.
 
 ### Install with the official script
 

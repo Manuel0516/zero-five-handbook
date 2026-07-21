@@ -1,9 +1,10 @@
 ---
 title: SSH Configuration
-description: SSH keys, host aliases, and config on this MacBook — GitHub authentication and the Contabo VPS. Key material itself is never documented here.
+description: SSH keys, host aliases, and config on this MacBook — GitHub, the Contabo VPS, and Gamma through an SSH jump. Key material itself is never documented here.
 ---
 
-SSH is used for two things on this machine: authenticating to **GitHub** and connecting to the **Contabo VPS** (documented in full in the [VPS Handbook](/docs/vps)). Everything lives in `~/.ssh/`.
+SSH is used to authenticate to **GitHub**, connect to the **Contabo VPS**, and
+reach **Gamma** through the VPS as a jump host. Everything lives in `~/.ssh/`.
 
 > **Warning:** This page documents the *configuration only*. Private keys are never stored in this handbook — generate a new key on a new machine instead of copying the old one.
 
@@ -47,6 +48,16 @@ Host contabo
   HostName 95.111.229.142
   User manuel
   Port 2020
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+Host gamma
+  HostName 10.8.0.4
+  User manuel
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump contabo
 ```
 
 ### Breakdown
@@ -55,7 +66,9 @@ Host contabo
 |-------|--------------|
 | `Include ~/.colima/ssh_config` | Added automatically by [Colima](/docs/macbook/docker) so `ssh colima` reaches the container VM — don't remove it |
 | `Host github.com` | Uses the ed25519 key, loads it into the agent, and stores the passphrase in the macOS Keychain (`UseKeychain yes`) — no passphrase prompts after the first use |
-| `Host contabo` | Alias for the [Contabo VPS](/docs/vps): `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps/security) for the server side |
+| `Host contabo` | Alias for the [Contabo VPS](/docs/vps-alpha): `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps-alpha/security) for the server side |
+| `Host gamma` | Connects to Gamma's private `10.8.0.4` address through `ProxyJump contabo`; Gamma remains unreachable directly from outside WireGuard |
+| `IdentitiesOnly yes` | Restricts each host to the explicitly selected identity instead of trying every key loaded in the agent |
 
 ---
 
@@ -64,6 +77,7 @@ Host contabo
 | Task | Command |
 |------|---------|
 | Connect to the VPS | `ssh contabo` |
+| Connect to Gamma through the VPS | `ssh gamma` |
 | Test GitHub authentication | `ssh -T git@github.com` |
 | Copy a file to the VPS | `scp file.txt contabo:~/` |
 | List keys loaded in the agent | `ssh-add -l` |
@@ -81,6 +95,13 @@ Host contabo
 ### VPS connection refused
 
 The VPS uses port `2020`, not 22 — connecting with a raw `ssh manuel@95.111.229.142` fails. Use the `contabo` alias, which sets the port.
+
+### Gamma connection fails
+
+Test each hop independently. `ssh contabo` must work first. On the VPS,
+`ping -c 3 10.8.0.4` must reach Gamma over WireGuard. Then inspect the resolved
+Mac configuration with `ssh -G gamma | grep -E '^(hostname|user|port|proxyjump) '`;
+it should report `hostname 10.8.0.4` and `proxyjump contabo`.
 
 ---
 

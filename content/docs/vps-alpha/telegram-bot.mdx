@@ -14,7 +14,7 @@ Swedish  →  🇪🇸 Spanish  +  🇬🇧 English
 ## How it works
 
 1. [lingua](https://github.com/pemistahl/lingua-py) detects the language **locally, offline** — no API call
-2. Two parallel requests to [Ollama](/docs/vps/ollama) translate into the other two languages
+2. Two parallel requests to [Ollama](/docs/vps-alpha/ollama) translate into the other two languages
 3. The bot replies with both translations
 
 Emoji-only messages, photos, videos, and stickers are ignored, and each chat can toggle the bot independently.
@@ -50,7 +50,7 @@ docker rm -f $(docker ps -q --filter ancestor=telegram-translation-bot) 2>/dev/n
 docker run -d --restart unless-stopped --name translation-bot --env-file .env telegram-translation-bot
 ```
 
-> **Tip:** Passing `--name translation-bot` (as above) avoids the random Docker name and makes the container easier to find. Adding `hub.*` labels would surface it on the [dashboard](/docs/vps/hub) as a `bot` card.
+> **Tip:** Passing `--name translation-bot` (as above) avoids the random Docker name and makes the container easier to find. Adding `hub.*` labels would surface it on the [dashboard](/docs/vps-alpha/hub) as a `bot` card.
 
 ## In-chat commands
 

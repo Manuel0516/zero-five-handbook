@@ -7,8 +7,8 @@ Docker runs most of the VPS workloads. Unlike the MacBook (which uses [Colima](/
 
 | Component | Version |
 |-----------|---------|
-| Docker Engine | 29.6.0 (docker-ce from Docker's apt repo) |
-| Compose | v2 plugin (`docker compose`, not `docker-compose`) |
+| Docker Engine | 29.6.2 (docker-ce from Docker's apt repo) |
+| Compose | v5.3.1 plugin (`docker compose`, not `docker-compose`) |
 | Buildx | installed |
 
 The `manuel` user is in the `docker` group, so no `sudo` is needed.
@@ -33,7 +33,8 @@ Verified live with `docker ps`:
 | `traefik` | `traefik:v2.11` | hub | `:80`, `:443` public |
 | `hub-frontend` | built from repo | hub | via Traefik (`hub.zero-five.space`) |
 | `hub-backend` | built from repo | hub | internal only |
-| `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | hub | internal only |
+| `docker-socket-proxy` | pinned `tecnativa/docker-socket-proxy` digest | hub | internal, Hub GET-only API |
+| `traefik-socket-proxy` | same pinned proxy digest | hub | isolated internal network, Traefik GET-only discovery |
 | `secondbrain-web-1` | built from repo | secondbrain | via Traefik (`brain.zero-five.space`) |
 | `secondbrain-api-1` | built from repo | secondbrain | internal only |
 | `secondbrain-db-1` | `postgres:18.3-alpine` | secondbrain | internal only |
@@ -55,9 +56,9 @@ Verified live with `docker ps`:
 | `server` | `~/services/personal-ai/server/docker-compose.yml` |
 | `router` | `~/services/personal-ai/router/docker-compose.yml` |
 | `web-search` | `~/services/personal-ai/web-search/docker-compose.yml` |
-| `handbook` | `~/services/zero-five-handbook/docker-compose.yml` (repo clone, updated by [the deploy pipeline](/docs/vps/handbook)) |
+| `handbook` | `~/services/zero-five-handbook/docker-compose.yml` (repo clone, updated by [the deploy pipeline](/docs/vps-alpha/handbook)) |
 
-> **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps/telegram-bot).
+> **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps-alpha/telegram-bot).
 
 ---
 
@@ -75,9 +76,25 @@ networks:
 
 Backend containers (databases, APIs) stay on stack-internal networks and are never published.
 
+### Docker API boundaries
+
+The Docker socket is equivalent to host-root control when clients can send
+powerful API requests. A `:ro` socket mount does not make a Unix socket
+read-only. Alpha therefore uses two separate internal proxies:
+
+| Consumer | Allowed API behavior | Lifecycle writes |
+|---|---|---|
+| Traefik | container/network discovery, events, version and ping GETs | denied (`POST=0`) |
+| Hub backend | container discovery, status and log GETs | denied (`POST=0`) |
+
+Container lifecycle requests from the dashboard go to the authenticated
+hub-agent instead. That agent checks an exact container-name allowlist and the
+three allowed actions before invoking the Docker CLI. Neither proxy can create
+containers, change mounts, execute commands, or alter privileges.
+
 ### Hub auto-discovery labels
 
-Any container with `hub.*` labels appears automatically on the [dashboard](/docs/vps/hub) within ~15 seconds:
+Any container with `hub.*` labels appears automatically on the [dashboard](/docs/vps-alpha/hub) within ~15 seconds:
 
 ```yaml
 labels:
@@ -91,7 +108,7 @@ labels:
 
 ### Host networking for the AI stack
 
-Open WebUI and ollama-router use `network_mode: host` on purpose — they must reach the WireGuard IPs (`10.8.0.1`, `10.8.0.2`), which are host interfaces. Traefik reaches them back through `host.docker.internal` (see [Traefik](/docs/vps/traefik)).
+Open WebUI and ollama-router use `network_mode: host` on purpose — they must reach the WireGuard IPs (`10.8.0.1`, `10.8.0.2`), which are host interfaces. Traefik reaches them back through `host.docker.internal` (see [Traefik](/docs/vps-alpha/traefik)).
 
 ---
 
@@ -120,13 +137,18 @@ Named volumes hold the state worth backing up:
 | `hub_traefik-certs` | Let's Encrypt certificates (`acme.json`) |
 | `secondbrain_postgres-data` | Second-brain PostgreSQL data |
 | `secondbrain_minio-data` | Second-brain object storage |
-| `open-webui` | Open WebUI settings and chat history |
+| `server_open-webui` | Open WebUI settings and chat history |
 
-`~/backups/docker-volumes/` exists for local volume dumps, and `rclone` is configured with a `gdrive:` remote for off-site copies:
+> **Status — 2026-07-21:** Backups are not operational yet.
+> `~/backups/docker-volumes/` exists but contains no current volume dumps. The
+> expired `gdrive:` rclone authorization was removed because Google Drive is not
+> part of the chosen design. The owner is building a Raspberry Pi backup target;
+> until current encrypted copies and a restore test exist, these volumes have no
+> verified recovery path.
 
-```bash
-# Example: dump a volume and ship it to Google Drive
-docker run --rm -v hub_hub-data:/data -v ~/backups/docker-volumes:/backup \
-  alpine tar czf /backup/hub-data-$(date +%F).tar.gz -C /data .
-rclone copy ~/backups/docker-volumes gdrive:vps-backups/docker-volumes
-```
+The Pi should initiate retrieval over a restricted identity where practical,
+and the backup set must be encrypted independently of transport. Include
+application-consistent PostgreSQL dumps rather than copying a live database
+volume blindly. Define retention, monitor backup age and failures, and restore a
+database, an uploaded object, Open WebUI state, and one configuration secret
+before calling the system protected.

@@ -4,8 +4,9 @@ description: The VPS-centered private network, its routing and security model, o
 ---
 
 WireGuard creates Zero Five's private `10.8.0.0/24` network. The VPS is the
-stable public hub; the CachyOS laptop and MacBook connect to it as clients, and
-an iPhone peer is reserved but not yet deployed.
+stable public hub; the CachyOS laptop and MacBook connect to it as clients.
+Gamma is recorded as desired state, while the iPhone peer route is persistent
+on Alpha but still needs a handset handshake test.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
 
@@ -16,7 +17,8 @@ flowchart LR
     subgraph clients["Trusted clients"]
         cachyos["CachyOS laptop<br/>10.8.0.2/24<br/>Live verification pending"]
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
-        iphone["iPhone<br/>10.8.0.10/32<br/>Deployment pending"]
+        gamma["Gamma<br/>10.8.0.4/32<br/>Deployment pending"]
+        iphone["iPhone<br/>10.8.0.10/32<br/>Persistent route; handshake pending"]
     end
 
     subgraph vps["VPS hub"]
@@ -26,6 +28,7 @@ flowchart LR
 
     cachyos -->|"Encrypted tunnel<br/>Keepalive 25 seconds"| wg
     macbook -->|"Encrypted tunnel<br/>VPS-only route"| wg
+    gamma -->|"Encrypted tunnel<br/>VPS-only route; planned"| wg
     iphone -->|"Encrypted tunnel<br/>VPS-only route; planned"| wg
     wg -->|"Private service traffic"| ollama
     macbook -. "No peer route and UFW routed deny" .-> cachyos
@@ -37,13 +40,23 @@ flowchart LR
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
 | CachyOS laptop | `10.8.0.2/24` | Existing configuration documented; live re-verification pending |
 | MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
-| iPhone | `10.8.0.10/32` | Configuration recorded; key generation, deployment, and runtime verification pending |
+| Gamma | `10.8.0.4/32` | Identity recorded; deployment and runtime verification pending |
+| iPhone | `10.8.0.10/32` | Persistent peer route active on Alpha; handset handshake still needs verification |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
 policy remains `deny`. Kernel IPv4 forwarding is enabled, but UFW prevents the
 VPS from forwarding traffic between clients. The MacBook therefore cannot
 reach the laptop through WireGuard.
+
+> **Persistence incident — 2026-07-21:** Runtime WireGuard state worked before
+> reboot, but the root-only file contained an invalid iPhone route (`10.0.10`).
+> Boot activation therefore failed, and Ollama could not bind to `10.8.0.1`.
+> The route was corrected to the modeled `10.8.0.10/32`, the complete file was
+> validated with `wg-quick strip`, and WireGuard, Ollama, and the private
+> Handbook route recovered. This is why every persistent network edit needs a
+> syntax check and an eventual reboot test: a live interface alone does not
+> prove the on-disk configuration.
 
 ## Why the VPS is the hub
 
@@ -94,6 +107,7 @@ The tracked source is deliberately small:
 | `wireguard/vps.conf.example` | VPS interface and all modeled client peers |
 | `wireguard/cachyos-laptop.conf.example` | Laptop interface and VPS peer |
 | `wireguard/macbook.conf.example` | Mac interface and VPS-only peer |
+| `wireguard/gamma.conf.example` | Gamma interface and VPS-only peer |
 | `wireguard/iphone.conf.example` | Planned iPhone interface and VPS-only peer |
 | `scripts/validate_wireguard.py` | Secret-safe structural and topology checks |
 

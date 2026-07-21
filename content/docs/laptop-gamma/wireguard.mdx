@@ -1,0 +1,86 @@
+---
+title: WireGuard
+description: Safely join Gamma to the VPS-centered private network as 10.8.0.4.
+---
+
+Gamma is a distinct peer at `10.8.0.4/32`. It does not replace the CachyOS
+laptop at `10.8.0.2` or the MacBook at `10.8.0.3`.
+
+The client route remains deliberately narrow: only `10.8.0.1/32`, the VPS VPN
+address, enters the tunnel. Gamma's ordinary internet and package downloads
+continue to use the home router. `PersistentKeepalive = 25` keeps the NAT
+mapping usable while Gamma is quiet.
+
+## Configuration locations
+
+| Machine or source | Path | Purpose and sensitivity |
+| --- | --- | --- |
+| Gamma | `/etc/wireguard/wg0.conf` | Deployed persistent interface and VPS peer configuration. Contains Gamma's private key; keep it owned by `root` with mode `0600`. |
+| Gamma | `/etc/wireguard/private.key` | Gamma's private identity. Root-only secret; never print, copy to another machine, or commit it. |
+| Gamma | `/etc/wireguard/public.key` | Public identity derived from the private key. Its contents may be added to the VPS peer entry, although the local file remains root-owned. |
+| VPS | `/etc/wireguard/wg0.conf` | Deployed persistent hub configuration and all client peer entries. Contains the VPS private key; keep it root-owned with mode `0600`. |
+| Infrastructure repository | `zero-five-infra/wireguard/gamma.conf.example` | Secret-free reviewed model for Gamma. `GAMMA_PRIVATE_KEY` must remain a placeholder. |
+| Infrastructure repository | `zero-five-infra/wireguard/vps.conf.example` | Secret-free reviewed model for the VPS and Gamma's public peer entry. |
+
+`sudo wg set` changes the kernel's live WireGuard interface only; it does not
+edit either deployed `wg0.conf`. Runtime changes disappear after the interface
+or machine restarts unless the matching peer is also added to the persistent
+configuration.
+
+## Bootstrap on Gamma
+
+Keep the existing LAN SSH session open. In a second terminal, connect to
+`manuel@192.168.1.164`, then install WireGuard and generate the identity on
+Gamma itself:
+
+```bash
+sudo apt update
+sudo apt install --yes wireguard
+sudo install -d -m 700 /etc/wireguard
+umask 077
+wg genkey | sudo tee /etc/wireguard/private.key >/dev/null
+sudo cat /etc/wireguard/private.key | wg pubkey | sudo tee /etc/wireguard/public.key >/dev/null
+sudo chmod 600 /etc/wireguard/private.key /etc/wireguard/public.key
+sudo cat /etc/wireguard/public.key
+```
+
+The final line is Gamma's **public** key and is safe to use in the VPS peer
+entry. Never copy or print `private.key`.
+
+Create `/etc/wireguard/wg0.conf` from the reviewed
+`zero-five-infra/wireguard/gamma.conf.example`, replacing only
+`GAMMA_PRIVATE_KEY` with the contents of Gamma's local private-key file. The
+tracked example must keep the placeholder.
+
+## Activate runtime state first
+
+Before adding Gamma, verify that `10.8.0.4/32` is absent from the live VPS:
+
+```bash
+sudo wg show wg0 allowed-ips
+```
+
+Keep two authenticated VPS sessions open. Add Gamma's public key to the live
+interface with `wg set`; do not restart WireGuard. Bring up Gamma's interface,
+then verify both directions:
+
+```bash
+sudo wg-quick up wg0
+ping -c 3 10.8.0.1
+sudo wg show
+```
+
+On the VPS, verify a recent Gamma handshake and ping `10.8.0.4`. Only after
+runtime success should the same peer block be saved in the VPS's root-owned
+`/etc/wireguard/wg0.conf`, and Gamma enabled at boot:
+
+```bash
+sudo systemctl enable wg-quick@wg0
+```
+
+## Rollback
+
+If Gamma does not handshake, leave SSH and UFW unchanged. Bring down only
+Gamma's interface and remove only Gamma's runtime public key from the VPS. The
+existing peers must remain untouched. If persistence was already edited,
+restore the VPS backup before restarting `wg-quick@wg0`.

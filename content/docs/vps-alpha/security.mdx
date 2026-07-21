@@ -5,6 +5,11 @@ description: SSH hardening, UFW firewall, fail2ban, automatic updates, and the s
 
 The VPS is exposed to the internet 24/7, so security is layered: hardened SSH, a firewall, fail2ban, and unattended security updates. This page documents each layer and how to recreate it.
 
+> **Current audit:** The live review on 2026-07-21 found no confirmed
+> compromise, but it did find critical recovery and high-impact least-privilege
+> gaps. Read the [dated security audit](/docs/vps-alpha/security-audit-2026-07-21)
+> before treating this baseline as sufficient.
+
 ---
 
 ## Users
@@ -36,8 +41,18 @@ usermod -aG sudo,docker manuel
 |---------|-------|-----|
 | `Port` | `2020` | Cuts automated scan noise on port 22 |
 | `PermitRootLogin` | `no` | Root can never log in directly |
-| `PasswordAuthentication` | `no` | Key-only — set in `sshd_config.d/60-cloudimg-settings.conf` |
-| `PubkeyAuthentication` | `yes` | The MacBook's ed25519 key is in `~/.ssh/authorized_keys` |
+| `PasswordAuthentication` | `no` | Password exchange is disabled in `00-zero-five-authentication.conf` |
+| `KbdInteractiveAuthentication` | `no` | PAM-backed interactive challenges cannot become a password fallback |
+| `AuthenticationMethods` | `publickey` | A valid authorized key is explicitly required |
+| `PubkeyAuthentication` | `yes` | Six ed25519 public keys are installed in `~/.ssh/authorized_keys` |
+
+> **Precedence trap found on 2026-07-21:** The root-only
+> `50-cloud-init.conf` enabled passwords and sorted before
+> `60-cloudimg-settings.conf`, which disabled them. OpenSSH generally keeps the
+> first value it reads for these global options, so the later `no` did not win.
+> The declared files looked safe while `sshd -T` and a real connection both
+> reported `publickey,password`. The `00-` override now sorts first. Always
+> inspect effective state; never infer it from one file.
 
 The MacBook connects via the `contabo` alias — see the [MacBook SSH page](/docs/macbook/ssh) for the client side.
 
@@ -47,16 +62,39 @@ The MacBook connects via the `contabo` alias — see the [MacBook SSH page](/doc
 # 1. Copy your key first (while password auth still works)
 ssh-copy-id -p 22 manuel@NEW_IP
 
-# 2. Edit the config
-sudo vim /etc/ssh/sshd_config          # Port 2020, PermitRootLogin no
-echo "PasswordAuthentication no" | sudo tee /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
+# 2. Keep the current session open and back up the SSH configuration
+sudo cp -a /etc/ssh /root/ssh-backup-before-hardening
 
-# 3. Allow the new port in UFW BEFORE restarting sshd
-sudo ufw allow 2020/tcp
-sudo systemctl restart ssh
+# 3. Set Port 2020 in /etc/ssh/sshd_config, then create the earliest drop-in
+sudoedit /etc/ssh/sshd_config.d/00-zero-five-authentication.conf
 ```
 
-> **Warning:** Always keep one working session open while changing SSH settings, and test the new port from a second terminal before logging out.
+The drop-in contains:
+
+```text
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+PubkeyAuthentication yes
+PermitRootLogin no
+```
+
+Validate and apply only after the public key works:
+
+```bash
+# 4. Allow the new port in UFW BEFORE touching the daemon
+sudo ufw allow 2020/tcp
+
+# 5. Validate syntax and effective authentication, then reload
+sudo sshd -t
+sudo sshd -T -C user=manuel,host="$(hostname)",addr=127.0.0.1 \
+  | grep -E '^(port|permitrootlogin|passwordauthentication|kbdinteractiveauthentication|authenticationmethods|pubkeyauthentication) '
+sudo systemctl reload ssh
+```
+
+> **Warning:** Keep the working session open and test `ssh -p 2020 manuel@IP`
+> from a second terminal before logging out. A syntax check cannot prove that
+> the correct public key is available from the client.
 
 ---
 
@@ -161,7 +199,19 @@ Every repo ships a committed `.env.example` documenting the required variable na
 cp .env.example .env && vim .env
 ```
 
+Runtime secret files should be owned by the service operator and mode `600`.
+The 2026-07-21 audit corrected several files from `664` to `600`. A filename is
+not a security boundary: `personal-ai/server/.env` was also found tracked with
+non-secret endpoint values. It must still be replaced by a committed example
+and an ignored runtime file before someone later adds a real credential.
+
 > **Warning:** Rotate any secret that may have leaked (e.g. a unit file pasted into a chat or issue). The hub-agent secrets originally lived as `Environment=` lines inside the world-readable unit file; `~/security-fixes.sh` (2026-07-11) moved them into root-only `/etc/hub-agent.env` and rotated the bearer secret. Never put secrets back into `*.service` files — they are mode 644 by default.
+
+> **Accepted risk — 2026-07-21:** Four Hub-stack credentials were emitted by a
+> non-quiet Compose audit command. A first atomic rotation attempt rolled back
+> after a readiness race, and the owner declined another rotation. The dated
+> audit records the impact. File mode `600` protects storage on disk but cannot
+> make an already emitted value secret again.
 
 ---
 

@@ -18,7 +18,7 @@ Four containers, Compose project `secondbrain` (`compose.yaml`):
 
 Network design is strict: `internal` is a Docker **internal** network (no outbound), only `api` also joins `egress` (it needs outbound HTTPS for Google Calendar / ICS sync and OpenRouter), and only `web` joins the external `traefik` network. The database and MinIO can never reach or be reached from the internet.
 
-The web container also carries `hub.*` labels, so it appears on the [Hub dashboard](/docs/vps/hub) as an admin-only card (🧠).
+The web container also carries `hub.*` labels, so it appears on the [Hub dashboard](/docs/vps-alpha/hub) as an admin-only card (🧠).
 
 ## Configuration
 
@@ -40,7 +40,12 @@ The web container also carries `hub.*` labels, so it appears on the [Hub dashboa
 Two GitHub Actions workflows:
 
 1. **CI** (`ci.yml`) — on every push/PR: Node 24 + uv, `npm run check` (frontend format/lint/types/tests/build + backend format/lint/types/tests), and validates the production compose config.
-2. **Deploy** (`deploy.yml`) — runs only after CI **succeeds** on `main` (`workflow_run` trigger, `production` environment, concurrency-locked). SSHes to the VPS and redeploys the exact tested SHA.
+2. **Deploy** (`deploy.yml`) — runs only after CI **succeeds** on `main`
+   (`workflow_run` trigger, `production` environment, concurrency-locked). Its
+   SSH key is restricted to a forced server-side deploy procedure. The
+   dispatcher accepts only a validated 40-character commit SHA, and the fixed
+   procedure redeploys that exact tested revision; workflow text cannot become
+   an arbitrary remote shell program.
 
 Manual deploy:
 
@@ -70,6 +75,11 @@ The API creates the initial user from the `INITIAL_USER_*` variables on first bo
 # Postgres dump without stopping the stack
 docker exec secondbrain-db-1 pg_dump -U secondbrain secondbrain | gzip > ~/backups/secondbrain-$(date +%F).sql.gz
 ```
+
+This creates only a local staging dump. It becomes a backup after the planned
+Raspberry Pi retrieves an encrypted copy, retains versions, and a PostgreSQL
+restore is tested. MinIO objects require a separate consistent export; the SQL
+dump does not contain them.
 
 ## Development
 

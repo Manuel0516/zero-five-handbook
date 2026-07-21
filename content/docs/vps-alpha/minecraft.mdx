@@ -13,7 +13,7 @@ description: The LynxHouse Fabric 1.20.1 server — bare metal under systemd, 31
 | Heap | `-Xms4G -Xmx8G` |
 | Players | max 5, survival, easy difficulty, online mode on |
 | Whitelist | `white-list=false` (but `enforce-whitelist=true` — flip both to lock the server) |
-| RCON | enabled on `127.0.0.1:25575` — used by the [hub-agent](/docs/vps/hub#hub-agent) |
+| RCON | enabled on `127.0.0.1:25575` — used by the [hub-agent](/docs/vps-alpha/hub#hub-agent) |
 
 > **Warning:** The 8 GB heap ceiling equals the machine's total RAM. In practice the JVM stays lower, but memory pressure is real — if the box swaps into OOM territory, this unit is the first suspect. Consider `-Xmx4G` if more services move in.
 
@@ -41,7 +41,7 @@ WantedBy=multi-user.target
 |------|---------|
 | Start / stop / restart | `sudo systemctl start\|stop\|restart minecraft` |
 | Logs | `journalctl -u minecraft -f` or `LynxHouse/logs/latest.log` |
-| From the browser | [Hub dashboard](/docs/vps/hub) card → start/stop/restart/console |
+| From the browser | [Hub dashboard](/docs/vps-alpha/hub) card → start/stop/restart/console |
 
 The hub-agent's hardcoded allowlist only permits the `minecraft` unit, and its `/command` endpoint sends RCON commands (`say`, `whitelist add`, `op`, …) — so day-to-day admin doesn't need SSH at all.
 
@@ -106,5 +106,9 @@ The world is plain files — back up while the server is stopped, or use RCON `s
 sudo systemctl stop minecraft
 tar czf ~/backups/lynxhouse-$(date +%F).tar.gz -C ~/services/minecraft LynxHouse/world
 sudo systemctl start minecraft
-rclone copy ~/backups/lynxhouse-$(date +%F).tar.gz gdrive:vps-backups/minecraft/
 ```
+
+The planned Raspberry Pi backup must retrieve this archive and retain older
+versions. The removed Google Drive remote is not a destination. Until the Pi
+copy and a world restore are tested, a local archive on the VPS is only a
+staging file, not a recovery backup.

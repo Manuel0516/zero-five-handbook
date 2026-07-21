@@ -7,6 +7,12 @@ Traefik v2.11 is the single entry point for all web traffic. It terminates HTTPS
 
 > **Note:** Traefik is pinned to **v2.11** — v3.0 hit a Docker API mismatch on this host. Don't bump the major version without testing.
 
+Traefik does **not** mount `/var/run/docker.sock`. Docker discovery goes through
+the dedicated `traefik-socket-proxy` on an internal network. The proxy image is
+pinned by digest, enables only the Docker GET endpoints needed for discovery
+and events, and sets `POST=0`. This is separate from the Hub backend's own
+GET-only proxy, so neither consumer shares a write-capable Docker API path.
+
 ---
 
 ## DNS
@@ -105,7 +111,7 @@ http:
 | `https://brain.zero-five.space` | secondbrain web container | labels |
 | `https://ai.zero-five.space` | Open WebUI on host `:3000` | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
-| `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps/handbook)) | labels |
+| `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |
 
 The dashboard is protected by basic auth. The credentials hash lives in `~/services/hub/traefik/.htpasswd` (never committed):
 
@@ -120,7 +126,7 @@ htpasswd -nB admin > traefik/.htpasswd   # regenerate (apache2-utils package)
 1. DNS: nothing — the wildcard covers it.
 2. Route: add `traefik.*` labels to the container **or** a file-provider entry for host services.
 3. Restart/redeploy the service; Traefik picks it up automatically and issues a certificate on first request.
-4. Optional: add `hub.*` labels so it appears on the [dashboard](/docs/vps/hub).
+4. Optional: add `hub.*` labels so it appears on the [dashboard](/docs/vps-alpha/hub).
 
 ## Troubleshooting
 
@@ -128,4 +134,5 @@ htpasswd -nB admin > traefik/.htpasswd   # regenerate (apache2-utils package)
 |---------|-------|
 | 404 from Traefik | Is the container on the `traefik` network? Is `traefik.docker.network=traefik` set? |
 | No certificate issued | `docker logs traefik` — look for ACME errors; verify `CF_DNS_API_TOKEN` |
+| Docker routes disappear | Check `traefik-socket-proxy`, its internal network, and Traefik's `providers.docker.endpoint=tcp://traefik-socket-proxy:2375` argument |
 | Host service unreachable | Confirm the service listens on `0.0.0.0` or `127.0.0.1` vs what the file provider targets |

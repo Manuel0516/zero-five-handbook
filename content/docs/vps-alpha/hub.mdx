@@ -3,7 +3,7 @@ title: Hub Dashboard
 description: The self-hosted control panel at hub.zero-five.space — architecture, the hub-agent systemd bridge, and auto-deploy from GitHub.
 ---
 
-[Project Hub](https://github.com/Manuel0516/hub) is the dashboard at **[hub.zero-five.space](https://hub.zero-five.space)** that monitors and controls every VPS service. FastAPI + React + SQLite, served behind [Traefik](/docs/vps/traefik). Deployed at `~/services/hub`.
+[Project Hub](https://github.com/Manuel0516/hub) is the dashboard at **[hub.zero-five.space](https://hub.zero-five.space)** that monitors and controls every VPS service. FastAPI + React + SQLite, served behind [Traefik](/docs/vps-alpha/traefik). Deployed at `~/services/hub`.
 
 ## Features (v2)
 
@@ -12,7 +12,7 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 | Public dashboard | `visibility: all` cards are visible without login |
 | Auto-discovery | Containers with `hub.*` Docker labels appear within ~15 s |
 | Service kinds | `web` / `container` / `host-service` / `bot` render differently |
-| Container control | Start / stop / restart / stream logs via docker-socket-proxy |
+| Container control | GET-only status/logs through docker-socket-proxy; lifecycle actions through the exact hub-agent allowlist |
 | Minecraft control | systemd start/stop/restart via hub-agent; player count via server-list-ping |
 | 3-state cards | 🟢 online · 🔴 offline · 🟡 unknown |
 | Per-user permissions | `can_view` + `can_control` per user per service |
@@ -28,14 +28,18 @@ hub.zero-five.space (Traefik, HTTPS)
    hub-frontend (nginx + React)
         │  /api/* proxied to hub-backend:8000
    hub-backend (FastAPI + SQLite)
-        ├──→ docker-socket-proxy :2375   (container control — never the raw socket)
-        └──→ hub-agent :8765             (systemd + RCON on the host)
+        ├──→ docker-socket-proxy :2375   (GET-only status and logs)
+        └──→ hub-agent :8765             (allowlisted lifecycle, systemd, RCON)
 ```
 
 Two privilege bridges keep the backend contained:
 
-1. **docker-socket-proxy** (`tecnativa/docker-socket-proxy`) exposes only the Docker API endpoints the hub needs (`CONTAINERS`, `START`, `STOP`, `RESTART`, `POST`). The backend never touches `/var/run/docker.sock` directly.
-2. **hub-agent** lets the backend manage *host* systemd units without Docker being involved.
+1. **docker-socket-proxy** is pinned by digest and exposes only GET requests for
+   container discovery, status, and logs. `POST=0`; the backend cannot use it
+   to start, create, exec into, or reconfigure a container.
+2. **hub-agent** accepts only `start`, `stop`, and `restart` for the five exact
+   existing container names, plus the existing Minecraft unit and RCON paths.
+   It cannot accept an arbitrary container name or Docker operation.
 
 ---
 
@@ -48,10 +52,18 @@ A small FastAPI service at `~/hub-agent/agent.py` (source in the repo's `host-ag
 | Unit | `/etc/systemd/system/hub-agent.service` (enabled) |
 | Listens | `0.0.0.0:8765` — not reachable externally (no UFW rule), reached by the backend via `host.docker.internal:8765` |
 | Auth | `Authorization: Bearer $HUB_AGENT_SECRET` on every request |
-| Allowlist | Hardcoded `ALLOWED_UNITS = {"minecraft"}` — it can only touch the Minecraft unit |
+| Allowlist | One systemd unit (`minecraft`); five exact container names; container actions limited to `start`, `stop`, and `restart` |
 | RCON | Sends commands to the Minecraft server on `127.0.0.1:25575` |
 
-Endpoints: `POST /units/{unit}/start|stop|restart`, `GET /units/{unit}/status`, `GET /units/{unit}/logs` (streaming), `POST /units/{unit}/command` (RCON).
+Endpoints: `POST /containers/{name}/{start|stop|restart}` for allowlisted names;
+`POST /units/{unit}/start|stop|restart`; `GET /units/{unit}/status`;
+`GET /units/{unit}/logs` (streaming); and `POST /units/{unit}/command` (RCON).
+
+Port `8765` still binds all host addresses so Docker's host-gateway mapping
+works, but UFW has no allow rule for it. An outside connection test timed out.
+The agent remains a root service, so its bearer secret and allowlist are still
+high-impact controls; moving it to a Unix socket or non-root helper is future
+hardening.
 
 Secrets (`HUB_AGENT_SECRET`, `RCON_PASSWORD`) live in `/etc/hub-agent.env` (root:root, mode 600), pulled in by the unit's `EnvironmentFile=` line — never in the unit file itself (unit files are world-readable) and never in git. `RCON_PASSWORD` must match `rcon.password` in the Minecraft `server.properties`, and `HUB_AGENT_SECRET` must match `HOST_AGENT_SECRET` in `~/services/hub/.env`.
 
@@ -92,7 +104,11 @@ Data lives in the `hub_hub-data` volume (SQLite) — back it up.
 
 ## Deploys
 
-Push to `main` on GitHub → the `Deploy to VPS` workflow (`.github/workflows/deploy.yml`) SSHes in and redeploys:
+Push to `main` on GitHub → the `Deploy to VPS` workflow
+(`.github/workflows/deploy.yml`) connects with a dedicated key. Its
+`authorized_keys` entry uses `restrict` and a forced dispatcher, so the key
+cannot select an arbitrary shell command: any accepted Hub deployment invokes
+the fixed server-side `deploy-hub.sh` procedure.
 
 ```yaml
 script: |
@@ -101,7 +117,9 @@ script: |
   docker compose up -d --build
 ```
 
-Repo secrets: `VPS_HOST` and `VPS_SSH_KEY` (a deploy key for the `manuel` user on port 2020).
+Repo secrets: `VPS_HOST` and `VPS_SSH_KEY` (the dedicated restricted key for
+the `manuel` user on port 2020). The private key must not be reused by another
+repository.
 
 Manual deploy, same thing:
 

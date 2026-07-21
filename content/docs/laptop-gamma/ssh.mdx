@@ -1,0 +1,70 @@
+---
+title: SSH over WireGuard
+description: Administer Gamma through the VPN and close the temporary LAN SSH path.
+---
+
+SSH hardening happens only after WireGuard is working. Gamma stays behind the
+home router and does not need a public SSH port or router port-forward.
+
+## Access path
+
+The current hub isolates WireGuard clients from one another. Rather than open
+general client forwarding, use the VPS as an SSH jump host:
+
+```text
+MacBook -> contabo:2020  (existing VPS SSH alias)
+        -> 10.8.0.4:22   (Gamma over WireGuard)
+```
+
+This keeps the existing routed-deny policy intact. The MacBook SSH config can
+reuse the canonical `contabo` alias as Gamma's jump host:
+
+```text
+Host contabo
+  HostName 95.111.229.142
+  User manuel
+  Port 2020
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+Host gamma
+  HostName 10.8.0.4
+  User manuel
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump contabo
+```
+
+Test `ssh contabo` first, then `ssh gamma`, from a second terminal while the
+LAN bootstrap session remains open.
+
+`ProxyJump contabo` means the Mac opens the connection through the existing VPS
+SSH alias; the VPS then reaches Gamma at `10.8.0.4:22` through WireGuard.
+Gamma's SSH port does not need to be exposed on the LAN or forwarded by the
+home router. The Mac's private key remains on the Mac and authenticates
+end-to-end; it is not copied to the VPS.
+
+## Restrict the host firewall
+
+Once VPN SSH succeeds, allow SSH only when packets arrive through `wg0`, then
+enable UFW:
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow in on wg0 to any port 22 proto tcp comment 'SSH over WireGuard'
+sudo ufw enable
+sudo ufw status verbose
+```
+
+Open another `ssh gamma` session after enabling UFW. Confirm that VPN access
+still works and that direct LAN access to `192.168.1.164:22` now fails. Do not
+disable SSH or remove the authorized key; the firewall is the network boundary.
+
+## Recovery
+
+If VPN SSH fails after enabling UFW, use Gamma's physical keyboard and display.
+Run `sudo ufw disable` to restore LAN reachability temporarily, diagnose
+WireGuard, and repeat the second-session tests. Do not open port 22 on the home
+router.

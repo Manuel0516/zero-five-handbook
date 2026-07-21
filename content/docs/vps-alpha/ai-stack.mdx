@@ -3,7 +3,7 @@ title: AI Stack
 description: The personal-ai project — Open WebUI as the single chat interface, the ollama-router that merges server and laptop models, and SearXNG for web search.
 ---
 
-The [personal-ai repo](https://github.com/Manuel0516/personal-ai) (`~/services/personal-ai`) defines a **distributed AI system**: one chat interface that transparently uses models on the VPS *and* on the laptop, connected over [WireGuard](/docs/vps/wireguard). The user picks a model in Open WebUI and never thinks about which machine runs it.
+The [personal-ai repo](https://github.com/Manuel0516/personal-ai) (`~/services/personal-ai`) defines a **distributed AI system**: one chat interface that transparently uses models on the VPS *and* on the laptop, connected over [WireGuard](/docs/vps-alpha/wireguard). The user picks a model in Open WebUI and never thinks about which machine runs it.
 
 ```text
 Browser → https://ai.zero-five.space (Traefik)
@@ -29,10 +29,10 @@ The chat interface at **[ai.zero-five.space](https://ai.zero-five.space)**. Comp
 |----------|-------|
 | Image | `ghcr.io/open-webui/open-webui:main` |
 | Network | `network_mode: host`, listens on `:3000` |
-| Public access | **Only** `https://ai.zero-five.space` — port 3000 is not opened in [UFW](/docs/vps/security#firewall-ufw) |
+| Public access | **Only** `https://ai.zero-five.space` — port 3000 is not opened in [UFW](/docs/vps-alpha/security#firewall-ufw) |
 | Ollama backend | `OLLAMA_BASE_URLS=http://127.0.0.1:11435` — the router, not Ollama directly |
 | Data | Docker volume `open-webui` (users, chats, settings — back it up) |
-| Routing | Traefik file provider → `host.docker.internal:3000` (see [Traefik](/docs/vps/traefik)) |
+| Routing | Traefik file provider → `host.docker.internal:3000` (see [Traefik](/docs/vps-alpha/traefik)) |
 
 Host networking is deliberate: it lets the container reach the loopback router and the WireGuard IPs. Settings like the SearXNG URL persist inside Open WebUI's own database after first launch — changing the compose environment later won't override them; use the Admin Panel instead.
 
@@ -80,7 +80,7 @@ cd ~/services/personal-ai/web-search && docker compose up -d
 
 ## Setup from scratch
 
-Prerequisites: [WireGuard](/docs/vps/wireguard) up, [Ollama](/docs/vps/ollama) bound to `10.8.0.1:11434`, [Docker](/docs/vps/docker) installed, [Traefik](/docs/vps/traefik) running.
+Prerequisites: [WireGuard](/docs/vps-alpha/wireguard) up, [Ollama](/docs/vps-alpha/ollama) bound to `10.8.0.1:11434`, [Docker](/docs/vps-alpha/docker) installed, [Traefik](/docs/vps-alpha/traefik) running.
 
 ```bash
 cd ~/services

@@ -1,0 +1,366 @@
+---
+title: Security audit — 2026-07-21
+description: Live security and recovery audit of the VPS, including verified controls, open risks, remediation, and repeatable inspection commands.
+---
+
+## Outcome
+
+**No confirmed compromise was found, but the VPS is not yet in an acceptably
+recoverable state.** The visible accounts, processes, listeners, containers,
+and user-level persistence matched the documented system. External tests
+confirmed that new connections to host ports `3000`, `8765`, and `25575` are
+blocked. Deployment SSH identities and Docker control paths were narrowed
+during remediation. However, no backup target is operational, exposed
+credentials remain valid by owner decision, the root hub agent is only
+partially confined. The system was fully updated and successfully rebooted into
+kernel `6.8.0-136-generic` before the audit closed.
+
+The audit also found that SSH still offered password authentication because an
+earlier cloud-init file overrode the documented setting. No successful password
+login appeared in the 30-day journal. The precedence error was corrected and a
+fresh outside connection verified that the server now offers only public-key
+authentication.
+
+This is a point-in-time configuration and indicator review, not a forensic
+proof that the machine has never been compromised. A forensic conclusion would
+require trusted offline media, disk images, external logs, and known-good
+baselines that do not currently exist.
+
+## Scope and method
+
+The audit compared the live Ubuntu host on 2026-07-21 with
+`zero-five-infra`, this handbook, and both repositories' existing diffs. It
+covered:
+
+- local accounts, login history, authorized-key fingerprints and permissions;
+- declared and effective SSH settings, UFW, fail2ban, and public port tests;
+- TCP/UDP listeners, established sessions, routes, WireGuard, and Docker port
+  publication;
+- systemd services and timers, cron, visible processes, AppArmor, update state,
+  and selected kernel hardening settings;
+- container privilege, users, capabilities, restart policies, Docker socket
+  access, and host-network use;
+- secret-file metadata, tracked secret-like filenames, Git working trees, and
+  the VPS's outbound GitHub identity;
+- local backup freshness, backup automation, Docker volumes, and the configured
+  Google Drive destination.
+
+The audit was designed not to collect secret values, private/public key
+material, bearer tokens, environment-file contents, or full application logs.
+One Compose inspection was mistakenly run without quiet output and emitted four
+Hub-stack credentials into the private audit session. No values are reproduced
+here. The incident and the owner's rotation decision are recorded below.
+
+## Verified controls
+
+| Area | Observed state |
+|---|---|
+| Accounts | `manuel` is the only human account and `root` is the only UID 0 account |
+| SSH authentication | Port `2020`; effective `AuthenticationMethods publickey`; root, password, and keyboard-interactive login disabled; a fresh external key login succeeded after reload |
+| Key files | `~/.ssh` is mode `700`; `authorized_keys` and the outbound private key are mode `600` |
+| Firewall boundary | UFW and fail2ban services are enabled and active; IPv6 handling is enabled; outside tests reached only intended SSH/HTTP/HTTPS ports among the tested management and application ports |
+| Private services | Ollama listens on `10.8.0.1`; ollama-router and SearXNG listen on loopback; Docker publishes only Traefik `80/443` and loopback-only SearXNG `8081` |
+| Docker privilege | No running container is privileged and no container adds Linux capabilities |
+| Docker socket | Traefik has no direct socket mount; separate digest-pinned proxies allow required GET endpoints and deny POST for Traefik and the Hub backend |
+| Host protections | AppArmor, time synchronization, unattended upgrades, protected links/FIFOs, restricted kernel pointers/dmesg, and unprivileged-BPF restrictions are active |
+| Patch state | 21 packages were upgraded; Alpha rebooted into `6.8.0-136-generic`; `/var/run/reboot-required` is absent |
+| HTTPS edge | Hub, AI, and Second Brain returned `200`; the dashboard required authentication (`401`); the private handbook rejected the outside request (`403`); named routes had valid Let's Encrypt certificates |
+| TLS versions | TLS 1.0 was rejected; TLS 1.2 and 1.3 were available on the tested entry point |
+| Secret permissions | Five overly broad SSH/environment/password files were changed from `664` to `600` during the audit; existing Second Brain and handbook environment files were already `600` |
+| Deployment SSH | Four CI keys use `restrict` plus fixed server-side dispatchers; three verified human keys retain interactive access |
+| Unexpected state | No unexplained account, visible listener, cron entry, recent `/usr/local` executable, privileged container, non-configuration package-integrity change, or unexpected setuid/setgid file was found |
+
+## Findings and decisions
+
+### Critical — backups are not operational
+
+`~/backups` had no current database, Docker-volume, Open WebUI, or Minecraft
+backup. There was no application backup service or timer. The configured
+`gdrive:` remote existed, but a read-only listing failed with OAuth
+`invalid_grant`; its authorization had expired. The owner does not want Google
+Drive in the backup design, so the obsolete local `gdrive:` authorization was
+removed after the audit without touching remote data. Provider snapshots were
+not visible from inside the guest and were not verified in the Contabo control
+panel.
+
+This is the highest risk because compromise, operator error, disk failure, or a
+provider incident could destroy the primary data and the only practical copy at
+the same time. Security without tested recovery is incomplete.
+
+**Decision:** backups will be implemented later on a Raspberry Pi; Google Drive
+must not be reauthorized. Until the Pi receives current encrypted backups and a
+test restore succeeds, the owner is temporarily accepting the absence of a
+recovery copy.
+
+The Pi design must cover PostgreSQL, MinIO, Open WebUI, hub state, Minecraft
+world data, service configuration, and root-only secrets. Keep the
+encryption/recovery credential outside the VPS. Prefer a Pi-initiated pull with
+narrow VPS read access so a compromised VPS cannot delete or rewrite its own
+backup history. A backup job is not considered successful merely because it
+exits zero: verify archive integrity, age, retention, isolation from the source,
+and restoration.
+
+### Resolved — deployment SSH keys had unrestricted shells
+
+The original CI identities could open the same general-purpose shell as a
+human. Because `manuel` belongs to the `docker` group, that was effectively a
+root-capable deployment credential.
+
+Four deployment entries now use OpenSSH's `restrict` option and a forced
+server-side dispatcher. Separate fixed scripts deploy Hub, Handbook, and Second
+Brain; the workflow-provided command body is not executed as a shell program.
+Second Brain's dispatcher additionally accepts only a validated 40-character
+commit SHA. The Hub repository received a new dedicated key and its GitHub
+secret was replaced; an arbitrary command test invoked only the fixed Hub
+deployment. Three verified human keys remain unrestricted for administration.
+
+After successful workflow and reboot verification, the temporary
+`authorized_keys` backup was removed at the owner's request. Recovery now means
+using an authenticated human key or provider console and reconstructing the
+reviewed forced-command entries from `zero-five-infra/ssh/`. The remaining
+improvement is moving deployments to a non-Docker group account; forced
+commands substantially narrow the current identities without changing existing
+workflow behavior.
+
+The first post-change Hub run still failed before SSH because the repository's
+`VPS_HOST` secret contained an unresolvable value and the workflow omitted
+Alpha's non-default port. `VPS_HOST` was replaced with the documented public
+address, `port: 2020` was committed as `b0255f4`, and Actions run `29853540972`
+completed successfully through the restricted forced command. Committing the
+previous change on Alpha was not the cause; the earlier run never reached the
+server.
+
+### High — the VPS holds an unencrypted personal GitHub key
+
+`~/.ssh/id_ed25519` has safe filesystem permissions but no passphrase and
+authenticates as the `Manuel0516` GitHub account. Compromise of the VPS can
+therefore extend into every repository that identity may access.
+
+Public repositories need no key to clone. Private deployments should use a
+separate read-only deploy key per repository or another narrowly scoped
+credential. Remove the personal account key after each remote has a replacement
+and a pull has been tested.
+
+### High, partially mitigated — hub-agent is a root control plane
+
+`hub-agent.service` still runs as root and binds `0.0.0.0:8765`. UFW has no
+public allow rule and a fresh outside connection timed out. The API now accepts
+only three lifecycle actions for five exact existing container names, the
+single `minecraft` systemd unit, and its existing RCON path. A tested request
+for a non-allowlisted name was denied; an allowlisted start request succeeded
+without interrupting the already-running container.
+
+An attempted bundle of systemd sandbox directives and a bridge-only bind made
+the agent restart-loop. The installer detected failure, but its rollback did
+not fully restore the unit; a separate known-good recovery unit restored the
+authenticated status endpoint. Public applications stayed at their baseline
+HTTP status throughout. The unproven sandbox was not retained.
+
+The remaining design should use a Unix socket shared only with the backend or a
+dedicated non-root helper with narrowly delegated operations. If root remains
+necessary, add one systemd protection at a time and prove startup, Docker,
+systemd, logs, RCON, reboot persistence, and rollback before retaining it.
+
+### Resolved — Docker API access was effectively host-root access
+
+Traefik previously mounted `/var/run/docker.sock` directly. The mount was
+labelled read-only, but a Unix socket is not a regular file: clients could still
+send bidirectional Docker API requests. The Hub proxy also enabled POST and
+lifecycle endpoints.
+
+Traefik now uses its own internal, digest-pinned socket proxy and has no direct
+socket mount. The Hub backend uses a separate proxy. Both were tested to allow
+required GET requests and return `403` to POST; both set `POST=0`. Hub lifecycle
+actions moved to the authenticated exact-name agent allowlist. Hub, AI, Second
+Brain, and Handbook retained their pre-change HTTP `200` behavior. The verified
+Hub source was committed and pushed as `2029982`.
+
+Temporary rollback copies were removed at the owner's request after the
+successful reboot, clean Hub CI deployment, and final route checks. Source
+rollback is now `git revert` of the Hub hardening commit followed by the fixed
+deployment workflow; provider-console access remains the host recovery path.
+
+### High, accepted — credentials emitted during the audit were not rotated
+
+A non-quiet Compose expansion emitted the Cloudflare DNS token, Hub signing
+secret, host-agent bearer secret, and Hub administrator password into the
+private session transcript. Operationally, a secret that leaves its intended
+secret store should be treated as exposed even when no unauthorized use is
+observed.
+
+An atomic rotation helper attempted to replace both machine-generated Hub
+secrets, but its immediate agent readiness test raced service startup. It
+restored the previous values so the Hub remained available. The owner then
+explicitly declined rotation, including the dashboard password and Cloudflare
+token. These credentials therefore remain a high-impact accepted risk. The
+minimum remediation is to create a new narrowly scoped Cloudflare DNS token,
+change the Hub administrator password, and rotate the two generated Hub secrets
+without printing any value. Rotation should invalidate existing Hub sessions
+and finish with route and agent health checks.
+
+### Resolved — patching needed a controlled reboot
+
+Alpha initially ran `6.8.0-124-generic` while `6.8.0-136-generic` and 21 package
+updates were waiting. A guarded update validated SSH and Compose, ran normal
+`apt upgrade` without removals, checked the package database and critical
+services, and rebooted with the provider console retained as recovery access.
+
+The reboot exposed a pre-existing typo in persistent WireGuard state:
+`10.0.10` could not be parsed as a peer address. Runtime state before reboot had
+masked the invalid file. The single malformed occurrence was corrected to the
+modeled iPhone route `10.8.0.10/32`; `wg-quick strip` validated the full
+root-only file before activation. WireGuard, Ollama, and the VPN-only Handbook
+then recovered. Final checks found kernel `6.8.0-136-generic`, no reboot-required
+marker, active SSH/Docker/fail2ban/WireGuard/Ollama/hub-agent services, a clean
+Hub checkout, and HTTP `200` from all four application routes.
+
+### Medium — SSH permits capabilities that are not normally needed
+
+X11 forwarding is enabled, and the default SSH forwarding policy permits TCP
+forwarding. These are useful features, but every unnecessary capability makes a
+stolen key more valuable. After CI identities are separated, disable X11
+forwarding and decide deliberately whether human and deployment identities need
+TCP or agent forwarding. Validate with `sshd -t` and a second SSH session before
+reloading the daemon.
+
+### Medium — general container confinement and image reproducibility are weak
+
+No container is privileged, but almost every container uses the image's default
+root user, writable root filesystem, and no `no-new-privileges` option. Several
+operational images use mutable `latest` or `main` tags.
+
+Harden one stack at a time: pin reviewed versions or digests, set an explicit
+non-root user where the image supports it, drop capabilities, enable
+`no-new-privileges`, and use a read-only filesystem with explicit writable
+volumes. Test application writes, health checks, and rollback after each change.
+
+### Medium — a runtime `.env` file is tracked
+
+`personal-ai/server/.env` has been tracked for one commit. Its two current
+variables are only the Open WebUI port and Ollama endpoint list; no password or
+token was found, so this audit does not require credential rotation for that
+file. Tracking the runtime file still defeats the project's secrets invariant
+and makes a later accidental secret commit much more likely.
+
+Replace it with a secret-free `.env.example`, ignore the runtime `.env`, and
+remove the tracked copy in the `personal-ai` source repository. Review the
+one-commit history before deciding whether history rewriting is worthwhile.
+
+### Medium — the HTTPS edge lacks a consistent security baseline
+
+Second Brain returned CSP, referrer-policy, content-type, and frame protections.
+The hub, AI, dashboard, and private handbook responses did not return the
+audited baseline headers, including HSTS. HTTP-to-HTTPS redirects still work,
+but without HSTS a client has no remembered HTTPS-only policy after a trusted
+first visit.
+
+Create a small shared Traefik headers middleware for policies that are safe for
+every application, starting with HSTS without `includeSubDomains`,
+`X-Content-Type-Options: nosniff`, and an intentional referrer policy. Add CSP
+and frame restrictions per application because one global policy can break
+legitimate UI behavior. Validate each route before considering HSTS
+preloading.
+
+The bare `zero-five.space` hostname also has no matching HTTPS router. It
+presents Traefik's generated default certificate, which normal clients reject;
+the configured subdomains present valid Let's Encrypt certificates. Either add
+an explicit apex redirect with its own certificate or remove the apex address
+record if the bare name is intentionally unused. Do not leave the default
+certificate as an ambiguous public endpoint.
+
+### Resolved during the audit
+
+- `~/.ssh/config`, three service `.env` files, and Traefik `.htpasswd` changed
+  from mode `664` to `600`. The owner and service behavior are unchanged.
+- Two established external sessions to host port `3000` were found even though
+  new outside connections timed out. They were compatible with sessions
+  accepted before UFW activation. Restarting only Open WebUI terminated both;
+  the container returned healthy and no external port-3000 session remained.
+- The effective SSH daemon initially offered `publickey,password`: the root-only
+  `50-cloud-init.conf` sorted before the documented `60-cloudimg-settings.conf`,
+  and OpenSSH kept the first value it read. A new
+  `/etc/ssh/sshd_config.d/00-zero-five-authentication.conf` explicitly requires
+  public-key authentication. `sshd -t`, the effective daemon output, a reload,
+  a new external key login, and an unauthenticated method probe all passed. The
+  30-day journal contained about 27,000 failed authentication events but no
+  successful password login; every success used one of the six authorized key
+  fingerprints.
+- The hostname changed from the provider-generated value to `alpha`.
+  `/etc/hosts` maps `127.0.1.1` to `alpha`, and
+  `/etc/cloud/cloud.cfg.d/99-zero-five-hostname.cfg` prevents cloud-init from
+  restoring the provider name. SSH, UFW, fail2ban, Docker, WireGuard, Ollama,
+  hub-agent, listeners, and healthy containers remained operational.
+
+### Medium — documented WireGuard deployment state is stale
+
+The live `wg0` interface had exactly the four modeled client addresses. Gamma,
+the MacBook, and the iPhone had recent handshakes; the CachyOS peer's handshake
+was about 12 days old. Existing in-progress WireGuard documentation still marks
+Gamma and the iPhone as pending, so it must be reconciled without exposing peer
+keys or endpoints. This is documentation drift, not an unexpected peer.
+
+### Operational, not a compromise indicator
+
+`minecraft.service` was failed and public port `25565` refused connections.
+The recorded main-process status was `143`, which is the conventional
+`SIGTERM` result and is consistent with an intentional stop whose unit does not
+classify that exit as successful. The service had run for almost three weeks
+and peaked around 6.1 GiB RAM. This is an availability/resource-planning issue,
+not evidence of intrusion, but the owner should confirm the July 16 stop before
+clearing the failed state or restarting it. Its configured 8 GiB maximum heap
+is too aggressive for an 8 GiB VPS with no swap and other workloads.
+
+## Suspicious-activity conclusion
+
+The reviewed evidence showed no confirmed unauthorized account, privilege
+change, listener, container, scheduled task, executable, or successful password
+login. Every successful SSH event used one of the six installed key
+fingerprints. Their source addresses and the continuing need for every key
+still require owner recognition; only the owner can say whether all of those
+uses are expected. Internet SSH probing and failed authentication are expected
+on a public VPS and are not by themselves proof of compromise.
+
+If any successful login source or fingerprint is unknown, stop treating this as
+a hardening exercise. Preserve logs and provider snapshots, isolate access
+without destroying evidence, rotate credentials from a clean device, and plan
+a rebuild from known-good source rather than trying to clean the host in place.
+
+## Hostname verification and rollback
+
+Inspect the new identity without changing networking:
+
+```bash
+hostnamectl status
+hostname --fqdn
+getent hosts alpha
+grep -R '^preserve_hostname:' /etc/cloud/cloud.cfg /etc/cloud/cloud.cfg.d
+```
+
+The change created
+`/root/zero-five-hostname-backup-20260721T161848Z`. To roll back, restore that
+directory's `hostname` and `hosts` files, run
+`hostnamectl set-hostname vmi3072180`, remove
+`/etc/cloud/cloud.cfg.d/99-zero-five-hostname.cfg`, and verify from the still-open
+SSH session. Do not alter DNS, UFW, or SSH as part of hostname rollback.
+
+## SSH authentication rollback
+
+The validated pre-change SSH files are in
+`/root/zero-five-ssh-backup-20260721T162841Z`. If the public-key-only override
+must be rolled back from a protected console or existing SSH session:
+
+```bash
+sudo rm -f /etc/ssh/sshd_config.d/00-zero-five-authentication.conf
+sudo sshd -t
+sudo systemctl reload ssh
+```
+
+This restores the previous behavior, which offered passwords, so use it only
+for recovery. Prefer fixing key access from the provider console and restoring
+the hardened file immediately.
+
+## Next logical step
+
+Complete and test the encrypted Raspberry Pi backup path before rebooting or
+making more high-impact hardening changes. Recovery is the dependency for
+safely changing SSH, the hub control plane, containers, or the running kernel.

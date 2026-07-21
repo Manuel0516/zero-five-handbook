@@ -24,9 +24,9 @@ Two layers make the site private:
 1. **DNS points into the tunnel.** `docs.zero-five.space` has an explicit A record → `10.8.0.1` (grey cloud), overriding the wildcard that points at the public IP. Every WireGuard peer routes `10.8.0.1/32` through `wg0`, so on the VPN the name just works; off the VPN it resolves to an unreachable private address.
 2. **Traefik rejects non-VPN sources.** Anyone can still connect to the *public* IP and send `Host: docs.zero-five.space`, so the router carries an `ipWhiteList` middleware allowing only `10.8.0.0/24`. Docker's NAT preserves source addresses, so requests arriving through `wg0` show their real `10.8.0.x` origin and everything else gets a 403.
 
-HTTPS still works because certificates come from the **DNS-01 challenge** (see [Traefik](/docs/vps/traefik)) — Let's Encrypt never connects to the address the record points at.
+HTTPS still works because certificates come from the **DNS-01 challenge** (see [Traefik](/docs/vps-alpha/traefik)) — Let's Encrypt never connects to the address the record points at.
 
-> **Note:** No firewall change was needed: Traefik's published `:443` bypasses UFW (Docker trap #1 on the [Security](/docs/vps/security) page), which here works in our favor — the port is already reachable on `wg0`.
+> **Note:** No firewall change was needed: Traefik's published `:443` bypasses UFW (Docker trap #1 on the [Security](/docs/vps-alpha/security) page), which here works in our favor — the port is already reachable on `wg0`.
 
 ---
 
@@ -34,8 +34,8 @@ HTTPS still works because certificates come from the **DNS-01 challenge** (see [
 
 `.github/workflows/deploy.yml` is triggered for pull requests and pushes to `master`, and can also be started manually. A deployment happens only after locked dependency installation, type checking, linting, the Next.js production build, and a production Docker image build all succeed.
 
-1. GitHub Actions **SSHes into the VPS** using a dedicated deploy key and a pinned host key.
-2. The VPS runs **`git pull --ff-only`** in `~/services/zero-five-handbook/`, which is a clone of this repo (the VPS's own read-only deploy key authenticates to GitHub).
+1. GitHub Actions **SSHes into the VPS** using a dedicated deploy key and a pinned host key. Its `authorized_keys` entry uses `restrict` and a forced dispatcher.
+2. The dispatcher ignores workflow-provided shell text and accepts only the connection check or the fixed Handbook deployment procedure. The VPS then runs **`git pull --ff-only`** in `~/services/zero-five-handbook/`, whose own read-only key authenticates to GitHub.
 3. Compose validates its resolved model, rebuilds the image, recreates the container, and waits for its `/docs` health check.
 4. The job proves that Docker published no handbook host port, checks `/docs` inside the container, and checks HTTPS through Traefik at `10.8.0.1` before pruning dangling images.
 
@@ -44,7 +44,7 @@ HTTPS still works because certificates come from the **DNS-01 challenge** (see [
 | Dockerfile, compose file, workflow | handbook repo root / `.github/workflows/` |
 | Stack on the VPS | `~/services/zero-five-handbook/` — a git clone of the repo |
 | `OPENROUTER_API_KEY` | `~/services/zero-five-handbook/.env` (gitignored, never in git) |
-| Deploy SSH key | Private half in repo secret `VPS_SSH_KEY`; public half in `~/.ssh/authorized_keys` on the VPS |
+| Deploy SSH key | Private half in repo secret `VPS_SSH_KEY`; restricted public half in `~/.ssh/authorized_keys`; fixed scripts under `~/.local/libexec/zero-five/` |
 | VPS endpoint | Repo secret `VPS_HOST`; use the public IP or a publicly resolvable management hostname, without a port |
 | VPS host identity | Verified complete `known_hosts` line in repo secret `VPS_SSH_KNOWN_HOSTS` |
 
@@ -61,9 +61,11 @@ enter the image.
 ## One-time GitHub and VPS setup
 
 Create a dedicated SSH key for Actions, add only its public key to the VPS
-user's `~/.ssh/authorized_keys`, and put the private key in `VPS_SSH_KEY`. The
-key should not be the VPS key that reads GitHub; these are two separate trust
-directions.
+user's `~/.ssh/authorized_keys` with `restrict` and the Zero Five forced
+dispatcher, and put the private key in `VPS_SSH_KEY`. The key should not be the
+VPS key that reads GitHub or a key shared with another workflow; these are
+separate trust directions. Keep the dispatcher and fixed deploy procedure in
+`zero-five-infra/ssh/` so the restriction is reviewable and recoverable.
 
 Pin the server identity instead of trusting a fresh `ssh-keyscan` result during
 every deployment. From an already trusted connection, inspect the VPS SSH host

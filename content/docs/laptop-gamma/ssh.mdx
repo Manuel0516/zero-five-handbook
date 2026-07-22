@@ -1,23 +1,56 @@
 ---
 title: SSH over WireGuard
-description: Administer Gamma through the VPN and close the temporary LAN SSH path.
+description: Administer Gamma through Alpha, understand every SSH file and hop, restrict the LAN path safely, and recover from failures.
 ---
 
-SSH hardening happens only after WireGuard is working. Gamma stays behind the
-home router and does not need a public SSH port or router port-forward.
+Gamma stays behind the home router and needs no public SSH port or router
+port-forward. The MacBook reaches it through Alpha, the existing WireGuard hub
+and SSH jump host.
+
+## Verified current state
+
+On 2026-07-22, `ssh gamma` completed from the MacBook through Alpha and Gamma
+reported the SSH source as `10.8.0.1`. The resolved Mac client configuration
+was `10.8.0.4:22`, identity `~/.ssh/id_ed25519`, and `ProxyJump contabo`.
+
+Gamma uses systemd socket activation: `ssh.socket` is enabled and active, while
+`ssh.service` is active but not independently enabled. The socket accepts a
+connection and starts the service when needed.
+
+Direct LAN SSH to `manuel@192.168.1.164` still worked during the audit. The VPN
+path is verified, but the LAN firewall restriction remains a deliberate future
+hardening step.
 
 ## Access path
 
-The current hub isolates WireGuard clients from one another. Rather than open
-general client forwarding, use the VPS as an SSH jump host:
-
 ```text
-MacBook -> contabo:2020  (existing VPS SSH alias)
+MacBook -> contabo:2020  (existing Alpha SSH alias)
         -> 10.8.0.4:22   (Gamma over WireGuard)
 ```
 
-This keeps the existing routed-deny policy intact. The MacBook SSH config can
-reuse the canonical `contabo` alias as Gamma's jump host:
+The hub denies general client-to-client forwarding. `ProxyJump` avoids opening
+that policy: the Mac authenticates to Alpha, then SSH asks Alpha to open the
+second TCP connection to Gamma's private address. The Mac's private key remains
+on the Mac and authenticates end-to-end; it is not copied to Alpha.
+
+## Configuration locations
+
+| Machine | Path | Purpose |
+| --- | --- | --- |
+| MacBook | `~/.ssh/config` | Client aliases, identity selection, port, and jump-host policy |
+| MacBook | `~/.ssh/id_ed25519` | Private client identity; keep mode `0600` and never copy it to Alpha or Gamma |
+| MacBook | `~/.ssh/known_hosts` | Trusted Alpha and Gamma host identities |
+| Gamma | `/home/manuel/.ssh/authorized_keys` | Authorized public client keys; verified owner `manuel:manuel`, mode `0600` |
+| Gamma | `/etc/ssh/sshd_config` | OpenSSH server base configuration |
+| Gamma | `/etc/ssh/sshd_config.d/*.conf` | Server drop-ins; lexical precedence can change effective authentication |
+| Gamma | `/usr/lib/systemd/system/ssh.socket` | Package-owned socket unit; do not edit directly |
+
+Use `sshd -T` to inspect effective server behavior. Reading only the authored
+files can be misleading when package or installer drop-ins override a setting.
+
+## MacBook configuration
+
+`~/.ssh/config` contains:
 
 ```text
 Host contabo
@@ -36,19 +69,80 @@ Host gamma
   ProxyJump contabo
 ```
 
-Test `ssh contabo` first, then `ssh gamma`, from a second terminal while the
-LAN bootstrap session remains open.
+`contabo` is the canonical alias name even though the VPS hostname is Alpha.
+Do not introduce a second `contabo-vpn` alias; Gamma must use
+`ProxyJump contabo`.
 
-`ProxyJump contabo` means the Mac opens the connection through the existing VPS
-SSH alias; the VPS then reaches Gamma at `10.8.0.4:22` through WireGuard.
-Gamma's SSH port does not need to be exposed on the LAN or forwarded by the
-home router. The Mac's private key remains on the Mac and authenticates
-end-to-end; it is not copied to the VPS.
+## Verify the resolved client path
 
-## Restrict the host firewall
+On the MacBook:
 
-Once VPN SSH succeeds, allow SSH only when packets arrive through `wg0`, then
-enable UFW:
+```bash
+ssh -G gamma | grep -E \
+  '^(hostname|user|port|identityfile|identitiesonly|proxyjump) '
+```
+
+Expected values include:
+
+```text
+hostname 10.8.0.4
+user manuel
+port 22
+identitiesonly yes
+identityfile ~/.ssh/id_ed25519
+proxyjump contabo
+```
+
+Test each hop independently:
+
+```bash
+ssh contabo
+ssh gamma
+```
+
+On Gamma, inspect the source of the current SSH connection:
+
+```bash
+printf '%s\n' "$SSH_CONNECTION"
+```
+
+The first field should be Alpha's VPN address, `10.8.0.1`.
+
+## Verify host identity
+
+On Gamma's physical console or an already trusted connection:
+
+```bash
+sudo ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+```
+
+Compare that fingerprint with the first-connection prompt on the MacBook before
+accepting it. `ssh-keyscan` can collect a key but cannot prove that the key
+belongs to Gamma; fingerprint comparison requires a trusted path.
+
+## Inspect the server
+
+On Gamma:
+
+```bash
+systemctl is-enabled ssh.socket
+systemctl is-active ssh.socket
+systemctl is-active ssh.service
+sudo sshd -T | grep -E \
+  '^(port|listenaddress|passwordauthentication|pubkeyauthentication) '
+sudo stat -c '%n owner=%U:%G mode=%a' \
+  /home/manuel/.ssh \
+  /home/manuel/.ssh/authorized_keys
+```
+
+Do not disable password authentication or remove recovery access in the same
+change that first restricts the firewall. Prove public-key authentication from
+a second terminal first.
+
+## Restrict SSH to the VPN
+
+Only after `ssh gamma` works reliably, allow SSH on `wg0`, set default incoming
+deny, and enable UFW:
 
 ```bash
 sudo ufw default deny incoming
@@ -58,13 +152,53 @@ sudo ufw enable
 sudo ufw status verbose
 ```
 
-Open another `ssh gamma` session after enabling UFW. Confirm that VPN access
-still works and that direct LAN access to `192.168.1.164:22` now fails. Do not
-disable SSH or remove the authorized key; the firewall is the network boundary.
+Keep the original LAN session open and create a second `ssh gamma` session.
+Then verify from the MacBook:
 
-## Recovery
+```bash
+ssh gamma
+nc -vz -w 3 192.168.1.164 22
+```
 
-If VPN SSH fails after enabling UFW, use Gamma's physical keyboard and display.
-Run `sudo ufw disable` to restore LAN reachability temporarily, diagnose
-WireGuard, and repeat the second-session tests. Do not open port 22 on the home
-router.
+The VPN command should succeed; direct LAN TCP port 22 should fail. Keep
+physical console access until both results are confirmed. Do not change
+WireGuard, sshd authentication, and UFW in the same risky step.
+
+## Copy operational files
+
+Modern SFTP-based `scp` closed the connection during the verified transfer,
+while legacy SCP mode succeeded and produced matching checksums. Use the
+verified legacy mode through the canonical SSH alias:
+
+```bash
+scp -O path/to/local-file gamma:/home/manuel/
+```
+
+`-O` selects the legacy SCP file-transfer protocol. It does not weaken SSH
+encryption or bypass `ProxyJump contabo`; it changes only the remote copy
+subsystem. Verify a checksum before installing a privileged copy:
+
+```bash
+shasum -a 256 path/to/local-file
+ssh gamma 'shasum -a 256 /home/manuel/local-file'
+```
+
+## Troubleshooting
+
+Work in hop order:
+
+1. `ssh contabo` proves the public Alpha connection.
+2. On Alpha, `ping -c 3 10.8.0.4` proves its WireGuard route to Gamma.
+3. On Gamma's console, `systemctl status ssh.socket --no-pager` proves the SSH
+   listener.
+4. `ssh -vv gamma` shows jump-host, host-key, and authentication failures
+   without changing server state.
+
+If VPN SSH fails after enabling UFW, use Gamma's physical keyboard and display:
+
+```bash
+sudo ufw disable
+```
+
+That temporarily restores the pre-firewall behavior for diagnosis. Do not open
+port 22 on the home router.

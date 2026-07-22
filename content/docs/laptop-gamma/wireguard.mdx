@@ -11,6 +11,17 @@ address, enters the tunnel. Gamma's ordinary internet and package downloads
 continue to use the home router. `PersistentKeepalive = 25` keeps the NAT
 mapping usable while Gamma is quiet.
 
+## Verified current state
+
+On 2026-07-22, Gamma's `wg0` interface was present at `10.8.0.4/32`, its route
+to `10.8.0.1` used `wg0`, and `wg-quick@wg0` was both enabled and active after
+a Wake-on-LAN resume. Gamma reached Alpha at `10.8.0.1`, Alpha reached Gamma at
+`10.8.0.4`, and the MacBook completed `ssh gamma` through Alpha.
+
+This proves runtime communication, client boot persistence, and the SSH path.
+It does not authorize broad client-to-client forwarding: Gamma still routes
+only Alpha's `/32` through WireGuard.
+
 ## Configuration locations
 
 | Machine or source | Path | Purpose and sensitivity |
@@ -21,13 +32,15 @@ mapping usable while Gamma is quiet.
 | VPS | `/etc/wireguard/wg0.conf` | Deployed persistent hub configuration and all client peer entries. Contains the VPS private key; keep it root-owned with mode `0600`. |
 | Infrastructure repository | `zero-five-infra/wireguard/gamma.conf.example` | Secret-free reviewed model for Gamma. `GAMMA_PRIVATE_KEY` must remain a placeholder. |
 | Infrastructure repository | `zero-five-infra/wireguard/vps.conf.example` | Secret-free reviewed model for the VPS and Gamma's public peer entry. |
+| Gamma systemd template | `/usr/lib/systemd/system/wg-quick@.service` | Package-owned service template; do not edit it. |
+| Gamma enablement symlink | `/etc/systemd/system/multi-user.target.wants/wg-quick@wg0.service` | Created by `systemctl enable`; starts `wg0` from its deployed config. |
 
 `sudo wg set` changes the kernel's live WireGuard interface only; it does not
 edit either deployed `wg0.conf`. Runtime changes disappear after the interface
 or machine restarts unless the matching peer is also added to the persistent
 configuration.
 
-## Bootstrap on Gamma
+## Rebuild or bootstrap Gamma
 
 Keep the existing LAN SSH session open. In a second terminal, connect to
 `manuel@192.168.1.164`, then install WireGuard and generate the identity on
@@ -37,9 +50,8 @@ Gamma itself:
 sudo apt update
 sudo apt install --yes wireguard
 sudo install -d -m 700 /etc/wireguard
-umask 077
-wg genkey | sudo tee /etc/wireguard/private.key >/dev/null
-sudo cat /etc/wireguard/private.key | wg pubkey | sudo tee /etc/wireguard/public.key >/dev/null
+sudo sh -c 'umask 077; wg genkey > /etc/wireguard/private.key'
+sudo sh -c 'wg pubkey < /etc/wireguard/private.key > /etc/wireguard/public.key'
 sudo chmod 600 /etc/wireguard/private.key /etc/wireguard/public.key
 sudo cat /etc/wireguard/public.key
 ```
@@ -51,6 +63,16 @@ Create `/etc/wireguard/wg0.conf` from the reviewed
 `zero-five-infra/wireguard/gamma.conf.example`, replacing only
 `GAMMA_PRIVATE_KEY` with the contents of Gamma's local private-key file. The
 tracked example must keep the placeholder.
+
+Gamma's recorded public key is:
+
+```text
+4+S25E4bN2naE00/N44R78RqvUxCzINGlCn4C2rMllg=
+```
+
+A fresh rebuild must generate a new identity and replace the old public key on
+Alpha only after the new key has been verified. Do not reuse a private key from
+an erased or untrusted installation.
 
 ## Activate runtime state first
 
@@ -65,6 +87,12 @@ interface with `wg set`; do not restart WireGuard. Bring up Gamma's interface,
 then verify both directions:
 
 ```bash
+# On Alpha
+sudo wg set wg0 \
+  peer '4+S25E4bN2naE00/N44R78RqvUxCzINGlCn4C2rMllg=' \
+  allowed-ips 10.8.0.4/32
+
+# On Gamma
 sudo wg-quick up wg0
 ping -c 3 10.8.0.1
 sudo wg show
@@ -75,7 +103,51 @@ runtime success should the same peer block be saved in the VPS's root-owned
 `/etc/wireguard/wg0.conf`, and Gamma enabled at boot:
 
 ```bash
+# Validate without printing the stripped secret-bearing configuration.
+sudo wg-quick strip wg0 >/dev/null
 sudo systemctl enable wg-quick@wg0
+```
+
+If `wg0` was already raised manually, enable the service without `--now`.
+Starting `wg-quick@wg0` while the interface already exists can fail. The next
+reboot lets systemd take ownership cleanly.
+
+## Routine inspection
+
+On Gamma:
+
+```bash
+systemctl is-enabled wg-quick@wg0
+systemctl is-active wg-quick@wg0
+ip -brief address show wg0
+ip route show 10.8.0.1
+ping -c 3 10.8.0.1
+sudo wg show wg0
+```
+
+On Alpha:
+
+```bash
+ip -brief address show wg0
+ip route show 10.8.0.4
+ping -c 3 10.8.0.4
+sudo wg show wg0
+```
+
+`wg show` exposes public peer metadata, handshake times, endpoints, and byte
+counters; it hides private keys. A recent handshake proves authenticated packet
+exchange, while the pings prove routing and firewall reachability.
+
+## Suspend and resume behavior
+
+Suspending Gamma stops normal processing and makes its WireGuard peer
+temporarily unreachable. After Wake-on-LAN resume, the existing interface and
+keepalive should restore the path without recreating keys or restarting Alpha.
+If `ssh gamma` initially fails, wait briefly and check:
+
+```bash
+systemctl is-active wg-quick@wg0
+ping -c 3 10.8.0.1
 ```
 
 ## Rollback
@@ -84,3 +156,21 @@ If Gamma does not handshake, leave SSH and UFW unchanged. Bring down only
 Gamma's interface and remove only Gamma's runtime public key from the VPS. The
 existing peers must remain untouched. If persistence was already edited,
 restore the VPS backup before restarting `wg-quick@wg0`.
+
+Runtime removal on Alpha is peer-specific:
+
+```bash
+sudo wg set wg0 \
+  peer '4+S25E4bN2naE00/N44R78RqvUxCzINGlCn4C2rMllg=' \
+  remove
+```
+
+On Gamma, disable automatic startup and lower only its interface:
+
+```bash
+sudo systemctl disable wg-quick@wg0
+sudo wg-quick down wg0
+```
+
+Do not remove or restart the CachyOS, MacBook, or iPhone peers during Gamma
+rollback.

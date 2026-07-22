@@ -1,0 +1,147 @@
+---
+title: Boot and Firmware
+description: Gamma's GRUB recovery timeout, Kexec Handover warnings, boot timing, remaining TPM warning, verification, and rollback.
+---
+
+Gamma initially displayed a GRUB menu for about 30 seconds even though
+`GRUB_TIMEOUT=0`, followed by two early memory-reservation warnings. These were
+separate behaviors with separate causes.
+
+## Verified current state
+
+| Check | Before | After |
+| --- | --- | --- |
+| GRUB environment | `recordfail=1` persisted | No `recordfail` flag present |
+| Abnormal-boot menu | GRUB default fallback of 30 seconds | Five-second recovery timeout |
+| Loader time | 9.682 seconds | 3.909 seconds on the verified boot |
+| Kernel command line | No explicit KHO policy | `kho=off` present |
+| KHO warnings | Two scratch-area allocation failures | Absent from the current boot journal |
+| Full boot measurement | 44.124 seconds | 38.266 seconds |
+
+The remaining userspace time is largely the old mechanical disk becoming
+available. Reducing GRUB's recovery delay does not turn the HDD into an SSD and
+should not be confused with service-startup tuning.
+
+## Why GRUB ignored `GRUB_TIMEOUT=0`
+
+`/etc/default/grub` already contained:
+
+```bash
+GRUB_TIMEOUT_STYLE=hidden
+GRUB_TIMEOUT=0
+```
+
+Ubuntu's `/etc/grub.d/00_header` applies a different timeout when the GRUB
+environment contains `recordfail=1`. If no explicit override exists, that
+recovery timeout is 30 seconds. The menu is intentional: it provides time to
+select an older kernel after an unsuccessful boot.
+
+Gamma preserves that recovery mechanism but shortens it to five seconds. The
+authored override is:
+
+```text
+/etc/default/grub.d/99-gamma-boot.cfg
+```
+
+with:
+
+```bash
+GRUB_RECORDFAIL_TIMEOUT=5
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT:+$GRUB_CMDLINE_LINUX_DEFAULT }kho=off"
+```
+
+The shell expansion appends `kho=off` to existing Ubuntu kernel arguments
+instead of replacing settings such as `crashkernel`.
+
+## What the KHO warnings meant
+
+The two observed lines were:
+
+```text
+KHO: Failed to reserve lowmem scratch buffer
+KHO: Failed to reserve scratch area, disabling kexec handover
+```
+
+Kexec HandOver is an optional kernel mechanism for preserving selected memory
+state across a `kexec` transition. Gamma uses normal firmware boot and does not
+use KHO. The failed allocation disabled that optional feature; it did not mean
+that system RAM was missing or that UEFI failed to load Ubuntu.
+
+Gamma's Ubuntu kernel enables KHO by default, so `kho=off` makes the unused
+policy explicit and removes those messages. Do not add arbitrary memory-size
+workarounds merely to silence an optional feature that the machine does not
+use.
+
+## Apply the boot policy
+
+Create the drop-in without editing generated GRUB files:
+
+```bash
+sudo install -d -m 0755 /etc/default/grub.d
+
+sudo tee /etc/default/grub.d/99-gamma-boot.cfg >/dev/null <<'EOF'
+GRUB_RECORDFAIL_TIMEOUT=5
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT:+$GRUB_CMDLINE_LINUX_DEFAULT }kho=off"
+EOF
+
+sudo grub-editenv /boot/grub/grubenv unset recordfail
+sudo update-grub
+sudo grub-script-check /boot/grub/grub.cfg
+```
+
+`update-grub` regenerates `/boot/grub/grub.cfg`; never edit that generated file
+directly. `grub-editenv` is the supported tool for `/boot/grub/grubenv`.
+
+## Verify after reboot
+
+```bash
+cat /proc/cmdline
+strings /boot/grub/grubenv | grep -E '^(recordfail|initrdfail)=' || true
+systemd-analyze
+journalctl -b -k --no-pager | grep -E 'KHO:|kexec handover' || true
+```
+
+Expected results:
+
+- `/proc/cmdline` contains `kho=off` without losing Ubuntu's other arguments;
+- no stale `recordfail` line is printed;
+- no KHO scratch-area warning appears;
+- an abnormal boot still provides at most five seconds for recovery.
+
+## Remaining TPM warning
+
+The current kernel journal still reports:
+
+```text
+tpm tpm0: Operation Timed out
+tpm_crb MSFT0101:00: probe with driver tpm_crb failed with error -62
+```
+
+The 2015 firmware exposes a TPM2 ACPI description, but the kernel cannot
+initialize the device and continues without a usable TPM. This does not block
+ordinary boot, WireGuard, SSH, suspend, or Wake-on-LAN. It does mean Gamma must
+not be documented as providing TPM-backed measured boot or TPM-sealed secrets.
+Do not hide this separate warning with unrelated EFI or memory parameters.
+
+## Rollback
+
+Move the Gamma override aside, regenerate GRUB, and reboot physically available
+to the machine:
+
+```bash
+sudo mv \
+  /etc/default/grub.d/99-gamma-boot.cfg \
+  /etc/default/grub.d/99-gamma-boot.cfg.disabled
+sudo update-grub
+sudo grub-script-check /boot/grub/grub.cfg
+sudo systemctl reboot
+```
+
+Rollback restores Ubuntu's default KHO behavior and 30-second recordfail
+fallback. It does not modify the UEFI boot entries or firmware settings.
+
+## References
+
+- [Linux kernel Kexec HandOver usage](https://docs.kernel.org/6.16/admin-guide/mm/kho.html)
+- [Linux kernel command-line parameters](https://docs.kernel.org/admin-guide/kernel-parameters.html)
+- [ASUS X555-series notebook manual](https://dlcdnets.asus.com/pub/ASUS/nb/X555LA/0409_E10576_X555LA_LD_LN_EM_V4_B.pdf?model=x555la)

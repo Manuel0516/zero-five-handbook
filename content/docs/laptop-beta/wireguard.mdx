@@ -1,0 +1,149 @@
+---
+title: WireGuard
+description: The Beta laptop's narrow Alpha peer, deployed state, completion procedure, verification, security boundary, and rollback.
+---
+
+## Design
+
+Beta is a client of Alpha, the stable public WireGuard hub:
+
+| Machine | WireGuard address | Role |
+| --- | --- | --- |
+| Alpha | `10.8.0.1/24` | Public hub listening on UDP `51820` |
+| Beta | `10.8.0.5/32` | Proxmox client with a narrow Alpha-only route |
+
+Beta uses `AllowedIPs = 10.8.0.1/32`. Only traffic addressed to Alpha's VPN IP
+enters `wg0`. The default route, Proxmox LAN management at `192.168.1.166`, and
+ordinary internet traffic remain on `vmbr0`.
+
+The MacBook still has no direct route to Beta's Proxmox UI through WireGuard.
+Existing clients lack a route to `10.8.0.5`, and Alpha's routed UFW policy
+denies client-to-client forwarding. `ssh beta` works without changing that
+boundary: Alpha originates the second SSH connection as a jump host.
+
+## Deployed state
+
+Beta was configured and inspected live on 2026-07-22:
+
+- WireGuard tools and the kernel module were already installed.
+- Beta generated its private key locally; the private key never left Beta.
+- `/etc/wireguard/wg0.conf` is root-owned with mode `0600`.
+- `wg-quick@wg0` is enabled and active.
+- `wg0` owns `10.8.0.5/32`.
+- `ip route get 10.8.0.1` selects `wg0` with source `10.8.0.5`.
+- Beta has a recent handshake with Alpha at `95.111.229.142:51820`.
+- Bidirectional ping between `10.8.0.1` and `10.8.0.5` succeeds.
+- Beta receives HTTP `200` from `https://docs.zero-five.space` over the tunnel.
+- Alpha receives HTTP `200` from Beta's Proxmox UI at `10.8.0.5:8006`.
+- After the 2026-07-22 Beta reboot, `wg-quick@wg0` started automatically from
+  the mode-`0600` file, established a new handshake, and restored all checks.
+
+The client public key is safe to distribute:
+
+```text
+5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI=
+```
+
+Alpha's runtime route is active and the persistent peer block was installed by
+the owner. The live tunnel and useful service traffic were independently
+verified afterward. A future Alpha reboot remains the final proof that the hub
+file survives boot exactly as intended.
+
+The full file map—including the package service template, boot symlink,
+secret-bearing source, tracked examples, and the fact that Beta has no separate
+key files—is in the
+[configuration reference](/docs/laptop-beta/configuration-reference#wireguard).
+
+## Alpha registration procedure
+
+This procedure was completed on 2026-07-22 and remains the rebuild reference.
+Keep two authenticated Alpha SSH sessions open. First create a root-only
+rollback copy, then add only the new runtime peer:
+
+```bash
+sudo cp --preserve=all /etc/wireguard/wg0.conf \
+  /etc/wireguard/wg0.conf.pre-beta
+sudo chmod 600 /etc/wireguard/wg0.conf.pre-beta
+sudo wg set wg0 \
+  peer 5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI= \
+  allowed-ips 10.8.0.5/32
+```
+
+Verify runtime reachability from Alpha:
+
+```bash
+sudo wg show wg0
+ping -c 3 10.8.0.5
+curl -k --connect-timeout 5 https://10.8.0.5:8006/
+```
+
+If that succeeds, add this reviewed block to Alpha's
+`/etc/wireguard/wg0.conf` without replacing any existing peer:
+
+```ini
+[Peer]
+# Peer: beta
+PublicKey = 5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI=
+AllowedIPs = 10.8.0.5/32
+```
+
+Validate without printing the secret-bearing stripped configuration:
+
+```bash
+sudo wg-quick strip wg0 >/dev/null
+```
+
+Do not restart Alpha's interface merely to add this peer. The runtime `wg set`
+already activated it; the file edit makes the same route persistent without
+interrupting existing clients.
+
+## End-to-end verification
+
+On Beta:
+
+```bash
+systemctl is-enabled wg-quick@wg0
+systemctl is-active wg-quick@wg0
+ip -brief address show wg0
+ip route get 10.8.0.1
+wg show wg0
+ping -c 3 10.8.0.1
+curl --connect-timeout 5 https://docs.zero-five.space/
+```
+
+On Alpha:
+
+```bash
+sudo wg show wg0
+ip route show 10.8.0.5
+ping -c 3 10.8.0.5
+```
+
+A handshake proves key agreement. Bidirectional ping proves the two narrow
+routes. The handbook HTTPS request proves useful service traffic. Beta's reboot
+proves its client persistence. Alpha's enabled service and owner-applied file
+make the hub entry durable by configuration; a controlled Alpha reboot is still
+required for direct boot proof.
+
+## Rollback
+
+If the runtime peer causes any unexpected behavior, remove only Beta:
+
+```bash
+sudo wg set wg0 \
+  peer 5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI= remove
+```
+
+If Alpha's persistent file was edited incorrectly, restore the protected copy,
+validate it with redirected `wg-quick strip`, and restart only while a recovery
+SSH session remains open.
+
+On Beta, stop and disable the client without touching LAN networking:
+
+```bash
+systemctl disable --now wg-quick@wg0
+```
+
+Do not delete Beta's private identity during ordinary rollback. Preserving the
+key permits a reviewed retry without silently changing Alpha's expected public
+key.

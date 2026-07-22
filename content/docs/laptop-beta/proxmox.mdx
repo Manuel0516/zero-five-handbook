@@ -1,0 +1,148 @@
+---
+title: Proxmox Baseline
+description: Beta's verified Proxmox, hardware, storage, network, service, and security baseline.
+---
+
+## Platform model
+
+Beta is a standalone Proxmox VE node, not a cluster member. Proxmox runs on
+Debian 13 and provides two workload types:
+
+- QEMU/KVM virtual machines emulate a complete computer and need hardware
+  virtualization for acceptable performance.
+- LXC containers share the host kernel and can run without KVM, but are not a
+  substitute when a workload needs its own kernel.
+
+Intel VT-x was enabled in firmware and verified after the 2026-07-22 reboot.
+Linux exposes `/dev/kvm`, reports the `vmx` flag, and loads `kvm_intel` and
+`kvm`. Recheck with:
+
+```bash
+grep -m1 -o vmx /proc/cpuinfo
+ls -l /dev/kvm
+lsmod | grep -E '^kvm'
+```
+
+The same boot reports:
+
+```text
+Mitigation: PTE Inversion; VMX: conditional cache flushes, SMT vulnerable
+```
+
+This old Haswell CPU is affected by L1TF. The kernel has mitigations, but
+simultaneous multithreading remains active and vulnerable for hostile
+cross-thread workloads. For a personal host running only trusted guests, that
+may be an accepted trade-off. Before running untrusted or mutually distrustful
+guests, review the current mitigation guidance and consider disabling SMT in
+firmware as a separate measured change.
+
+## Network bridge
+
+`nic0` is the physical Ethernet device. It has no host IP of its own. Proxmox
+attaches it to the Linux bridge `vmbr0`, and the bridge owns the management IP:
+
+| Field | Value |
+| --- | --- |
+| Bridge | `vmbr0` |
+| Physical port | `nic0` |
+| Address | `192.168.1.166/24` |
+| Gateway | `192.168.1.1` |
+| DNS | `192.168.1.1`, search domain `zero-five.space` |
+| STP | Off |
+| Forward delay | `0` |
+
+Future guests can attach virtual network interfaces to `vmbr0` and appear as
+separate devices on the home LAN. Changing `/etc/network/interfaces` can cut
+off both SSH and the web UI; use the physical console and change only one
+networking property at a time.
+
+## Storage
+
+The 1 TB HGST HDD uses one EFI partition and one LVM physical volume:
+
+| Storage | Role | Observed capacity and use |
+| --- | --- | --- |
+| `local` | ISOs, templates, backups, imports | 94 GiB filesystem; about 5.6% used |
+| `local-lvm` | VM disks and container root filesystems | About 795 GiB thin pool; empty |
+| `pve-swap` | Host swap | 7.7 GiB; unused during the audit |
+
+Thin provisioning lets guest disks advertise more space than they currently
+consume. It does not create physical capacity. Monitor both the thin data and
+metadata percentages before they fill.
+
+The disk passed SMART overall health with zero reallocated, pending, and
+offline-uncorrectable sectors. It had 5,164 power-on hours and one historical
+airflow-temperature threshold event. This is a baseline, not a backup or a
+guarantee against failure.
+
+## Exposed services
+
+The following listeners were observed on all host addresses:
+
+| Port | Service | Purpose |
+| --- | --- | --- |
+| TCP `22` | OpenSSH | Host administration |
+| TCP `8006` | `pveproxy` | Proxmox web UI and API |
+| TCP `3128` | `spiceproxy` | SPICE console proxy |
+| TCP/UDP `111` | `rpcbind` | RPC service mapping |
+
+The Proxmox firewall reported `disabled/running`: its daemon is present, but
+policy enforcement is disabled. No node or cluster `*.fw` file was found.
+Until a reviewed policy exists, the home router and LAN boundary are doing most
+of the network isolation.
+
+Effective SSH state is key-only: `PasswordAuthentication no`,
+`KbdInteractiveAuthentication no`, and `PermitRootLogin without-password`.
+The only administrative OS account is `root`, the only Proxmox account is
+`root@pam`, and no `manuel` account exists. X11 and TCP forwarding remain
+enabled. They are documented current state, not an intentional hardened target.
+
+## Package repositories
+
+Beta uses Debian's deb822 `.sources` format. The observed source state is:
+
+- `/etc/apt/sources.list.d/debian.sources`: enabled Debian `trixie`, updates,
+  and security repositories;
+- `/etc/apt/sources.list.d/proxmox.sources`: enabled `pve-no-subscription`;
+- `/etc/apt/sources.list.d/pve-enterprise.sources`: present but explicitly
+  disabled with `Enabled: false`;
+- `/etc/apt/sources.list.d/ceph.sources`: present but explicitly disabled with
+  `Enabled: false`.
+
+The node reports no subscription key, which matches the active
+`pve-no-subscription` source. `/etc/apt/sources.list` does not exist; the four
+files above are the source of truth. Do not infer that an enterprise repository
+is active merely because its file exists—inspect its `Enabled` field.
+
+## Routine inspection
+
+```bash
+pveversion -v
+qm list
+pct list
+pvesm status
+ip -brief address
+ip route
+systemctl --failed
+ss -lntup
+pve-firewall status
+smartctl -H /dev/sda
+```
+
+The exact authored, package-owned, generated, and secret-bearing locations are
+mapped in the [configuration reference](/docs/laptop-beta/configuration-reference).
+
+Use `journalctl -b -p err` after boot. The first audit recorded firmware ACPI
+errors, a Nouveau GPU channel error, and the old VMX-disabled message. The
+post-change boot proves VMX is now active and instead records the L1TF/SMT
+warning described above. These messages do not currently mark a systemd unit
+failed, but they are useful evidence if display, suspend, or virtualization
+problems appear later.
+
+## Safe change order
+
+1. Keep a physical console available.
+2. Make one firmware, bridge, firewall, or SSH change at a time.
+3. Validate its native configuration before reload or reboot.
+4. Open a second SSH/UI session and verify the recovery path.
+5. Reboot-test changes whose correctness depends on boot persistence.

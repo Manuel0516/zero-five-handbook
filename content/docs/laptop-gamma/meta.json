@@ -1,4 +1,11 @@
 {
   "title": "Laptop - Gamma",
-  "pages": ["index", "wireguard", "ssh"]
+  "pages": [
+    "index",
+    "configuration-reference",
+    "wireguard",
+    "ssh",
+    "boot-and-firmware",
+    "wake-on-lan"
+  ]
 }

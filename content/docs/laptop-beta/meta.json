@@ -1,0 +1,4 @@
+{
+  "title": "Laptop - Beta",
+  "pages": ["index", "configuration-reference", "wireguard", "ssh", "proxmox"]
+}

@@ -1,0 +1,305 @@
+---
+title: Configuration Reference
+description: Exact deployed, generated, package-owned, sensitive, and tracked paths for every documented Beta subsystem.
+---
+
+This page is the path map for Beta. It separates files an operator authors from
+files managed by Proxmox, packages, systemd, LVM, or runtime services. A file's
+presence does not prove that its feature is enabled; always pair path inspection
+with the subsystem's effective-state command.
+
+## Ownership model
+
+| Kind | Meaning |
+| --- | --- |
+| Authored | A durable configuration file that may be deliberately edited after backup and validation |
+| Package-owned | Installed by a Debian or Proxmox package; do not edit in place |
+| Proxmox-managed | Stored in the Proxmox cluster filesystem under `/etc/pve`; use the UI, API, or supported CLI where possible |
+| systemd-managed | A generated enablement symlink or runtime service state; use `systemctl` |
+| Generated | Derived from another source; never treat it as the canonical edit point |
+| Sensitive | Contains a private key, password hash, authentication material, or signing secret; inspect metadata by default |
+
+## Tracked operational examples
+
+The safe, authored parts of Beta's observed configuration are mirrored in
+`zero-five-infra`. The repository path deliberately follows the deployed path;
+strip the `proxmox/beta` prefix and `.example` suffix to obtain the Beta path.
+
+| Tracked source in `zero-five-infra` | Exact deployed destination | Ownership |
+| --- | --- | --- |
+| `proxmox/beta/etc/hostname.example` | Beta `/etc/hostname` | Authored |
+| `proxmox/beta/etc/hosts.example` | Beta `/etc/hosts` | Authored |
+| `proxmox/beta/etc/network/interfaces.example` | Beta `/etc/network/interfaces` | Authored; console-risking network source |
+| `proxmox/beta/etc/resolv.conf.example` | Beta `/etc/resolv.conf` | Authored resolver source |
+| `proxmox/beta/etc/apt/sources.list.d/debian.sources.example` | Beta `/etc/apt/sources.list.d/debian.sources` | Authored APT source; enabled |
+| `proxmox/beta/etc/apt/sources.list.d/proxmox.sources.example` | Beta `/etc/apt/sources.list.d/proxmox.sources` | Authored APT source; enabled |
+| `proxmox/beta/etc/apt/sources.list.d/pve-enterprise.sources.example` | Beta `/etc/apt/sources.list.d/pve-enterprise.sources` | Authored APT source; disabled in-file |
+| `proxmox/beta/etc/apt/sources.list.d/ceph.sources.example` | Beta `/etc/apt/sources.list.d/ceph.sources` | Authored APT source; disabled in-file |
+| `proxmox/beta/etc/pve/datacenter.cfg.example` | Beta `/etc/pve/datacenter.cfg` | Proxmox-managed through `pmxcfs` |
+| `proxmox/beta/etc/pve/storage.cfg.example` | Beta `/etc/pve/storage.cfg` | Proxmox-managed through `pmxcfs` |
+| `ssh/macbook-zero-five.config.example` | Merge into MacBook `~/.ssh/config` | Focused fragment for `contabo`, `gamma`, and `beta` |
+
+Run `make validate` inside `zero-five-infra` before using an example. The
+validator checks expected topology and repository policy only; it does not
+write to Beta or prove that a manual deployment succeeded. Back up the exact
+destination, preserve the physical console for bridge changes, use supported
+Proxmox tools for `/etc/pve`, and verify effective state after any deployment.
+
+The real WireGuard file, private keys, host keys, `/etc/pve/priv`, certificates,
+installer-specific `/etc/fstab`, LVM-generated metadata, package unit files,
+runtime state, and absent firewall files are intentionally not mirrored. Their
+tracked absence prevents secrets and machine-generated data from becoming a
+second, misleading source of truth.
+
+## Identity, time, and users
+
+| Purpose | Exact Beta path | Observed owner/mode or target | Rule |
+| --- | --- | --- | --- |
+| Hostname | `/etc/hostname` | `root:root`, `0644` | Authored hostname `beta` |
+| Local name mapping | `/etc/hosts` | `root:root`, `0644` | Maps `192.168.1.166` to `beta.zero-five.space` and `beta` |
+| Time-zone selector | `/etc/localtime` | Symlink to `/usr/share/zoneinfo/Europe/Stockholm` | Current state; planned correction should replace the symlink through `timedatectl` |
+| Legacy time-zone file | `/etc/timezone` | Absent | Do not create merely to mirror another distribution |
+| Linux account database | `/etc/passwd` | Root-owned system file | `root` is the only login-capable administrative account; `manuel` is absent |
+| Password hashes | `/etc/shadow` | Sensitive root-only system file | Never copy or print; use `passwd -S root` for safe state inspection |
+| Proxmox users | `/etc/pve/user.cfg` | `root:www-data`, `0640` | Proxmox-managed; only `root@pam` exists |
+
+The PAM identity `root@pam` authenticates the Linux `root` account to Proxmox.
+It is not a second Unix account.
+
+## Virtualization runtime paths
+
+| Purpose | Exact Beta path | Observed state | Rule |
+| --- | --- | --- | --- |
+| KVM device | `/dev/kvm` | `root:kvm`, `0660`; present after the VT-x reboot | Proxmox/QEMU opens this device for hardware acceleration |
+| CPU feature view | `/proc/cpuinfo` | Read-only virtual file; contains `vmx` | Runtime evidence, not persistent configuration |
+| KVM core module state | `/sys/module/kvm/` | Present | Runtime sysfs state created when `kvm` loads |
+| Intel KVM module state | `/sys/module/kvm_intel/` | Present | Runtime sysfs state created when `kvm_intel` loads |
+| KVM core module file | `/lib/modules/7.0.14-6-pve/kernel/arch/x86/kvm/kvm.ko` | Package/kernel-owned | Do not edit |
+| Intel KVM module file | `/lib/modules/7.0.14-6-pve/kernel/arch/x86/kvm/kvm-intel.ko` | Package/kernel-owned | Do not edit |
+| L1TF status | `/sys/devices/system/cpu/vulnerabilities/l1tf` | `PTE Inversion`; VMX conditional cache flushes; SMT vulnerable | Recheck after kernel, firmware, or SMT changes |
+| SMT runtime status | `/sys/devices/system/cpu/smt/active` | `1` | Read-only evidence that SMT is active |
+
+VT-x is a firmware setting, not an authored Linux file. `/dev/kvm` and the
+module/sysfs paths prove that the current boot detected and activated it.
+
+## LAN and DNS
+
+| Purpose | Exact Beta path | Observed owner/mode | Rule |
+| --- | --- | --- | --- |
+| Primary network source | `/etc/network/interfaces` | `root:root`, `0644` | Authored source for `nic0`, `vmbr0`, static `192.168.1.166/24`, and gateway `192.168.1.1` |
+| Included network fragments | `/etc/network/interfaces.d/` | `root:root`, `0755`; empty | Included by the primary source; add only intentional reviewed fragments |
+| Resolver source | `/etc/resolv.conf` | `root:root`, `0644` | Current DNS server `192.168.1.1` and search domain `zero-five.space` |
+| Runtime bridge | Kernel interface `vmbr0` | Runtime state, not a file | Inspect with `ip -brief address show vmbr0` and `bridge link` |
+| Runtime physical port | Kernel interface `nic0` | Runtime state, not a file | Attached to `vmbr0`; it intentionally owns no host IP |
+
+Beta does not use Netplan. `/etc/network/interfaces` is the durable edit point.
+Changing it can remove both SSH and web access, so keep the physical console
+available and validate with `ifquery --check vmbr0` before any reload.
+
+## WireGuard
+
+| Purpose | Exact Beta path | Observed owner/mode or target | Rule |
+| --- | --- | --- | --- |
+| Persistent interface configuration | `/etc/wireguard/wg0.conf` | `root:root`, `0600` | Authored secret-bearing source; contains Beta's private key inline |
+| WireGuard directory | `/etc/wireguard/` | `root:root`, `0700` | Protects the interface configuration |
+| Package service template | `/usr/lib/systemd/system/wg-quick@.service` | Package-owned | Do not edit; the `wg0` instance resolves to this template |
+| Boot enablement | `/etc/systemd/system/multi-user.target.wants/wg-quick@wg0.service` | Symlink to `/usr/lib/systemd/system/wg-quick@.service` | systemd-managed; created by `systemctl enable wg-quick@wg0` |
+| Runtime interface | Kernel interface `wg0` | Runtime state, not a file | `10.8.0.5/32`; inspect with `wg show wg0` and `ip address show wg0` |
+
+Beta has no `/etc/wireguard/private.key` or
+`/etc/wireguard/public.key`. The private key exists only inside `wg0.conf`; the
+public key is derived safely with `wg show wg0 public-key`.
+
+Tracked, secret-free review sources:
+
+| Repository path | Deployed relationship |
+| --- | --- |
+| `zero-five-infra/wireguard/beta.conf.example` | Reviewed model for Beta's `/etc/wireguard/wg0.conf`; `BETA_PRIVATE_KEY` must remain a placeholder |
+| `zero-five-infra/wireguard/vps.conf.example` | Reviewed model for Alpha's `/etc/wireguard/wg0.conf`, including Beta's public key and `10.8.0.5/32` route |
+| `zero-five-infra/scripts/validate_wireguard.py` | Local-only topology and secret-placeholder validator; does not deploy |
+
+## SSH client and server state
+
+| Purpose | Exact Beta path | Observed owner/mode or target | Rule |
+| --- | --- | --- | --- |
+| SSH server base config | `/etc/ssh/sshd_config` | `root:root`, `0644` | Authored/package-merged server source; verify effective state with `sshd -T` |
+| SSH server drop-ins | `/etc/ssh/sshd_config.d/` | Directory currently contains no files | A future drop-in may override base assumptions; inspect every time |
+| Root SSH directory | `/root/.ssh/` | `root:root`, `0700` | Only administrative SSH home because `root` is the sole login account |
+| Authorized-key convenience path | `/root/.ssh/authorized_keys` | Symlink to `/etc/pve/priv/authorized_keys` | Do not replace with a regular file |
+| Authoritative authorized keys | `/etc/pve/priv/authorized_keys` | `root:www-data`, `0600` | Sensitive Proxmox-managed public-key list |
+| Root outbound SSH config | `/root/.ssh/config` | `root:root`, `0640` | Proxmox-created client behavior; review before editing |
+| Proxmox cluster SSH private key | `/root/.ssh/id_rsa` | `root:root`, `0600` | Sensitive; never copy or print |
+| Matching public key | `/root/.ssh/id_rsa.pub` | `root:root`, `0644` | Public half of the Proxmox-generated identity |
+| Proxmox SSH host database | `/etc/pve/nodes/beta/ssh_known_hosts` | `root:www-data`, `0640` | Proxmox-managed node/cluster trust data |
+| SSH service unit | `/usr/lib/systemd/system/ssh.service` | Package-owned | Do not edit; use a systemd drop-in only for a reviewed need |
+
+Server host identities are separate from authorized client keys:
+
+| Algorithm | Private host key | Public host key |
+| --- | --- | --- |
+| Ed25519 | `/etc/ssh/ssh_host_ed25519_key` (`0600`) | `/etc/ssh/ssh_host_ed25519_key.pub` (`0644`) |
+| ECDSA | `/etc/ssh/ssh_host_ecdsa_key` (`0600`) | `/etc/ssh/ssh_host_ecdsa_key.pub` (`0644`) |
+| RSA | `/etc/ssh/ssh_host_rsa_key` (`0600`) | `/etc/ssh/ssh_host_rsa_key.pub` (`0644`) |
+
+All six host-key files are `root:root`. Replacing them changes Beta's SSH host
+identity and will trigger known-host warnings on clients.
+
+### MacBook SSH client paths
+
+| Purpose | Exact MacBook path | Observed owner/mode | Rule |
+| --- | --- | --- | --- |
+| Active SSH client configuration | `~/.ssh/config` | `manuel:staff`, `0600` | Contains `Host contabo`, `Host gamma`, and the verified `Host beta` jump configuration |
+| Tracked Zero Five SSH fragment | `zero-five-infra/ssh/macbook-zero-five.config.example` | Git working tree; secret-free | Merge into the active config; it is not read automatically by SSH |
+| Pre-Beta-jump rollback snapshot | `~/.ssh/config.pre-beta-proxy-20260722` | `manuel:staff`, `0600` | Exact config backup created immediately before adding `Host beta` |
+| Personal client private key | `~/.ssh/id_ed25519` | Sensitive | Stays on the Mac; never copy it to Alpha or Beta |
+| Trusted host identities | `~/.ssh/known_hosts` | `manuel:staff`, `0600` | Already contains Beta under `192.168.1.166`; `HostKeyAlias` reuses that pin for the VPN address |
+
+The `Host beta` block resolves to `root@10.8.0.5:22`, uses
+`ProxyJump contabo`, and sets `HostKeyAlias 192.168.1.166`. The alias prevents
+the same physical Beta host from being treated as a new identity merely because
+the second hop uses its WireGuard address.
+
+## Proxmox configuration filesystem
+
+`/etc/pve` is `pmxcfs`, the Proxmox cluster filesystem, even on this standalone
+node. It is not an ordinary directory tree: paths can be generated, replicated,
+or exposed through convenience symlinks. Back up the relevant file and prefer
+supported Proxmox tools before changing it.
+
+| Purpose | Exact Beta path | Observed owner/mode or target | Rule |
+| --- | --- | --- | --- |
+| Datacenter defaults | `/etc/pve/datacenter.cfg` | `root:www-data`, `0640` | Proxmox-managed global settings; currently `keyboard: es` |
+| Storage definitions | `/etc/pve/storage.cfg` | `root:www-data`, `0640` | Defines `local` and `local-lvm` |
+| Proxmox users and ACL identities | `/etc/pve/user.cfg` | `root:www-data`, `0640` | Contains the `root@pam` account definition |
+| Node directory | `/etc/pve/nodes/beta/` | `root:www-data` | Canonical node-specific tree |
+| Local-node convenience link | `/etc/pve/local` | Symlink to `nodes/beta` | Use for generic local-node paths; canonical target remains node-specific |
+| QEMU VM definitions | `/etc/pve/nodes/beta/qemu-server/<VMID>.conf` | Proxmox-managed; directory currently empty | One file per VM after creation |
+| QEMU convenience link | `/etc/pve/qemu-server` | Symlink to `nodes/beta/qemu-server` | Do not create duplicate files outside the target |
+| LXC definitions | `/etc/pve/nodes/beta/lxc/<CTID>.conf` | Proxmox-managed; directory currently empty | One file per container after creation |
+| LXC convenience link | `/etc/pve/lxc` | Symlink to `nodes/beta/lxc` | Do not create duplicate files outside the target |
+| Backup schedule compatibility file | `/etc/pve/vzdump.cron` | `root:www-data`, `0640` | Proxmox-managed; currently no documented backup target |
+
+### Certificates and authentication material
+
+| Purpose | Exact Beta path | Sensitivity |
+| --- | --- | --- |
+| Node HTTPS certificate | `/etc/pve/nodes/beta/pve-ssl.pem` or `/etc/pve/local/pve-ssl.pem` | Public certificate, `root:www-data`, `0640` |
+| Node HTTPS private key | `/etc/pve/nodes/beta/pve-ssl.key` or `/etc/pve/local/pve-ssl.key` | Sensitive private key, `root:www-data`, `0640` |
+| Proxmox root CA certificate | `/etc/pve/pve-root-ca.pem` | Public CA certificate |
+| Proxmox root CA private key | `/etc/pve/priv/pve-root-ca.key` | Highly sensitive, `root:www-data`, `0600` |
+| API authentication private key | `/etc/pve/priv/authkey.key` | Highly sensitive, `root:www-data`, `0600` |
+| API authentication public key | `/etc/pve/authkey.pub` | Public verification key |
+| Proxmox web-service key | `/etc/pve/pve-www.key` | Sensitive, `root:www-data`, `0640` |
+
+Never print or copy `/etc/pve/priv/*`, a `*.key` file, or the WireGuard config
+into Git, chat, screenshots, or troubleshooting notes.
+
+## Firewall paths
+
+| Scope | Exact expected path | Observed state |
+| --- | --- | --- |
+| Datacenter firewall | `/etc/pve/firewall/cluster.fw` | Absent |
+| Beta node firewall | `/etc/pve/nodes/beta/host.fw` | Absent |
+| Firewall log | `/var/log/pve-firewall.log` | Present |
+| Proxmox firewall service | Package/systemd managed | Reports `disabled/running`; no policy file currently enables enforcement |
+
+The absence of `cluster.fw` and `host.fw` is part of the current state, not a
+template to recreate blindly. Design policy first, preserve console access, and
+enable it as its own focused change.
+
+## Storage and guest data
+
+| Purpose | Exact Beta path | Rule |
+| --- | --- | --- |
+| Host mount source | `/etc/fstab` | Authored mount configuration; root filesystem and EFI boot mapping |
+| LVM volume-group backup | `/etc/lvm/backup/pve` | LVM-generated, `0600`; do not hand-edit |
+| Historical LVM metadata | `/etc/lvm/archive/` | LVM-generated, root-only |
+| Root logical volume | `/dev/pve/root` | Symlink to the active device-mapper root volume |
+| Swap logical volume | `/dev/pve/swap` | Symlink to the active device-mapper swap volume |
+| Thin-pool device | `/dev/pve/data` | Symlink to the `local-lvm` thin-pool device |
+| Directory storage root | `/var/lib/vz/` | Filesystem backing the Proxmox `local` storage |
+| ISO images | `/var/lib/vz/template/iso/` | Upload ISO files here through the Proxmox UI or supported tools |
+| LXC templates | `/var/lib/vz/template/cache/` | Downloaded container templates |
+| File-based VM images | `/var/lib/vz/images/` | Used only by storage definitions that place images on `local` |
+| Backup files | `/var/lib/vz/dump/` | Local vzdump backup directory; same physical disk is not a disaster-safe backup |
+| Imported images | `/var/lib/vz/import/` | Staging location for supported import workflows |
+| Thin-provisioned guest disks | `local-lvm`, managed as LVM-thin volumes | Do not treat as normal files under `/var/lib/vz` |
+
+`/etc/pve/storage.cfg` is the authoritative mapping from Proxmox storage names
+to these backends. `pvesm status` is the effective-state check.
+
+## Package repositories
+
+| Repository | Exact source file | Observed state |
+| --- | --- | --- |
+| Debian base, updates, and security | `/etc/apt/sources.list.d/debian.sources` | Enabled |
+| Proxmox no-subscription | `/etc/apt/sources.list.d/proxmox.sources` | Enabled |
+| Proxmox enterprise | `/etc/apt/sources.list.d/pve-enterprise.sources` | Present, `Enabled: false` |
+| Ceph enterprise | `/etc/apt/sources.list.d/ceph.sources` | Present, `Enabled: false` |
+| Legacy monolithic list | `/etc/apt/sources.list` | Absent |
+
+All four `.sources` files are `root:root`, `0644`. Inspect `Enabled`, `URIs`,
+`Suites`, and `Components`; filename presence alone does not mean APT uses it.
+
+## Service and log locations
+
+| Service/data | Exact path | Rule |
+| --- | --- | --- |
+| Proxmox web proxy unit | `/usr/lib/systemd/system/pveproxy.service` | Package-owned |
+| Proxmox API daemon unit | `/usr/lib/systemd/system/pvedaemon.service` | Package-owned |
+| Proxmox statistics daemon unit | `/usr/lib/systemd/system/pvestatd.service` | Package-owned |
+| Proxmox proxy logs | `/var/log/pveproxy/` | Service-managed; do not edit |
+| Proxmox task logs | `/var/log/pve/tasks/` | Proxmox-managed task history |
+| Firewall log | `/var/log/pve-firewall.log` | Service-managed |
+| General system and SSH logs | systemd journal | `/var/log/syslog` and `/var/log/auth.log` are absent |
+
+Use `journalctl -u UNIT` and `journalctl -b` instead of expecting classic
+`syslog` files.
+
+## Secret-safe inspection
+
+```bash
+# Accounts and effective SSH policy
+getent passwd root
+getent passwd manuel || echo absent
+pveum user list
+sshd -T | grep -E \
+  '^(permitrootlogin|passwordauthentication|pubkeyauthentication) '
+
+# Network and WireGuard
+ifquery --check vmbr0
+ip -brief address
+ip route
+systemctl is-enabled wg-quick@wg0
+systemctl is-active wg-quick@wg0
+wg show wg0
+
+# Proxmox configuration and storage
+pvesm status
+qm list
+pct list
+pve-firewall status
+
+# File metadata without secret contents
+stat -c '%n owner=%U:%G mode=%a' \
+  /etc/wireguard/wg0.conf \
+  /etc/pve/priv/authorized_keys \
+  /etc/pve/priv/pve-root-ca.key
+```
+
+Do not run `cat /etc/wireguard/wg0.conf`, `wg showconf`, an unredirected
+`wg-quick strip`, `cat /etc/shadow`, or `cat /etc/pve/priv/*` in a recorded
+terminal. Validate the WireGuard file without printing it:
+
+```bash
+wg-quick strip wg0 >/dev/null
+```
+
+## Change and recovery rule
+
+1. Identify the authored source path from this page.
+2. Back up that exact file with ownership and mode preserved.
+3. Keep LAN SSH and the physical console available.
+4. Validate with the subsystem's native tool before reload or reboot.
+5. Verify effective runtime state; do not infer it from file contents.
+6. Record the deployed state here and in the relevant subsystem page.

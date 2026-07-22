@@ -1,0 +1,178 @@
+---
+title: SSH through Alpha
+description: Reach root on Beta from the Mac through Alpha, with exact client files, host-key reuse, verification, recovery, and rollback.
+---
+
+Beta has no `manuel` account. Its only administrative login is `root`, and the
+Mac reaches it through Alpha rather than depending on the home-LAN address for
+normal administration.
+
+## Verified access path
+
+```text
+MacBook -> contabo:2020  (Alpha's public SSH alias)
+        -> 10.8.0.5:22   (Beta over Alpha-to-Beta WireGuard)
+```
+
+On 2026-07-22, `ssh beta` completed from the MacBook both before and after
+Beta's persistence reboot. The resolved client state was `root@10.8.0.5:22`,
+identity `~/.ssh/id_ed25519`, and
+`ProxyJump contabo`. Beta reported:
+
+```text
+10.8.0.1 <ephemeral-port> 10.8.0.5 22
+```
+
+The first address is the connection source. This proves Alpha opened the
+second TCP connection over WireGuard; the Mac did not bypass the jump host over
+Beta's LAN address.
+
+## Why ProxyJump works without client forwarding
+
+The Mac does not have a route to `10.8.0.5`, and Alpha still denies general
+forwarding between WireGuard clients. `ProxyJump` uses SSH's stdio forwarding:
+
+1. The Mac authenticates to Alpha through the `contabo` alias.
+2. Alpha's SSH daemon opens a new TCP connection from `10.8.0.1` to
+   `10.8.0.5:22`.
+3. The Mac authenticates end-to-end to Beta as `root` through that channel.
+
+The Mac private key remains on the Mac. It is not installed on or forwarded to
+Alpha.
+
+## Exact MacBook configuration
+
+The active file is `~/.ssh/config`, owned by `manuel:staff` with mode `0600`.
+The reviewed fragment is tracked at
+`zero-five-infra/ssh/macbook-zero-five.config.example`; it models the Zero Five
+aliases but is not automatically loaded by SSH.
+The Beta block is:
+
+```text
+Host beta
+  HostName 10.8.0.5
+  User root
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump contabo
+  HostKeyAlias 192.168.1.166
+```
+
+The pre-change snapshot is
+`~/.ssh/config.pre-beta-proxy-20260722`, also mode `0600`.
+
+`HostKeyAlias 192.168.1.166` is intentional. The Mac already trusted Beta's
+SSH host identity through its LAN address. The VPN hop is the same SSH server
+and the same host keys, so the alias checks `10.8.0.5` against the existing
+`192.168.1.166` entries in `~/.ssh/known_hosts` instead of asking the user to
+trust a duplicate identity.
+
+## Server-side locations
+
+| Purpose | Exact Beta path | Rule |
+| --- | --- | --- |
+| SSH server configuration | `/etc/ssh/sshd_config` | Base source; verify effective state with `sshd -T` |
+| SSH drop-ins | `/etc/ssh/sshd_config.d/` | Currently empty; future files can change precedence |
+| Root SSH directory | `/root/.ssh/` | `root:root`, `0700` |
+| Visible authorized-key path | `/root/.ssh/authorized_keys` | Symlink; do not replace with a regular file |
+| Authoritative authorized keys | `/etc/pve/priv/authorized_keys` | Proxmox-managed, `root:www-data`, `0600` |
+| Ed25519 host public key | `/etc/ssh/ssh_host_ed25519_key.pub` | Compare its fingerprint through a trusted console or connection |
+| SSH service unit | `/usr/lib/systemd/system/ssh.service` | Package-owned; do not edit directly |
+
+The complete SSH key and certificate path inventory is in the
+[configuration reference](/docs/laptop-beta/configuration-reference#ssh-client-and-server-state).
+
+## Verify from the MacBook
+
+Inspect the resolved client settings without connecting:
+
+```bash
+ssh -G beta | grep -E \
+  '^(hostname|user|port|identityfile|identitiesonly|proxyjump|hostkeyalias) '
+```
+
+Expected values:
+
+```text
+user root
+hostname 10.8.0.5
+port 22
+identitiesonly yes
+hostkeyalias 192.168.1.166
+identityfile ~/.ssh/id_ed25519
+proxyjump contabo
+```
+
+Then test both hops:
+
+```bash
+ssh contabo
+ssh beta
+```
+
+On Beta, prove the source of the current connection:
+
+```bash
+printf '%s\n' "$SSH_CONNECTION"
+```
+
+The first field must be Alpha's WireGuard address, `10.8.0.1`.
+
+## Recovery paths
+
+If the public Alpha hop fails, test it independently:
+
+```bash
+ssh contabo
+```
+
+If Alpha works but Beta does not, inspect in order:
+
+```bash
+# On Alpha
+ip route get 10.8.0.5
+ping -c 3 10.8.0.5
+nc -zvw 3 10.8.0.5 22
+```
+
+On the home LAN, bypass Alpha explicitly:
+
+```bash
+ssh root@192.168.1.166
+```
+
+This direct command is the network recovery path. It does not use the `beta`
+alias, whose purpose is to force normal access through Alpha.
+
+## Rollback
+
+To stop using the jump alias without changing Beta, Alpha, WireGuard, or SSH
+server state, remove only the `Host beta` block from `~/.ssh/config`.
+
+The pre-change snapshot can be inspected with:
+
+```bash
+diff -u ~/.ssh/config.pre-beta-proxy-20260722 ~/.ssh/config
+```
+
+Restore the whole snapshot only if no later SSH aliases or settings need to be
+preserved:
+
+```bash
+cp ~/.ssh/config.pre-beta-proxy-20260722 ~/.ssh/config
+chmod 600 ~/.ssh/config
+```
+
+Do not remove Beta's authorized key or WireGuard peer merely to roll back a Mac
+client alias.
+
+## Failure modes
+
+| Symptom | Check |
+| --- | --- |
+| `ssh beta` fails before the second hop | `ssh contabo`; Alpha public SSH and the Mac's Alpha host-key pin |
+| Alpha works but Beta times out | Alpha route to `10.8.0.5`, Beta handshake, TCP `22`, and Beta SSH service |
+| Host-key mismatch names `192.168.1.166` | Compare Beta's current Ed25519 fingerprint through the LAN or physical console; never delete the pin blindly |
+| Authentication fails as `manuel` | Beta has no `manuel` account; resolved `user` must be `root` |
+| Connection source is `192.168.1.x` | A direct LAN command was used; the verified jump path must show source `10.8.0.1` |

@@ -1,0 +1,133 @@
+---
+title: Configuration Reference
+description: Canonical paths, ownership, sensitivity, generation rules, and inspection commands for Gamma and its clients.
+---
+
+This page answers two questions for every Gamma setting: **where is the
+reviewed source?** and **where does the running machine read it?** A tracked
+example is not automatically deployed, and a generated runtime file is not an
+appropriate place to make durable edits.
+
+## Gamma files
+
+| Subsystem | Deployed path | Owner and mode | Rule |
+| --- | --- | --- | --- |
+| WireGuard interface | `/etc/wireguard/wg0.conf` | `root:root`, `0600` | Persistent `wg0` configuration; contains Gamma's private key |
+| WireGuard private identity | `/etc/wireguard/private.key` | `root:root`, `0600` | Never print, copy, or commit |
+| WireGuard public identity | `/etc/wireguard/public.key` | Root-owned | Safe content, but keep the deployed file protected with the identity directory |
+| WireGuard service template | `/usr/lib/systemd/system/wg-quick@.service` | Package-owned | Do not edit; the `wg0` instance reads `/etc/wireguard/wg0.conf` |
+| WireGuard boot enablement | `/etc/systemd/system/multi-user.target.wants/wg-quick@wg0.service` | systemd-managed symlink | Created by `systemctl enable wg-quick@wg0` |
+| SSH server base config | `/etc/ssh/sshd_config` | `root:root` | Package/server configuration; inspect effective state with `sshd -T` |
+| SSH server drop-ins | `/etc/ssh/sshd_config.d/*.conf` | `root:root` | Earlier lexical files may override later assumptions |
+| Authorized client keys | `/home/manuel/.ssh/authorized_keys` | `manuel:manuel`, `0600` | Public keys only; verified mode `0600` |
+| Netplan source | `/etc/netplan/00-installer-config.yaml` | `root:root`, `0600` | DHCP and persistent `wakeonlan: true` policy |
+| Generated networkd config | `/run/systemd/network/10-netplan-enp2s0.network` | Generated at runtime | Never edit; regenerate from Netplan |
+| Manual suspend command | `/usr/local/sbin/gamma-suspend` | `root:root`, `0755` | Installed reviewed helper; verified live |
+| Manual-only power policy | `/etc/systemd/logind.conf.d/10-gamma-manual-suspend-only.conf` | `root:root`, `0644` | Makes lid and idle actions `ignore`; verified live |
+| GRUB base defaults | `/etc/default/grub` | `root:root` | Ubuntu base configuration |
+| Gamma boot override | `/etc/default/grub.d/99-gamma-boot.cfg` | `root:root`, `0644` | Five-second recordfail recovery and `kho=off`; verified live |
+| Generated GRUB menu | `/boot/grub/grub.cfg` | Root-only generated file | Never edit; rebuild with `update-grub` |
+| GRUB environment | `/boot/grub/grubenv` | GRUB-managed | Holds transient flags such as `recordfail`; modify only with `grub-editenv` |
+
+## Alpha and MacBook files
+
+| Machine | Path | Purpose |
+| --- | --- | --- |
+| Alpha | `/etc/wireguard/wg0.conf` | Persistent hub config containing Gamma's public key and `AllowedIPs = 10.8.0.4/32`; also contains Alpha's secret private key |
+| MacBook | `~/.ssh/config` | Defines `contabo`, `gamma`, `beta`, and both `ProxyJump contabo` paths |
+| MacBook | `~/.ssh/id_ed25519` | Private SSH identity; never copy it to Alpha or Gamma |
+| MacBook | `~/.ssh/known_hosts` | Pins the SSH host identities encountered for Alpha and Gamma |
+| MacBook | `/opt/homebrew/bin/wakeonlan` | Homebrew-installed magic-packet sender |
+
+## Tracked operational source
+
+| Repository path | Deploys to | Purpose |
+| --- | --- | --- |
+| `zero-five-infra/wireguard/gamma.conf.example` | `/etc/wireguard/wg0.conf` on Gamma, after secret substitution | Secret-free reviewed Gamma peer model |
+| `zero-five-infra/wireguard/vps.conf.example` | Reviewed against `/etc/wireguard/wg0.conf` on Alpha | Hub topology and Gamma public peer entry |
+| `zero-five-infra/scripts/gamma-suspend.sh` | `/usr/local/sbin/gamma-suspend` | Close remote sessions safely before suspend |
+| `zero-five-infra/systemd/logind.conf.d/10-gamma-manual-suspend-only.conf` | Same relative path under `/etc/systemd/` | Disable automatic lid and idle suspend |
+
+The infrastructure repository contains no Gamma private key and performs no
+automatic deployment.
+
+## Staging files
+
+Files copied temporarily into `/home/manuel/` are only installation staging:
+
+```text
+/home/manuel/gamma-suspend.sh
+/home/manuel/10-gamma-manual-suspend-only.conf
+```
+
+Both staging files were removed after checksum verification and installation.
+Their installed copies and tracked repository sources remain. A staging file
+must never become the canonical source.
+
+## Inspection commands
+
+Run on Gamma:
+
+```bash
+systemctl is-enabled wg-quick@wg0
+systemctl is-active wg-quick@wg0
+ip -brief address show wg0
+ip route show 10.8.0.1
+ping -c 3 10.8.0.1
+command -v gamma-suspend
+stat -c '%n owner=%U:%G mode=%a' \
+  /usr/local/sbin/gamma-suspend \
+  /etc/systemd/logind.conf.d/10-gamma-manual-suspend-only.conf \
+  /etc/default/grub.d/99-gamma-boot.cfg
+```
+
+Inspect sensitive WireGuard paths only by metadata unless their contents are
+strictly required:
+
+```bash
+sudo stat -c '%n owner=%U:%G mode=%a' \
+  /etc/wireguard/wg0.conf \
+  /etc/wireguard/private.key \
+  /etc/wireguard/public.key
+```
+
+Do not run `cat /etc/wireguard/private.key`, `wg showconf`, or an unredirected
+`wg-quick strip` in a recorded terminal or copied troubleshooting log.
+
+## Command reference
+
+### From the MacBook
+
+| Goal | Command |
+| --- | --- |
+| Wake Gamma on the home LAN | `wakeonlan -i 192.168.1.255 -p 9 9c:5c:8e:29:1f:b0` |
+| Connect through Alpha | `ssh gamma` |
+| Inspect the resolved SSH path | `ssh -G gamma \| grep -E '^(hostname\|user\|port\|proxyjump) '` |
+| Copy a file through Alpha | `scp -O local-file gamma:/home/manuel/` |
+| Test the LAN address | `ping -c 3 192.168.1.164` |
+
+### On Gamma
+
+| Goal | Command |
+| --- | --- |
+| Suspend after closing remote sessions | `sudo gamma-suspend` |
+| Shut down when physical power-on is acceptable | `sudo systemctl poweroff` |
+| Reboot | `sudo systemctl reboot` |
+| Verify Alpha over WireGuard | `ping -c 3 10.8.0.1` |
+| Check WireGuard boot state | `systemctl is-enabled wg-quick@wg0 && systemctl is-active wg-quick@wg0` |
+| Check WoL | `sudo ethtool enp2s0 \| grep -E 'Supports Wake-on\|Wake-on\|Link detected'` |
+| Check manual-only suspend policy | `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked IdleAction` |
+| Measure boot | `systemd-analyze` |
+| Check active kernel arguments | `cat /proc/cmdline` |
+
+### On Alpha
+
+| Goal | Command |
+| --- | --- |
+| Verify Gamma route | `ip route show 10.8.0.4` |
+| Verify Gamma reachability | `ping -c 3 10.8.0.4` |
+| Inspect safe WireGuard metadata | `sudo wg show wg0` |
+
+Commands that print secrets are intentionally absent. If a diagnostic requires
+privileged configuration content, inspect it locally on the owning machine and
+copy only the minimal redacted result.

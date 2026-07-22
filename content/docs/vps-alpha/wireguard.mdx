@@ -5,8 +5,8 @@ description: The VPS-centered private network, its routing and security model, o
 
 WireGuard creates Zero Five's private `10.8.0.0/24` network. The VPS is the
 stable public hub; the CachyOS laptop and MacBook connect to it as clients.
-Gamma is recorded as desired state, while the iPhone peer route is persistent
-on Alpha but still needs a handset handshake test.
+Gamma and the iPhone also connect as deployed clients.
+Beta is registered as a deployed client.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
 
@@ -17,8 +17,9 @@ flowchart LR
     subgraph clients["Trusted clients"]
         cachyos["CachyOS laptop<br/>10.8.0.2/24<br/>Live verification pending"]
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
-        gamma["Gamma<br/>10.8.0.4/32<br/>Deployment pending"]
-        iphone["iPhone<br/>10.8.0.10/32<br/>Persistent route; handshake pending"]
+        gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
+        beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
+        iphone["iPhone<br/>10.8.0.10/32<br/>Runtime verified 2026-07-21"]
     end
 
     subgraph vps["VPS hub"]
@@ -28,8 +29,9 @@ flowchart LR
 
     cachyos -->|"Encrypted tunnel<br/>Keepalive 25 seconds"| wg
     macbook -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    gamma -->|"Encrypted tunnel<br/>VPS-only route; planned"| wg
-    iphone -->|"Encrypted tunnel<br/>VPS-only route; planned"| wg
+    gamma -->|"Encrypted tunnel<br/>VPS-only route"| wg
+    beta -->|"Encrypted tunnel<br/>VPS-only route"| wg
+    iphone -->|"Encrypted tunnel<br/>VPS-only route"| wg
     wg -->|"Private service traffic"| ollama
     macbook -. "No peer route and UFW routed deny" .-> cachyos
     iphone -. "No peer route and UFW routed deny" .-> macbook
@@ -40,8 +42,9 @@ flowchart LR
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
 | CachyOS laptop | `10.8.0.2/24` | Existing configuration documented; live re-verification pending |
 | MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
-| Gamma | `10.8.0.4/32` | Identity recorded; deployment and runtime verification pending |
-| iPhone | `10.8.0.10/32` | Persistent peer route active on Alpha; handset handshake still needs verification |
+| Gamma | `10.8.0.4/32` | Interface and boot service active; bidirectional ping, resume persistence, and SSH path verified 2026-07-22 |
+| Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
+| iPhone | `10.8.0.10/32` | Persistent route and recent handshake verified in the 2026-07-21 Alpha audit |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
@@ -108,14 +111,14 @@ The tracked source is deliberately small:
 | `wireguard/cachyos-laptop.conf.example` | Laptop interface and VPS peer |
 | `wireguard/macbook.conf.example` | Mac interface and VPS-only peer |
 | `wireguard/gamma.conf.example` | Gamma interface and VPS-only peer |
+| `wireguard/beta.conf.example` | Beta interface and VPS-only peer |
 | `wireguard/iphone.conf.example` | Planned iPhone interface and VPS-only peer |
 | `scripts/validate_wireguard.py` | Secret-safe structural and topology checks |
 
 These are native WireGuard examples, not generated output. Deployed peers
-contain public keys because WireGuard needs them, while the undeployed iPhone
-uses `IPHONE_PUBLIC_KEY` until its app generates the identity. Private keys are
-always explicit placeholders. Real files live on their machines with mode
-`0600`, or inside the iOS app, and never enter Git.
+contain public keys because WireGuard needs them. Private keys are always
+explicit placeholders. Real files live on their machines with mode `0600`, or
+inside the iOS app, and never enter Git.
 
 Run before using an example:
 
@@ -178,6 +181,8 @@ after reboot.
 - Only WireGuard UDP `51820` is public for this tunnel.
 - Ollama binds to WireGuard addresses and receives no public Traefik route.
 - New clients peer only with the VPS unless a later decision permits more.
+- Beta routes only `10.8.0.1/32`; its normal LAN and internet traffic do not
+  cross the tunnel.
 - The iPhone has only a `10.8.0.1/32` client route; the VPS's routed deny keeps
   it isolated from the laptop and MacBook.
 - The current broad UFW permission for traffic arriving on `wg0` should be

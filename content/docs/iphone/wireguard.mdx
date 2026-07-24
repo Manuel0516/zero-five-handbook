@@ -3,14 +3,16 @@ title: WireGuard — VPS-only access
 description: Configure the iPhone as 10.8.0.10 with a narrow route to only the VPS, then deploy and verify the peer safely.
 ---
 
-The iPhone is reserved as `10.8.0.10/32`. Its WireGuard peer advertises only
+The iPhone is deployed as `10.8.0.10/32`. Its WireGuard peer advertises only
 `10.8.0.1/32`, so the phone sends traffic to the VPS through the tunnel without
 turning WireGuard into its default internet route. It receives no WireGuard
 route to the CachyOS laptop or MacBook.
 
-This page records desired state. The source configuration exists, but the peer
-is not active until the iPhone generates a keypair, its public key is added to
-the VPS, and runtime checks pass.
+Runtime handshake and private-service access were restored and verified on
+2026-07-24 after registering the phone's current public identity. The tracked
+hub source now models that identity. Removal of the obsolete live peer and the
+persistent VPS file replacement still require owner-run root verification; a
+working runtime interface alone does not prove persistence.
 
 ## Access boundary
 
@@ -48,10 +50,10 @@ recovery-protected firewall change.
 | `zero-five-infra/scripts/generate_iphone_wireguard_qr.sh` | Creates a temporary keypair and terminal-only import QR |
 
 The examples never contain the iPhone private key. `IPHONE_PRIVATE_KEY` marks
-the value retained by the iOS app, and `IPHONE_PUBLIC_KEY` marks the value that
-must be copied from the app into the VPS peer entry. A WireGuard public key is
-not secret, but the matching private key must never enter Git, chat, shell
-history, screenshots, or documentation.
+the value retained by the iOS app. The current iPhone public key belongs in the
+VPS peer entry because the hub needs it to authenticate the phone. A WireGuard
+public key is not secret, but the matching private key must never enter Git,
+chat, shell history, screenshots, or documentation.
 
 ## Recommended: import a one-time QR code
 
@@ -207,12 +209,70 @@ A handshake proves that the keys and UDP path work. The service request proves
 that routing and application access also work. Persistence remains unverified
 until a controlled VPS reboot or service restart is tested later.
 
+## Identity-drift incident — 2026-07-24
+
+The active `zero-five` tunnel on the iPhone could not reach the VPS. The phone
+had the intended address, VPS public identity, public endpoint, VPS-only
+`AllowedIPs`, and 25-second keepalive. Its sent counter increased from about
+5.35 KiB to 6.36 KiB, but it showed neither received data nor a latest
+handshake. Those symptoms meant the phone was attempting WireGuard traffic but
+the cryptographic exchange was not completing.
+
+Read-only Alpha checks established that:
+
+- Alpha remained reachable over SSH at the configured public endpoint;
+- `wg0` was up at `10.8.0.1/24`, with the route to `10.8.0.10`;
+- `wg-quick@wg0` and UFW were active, and UDP `51820` was listening;
+- IPv4 forwarding remained enabled; and
+- the VPN-bound Ollama tags endpoint returned HTTP `200` locally.
+
+This ruled out a down VPS, failed WireGuard interface, missing route, closed
+listener, failed firewall service, and unavailable target application. The
+phone's current public identity did not match the identity in tracked hub
+source. The owner then reported that the obsolete live peer used another
+identity again, exposing drift among the phone, Git, and root-only live state.
+The most likely cause is that the phone tunnel or its keypair was recreated
+without rotating the corresponding VPS peer; the exact origin of the drift was
+not independently verified.
+
+The current phone identity was added to runtime first with only
+`10.8.0.10/32`. Toggling the tunnel restored connectivity, and the owner
+verified that the private VPS service worked. No firewall, routing, DNS, SSH,
+or other peer was changed. The source entry in
+`wireguard/vps.conf.example` was then reconciled and passed `make validate`.
+
+The remaining root-only cleanup could not be completed through the diagnostic
+SSH session because Alpha requires an interactive sudo password and direct
+root SSH is disabled. Never send that password through chat. Completion
+requires these owner-observed checks:
+
+- [x] Current phone identity registered in runtime
+- [x] Recent tunnel traffic and private-service access restored
+- [x] Tracked hub source updated and locally validated
+- [ ] Obsolete live peer removed from `wg0`
+- [ ] Current identity written to `/etc/wireguard/wg0.conf`
+- [ ] `wg-quick strip wg0` accepts the persistent file
+- [ ] Persistent file remains `root:root` mode `0600`
+- [ ] Persistence verified after a later controlled restart or reboot
+
+Do not restart a working interface merely to finish the cleanup. Remove only
+the obsolete runtime peer, replace only the iPhone public-key line in the
+protected persistent file, validate it without printing the configuration, and
+keep the dated root-only backup until reboot persistence is proven. If the
+working peer is disturbed, remove only the newly introduced runtime identity
+and restore the protected file from an authenticated recovery session.
+
+No private key was disclosed during diagnosis. Screenshots and copied values
+contained public identities only, but the handbook deliberately avoids
+duplicating complete peer keys; the operational source is authoritative.
+
 ## Common failures
 
 | Symptom | Likely check |
 | --- | --- |
 | QR imports but the phone shows no handshake | The generated public key and matching `/32` were not added to the live VPS peer list, or the wrong generated identity was registered |
 | No handshake | Phone internet access, endpoint, UDP `51820`, or mismatched public keys |
+| Sent data increases, but received data and latest handshake are absent | Compare the phone's current public identity with both live and tracked VPS peer state |
 | Handshake but no VPS service | `AllowedIPs`, VPS service binding, UFW, or service availability |
 | Ordinary internet enters the tunnel | Allowed IPs is broader than `10.8.0.1/32` |
 | Tunnel works on Wi-Fi but not cellular | Carrier network behavior, endpoint reachability, or keepalive |

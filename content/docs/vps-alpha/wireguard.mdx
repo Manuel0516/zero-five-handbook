@@ -19,7 +19,7 @@ flowchart LR
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
         gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
         beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
-        iphone["iPhone<br/>10.8.0.10/32<br/>Runtime verified 2026-07-21"]
+        iphone["iPhone<br/>10.8.0.10/32<br/>Runtime restored 2026-07-24"]
     end
 
     subgraph vps["VPS hub"]
@@ -44,7 +44,7 @@ flowchart LR
 | MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
 | Gamma | `10.8.0.4/32` | Interface and boot service active; bidirectional ping, resume persistence, and SSH path verified 2026-07-22 |
 | Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
-| iPhone | `10.8.0.10/32` | Persistent route and recent handshake verified in the 2026-07-21 Alpha audit |
+| iPhone | `10.8.0.10/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
@@ -60,6 +60,17 @@ reach the laptop through WireGuard.
 > Handbook route recovered. This is why every persistent network edit needs a
 > syntax check and an eventual reboot test: a live interface alone does not
 > prove the on-disk configuration.
+
+> **Identity-drift incident — 2026-07-24:** The iPhone sent tunnel data but
+> received no reply and had no latest handshake. Alpha's interface, route, UDP
+> listener, firewall service, and VPN-bound application were healthy. Comparing
+> identities exposed drift among the phone, tracked hub source, and the
+> owner-reported obsolete live peer. Registering the phone's current identity
+> at runtime restored private-service access without restarting WireGuard. The
+> tracked hub source now matches the phone; removal of the obsolete live peer,
+> replacement and validation of the root-only persistent file, and later reboot
+> proof remain pending. See the
+> [iPhone incident record](/docs/iphone/wireguard#identity-drift-incident--2026-07-24).
 
 ## Why the VPS is the hub
 
@@ -112,7 +123,7 @@ The tracked source is deliberately small:
 | `wireguard/macbook.conf.example` | Mac interface and VPS-only peer |
 | `wireguard/gamma.conf.example` | Gamma interface and VPS-only peer |
 | `wireguard/beta.conf.example` | Beta interface and VPS-only peer |
-| `wireguard/iphone.conf.example` | Planned iPhone interface and VPS-only peer |
+| `wireguard/iphone.conf.example` | iPhone interface and VPS-only peer |
 | `scripts/validate_wireguard.py` | Secret-safe structural and topology checks |
 
 These are native WireGuard examples, not generated output. Deployed peers
@@ -169,6 +180,7 @@ after reboot.
 | Symptom | Likely checks |
 | --- | --- |
 | No handshake | Endpoint, UDP `51820`, public keys, NAT, client availability |
+| Client sends data but receives none | Compare that client's current public identity with both live peer state and tracked source |
 | Handshake but no ping | `AllowedIPs`, interface addresses, routes, UFW |
 | VPS works but laptop Ollama fails | Laptop offline, stale tunnel, Ollama binding, laptop firewall |
 | Works until reboot | `wg-quick@wg0` enablement and persistent config |

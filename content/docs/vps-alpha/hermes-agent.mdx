@@ -143,7 +143,8 @@ uses **inline forms and buttons, never `window.prompt()`/`confirm()`** — nativ
 dialogs block and fail silently in some browsers/embeds, which made the first
 version of the page appear to "not change anything".
 
-The Accounts tab also shows an **API spend** card: live balance read from each
+The **Analytics** page also shows an **API spend** card at the top (injected
+via the `analytics:top` page-scoped slot): live balance read from each
 inference provider's billing API (currently DeepSeek via
 `GET https://api.deepseek.com/user/balance`, plus an OpenAI slot when a key is
 configured). Keys are read from `~/.hermes/.env` server-side — they never reach

@@ -7,6 +7,7 @@ title: Animated Figures (YouTube AI pipeline)
 Full-stack pipeline for generating faceless YouTube videos in the
 "animated curiosity" style (like Whymentary), targeted at the **engineering
 facts / curiosities** niche, in **English or Spanish**, fully autonomously.
+Target video length: **~5 minutes (700-800 words)**.
 
 ## Location & repo
 
@@ -16,18 +17,26 @@ facts / curiosities** niche, in **English or Spanish**, fully autonomously.
 - Brand identity: `brand.yaml` — canvas 1920×1080@30fps, near-black
   `#0E0E10` background, off-white `#F5F3EC` ink, gold `#FFD24A` accent
 
+## Mascot: the yellow-helmet engineer
+
+The channel's recurring character is a **stick-figure engineer wearing a
+bright yellow hard hat** (`brand.yaml` → `mascot.helmet_color`, same gold
+as the accent). It exists **only in AI-generated stills** — the style is
+injected automatically by `prompts/image_style.txt` into every image
+prompt; there is **no manim version** of the character.
+
 ## How it works
 
 1. A code agent (Claude Code / Codex / opencode / Hermes) reads
    `prompts/master_prompt_en.txt` or `prompts/master_prompt_es.txt`,
-   picks a topic, writes the narration script, and emits `project.json`
-   with typed scenes:
-   - `diagram` — manim animation from a declarative JSON spec
-     (nodes/edges/labels/reveal order); the channel's superpower for
-     engineering content (cross-sections, force diagrams, gear trains)
-   - `character` — static stick-figure beat ("overview → zoom into detail")
-   - `still` — AI-generated image in the MS-Paint doodle style
-   - `text-card` — pure Pillow typography (key numbers, final fact)
+   picks a topic, writes the ~750-word narration script, and emits
+   `project.json` with typed scenes:
+   - `still` (~80%) — AI image in the MS-Paint doodle style, always
+     featuring the yellow-helmet engineer
+   - `text-card` (~15%) — pure Pillow typography (key numbers, final fact)
+   - `diagram` (max 1-2 per video, last resort) — manim animation from a
+     declarative JSON spec; kept to a minimum because the channel is
+     image-first and manim renders are slow
 2. `scripts/run_all.py --dir output/<slug> --lang en|es` drives the whole
    chain idempotently: images → manim clips → narration (Edge TTS) →
    animated word-by-word subtitles → `final_clean.mp4` → `final.mp4`.
@@ -39,12 +48,13 @@ supported but never required; `visual.confirmed` is optional.
 
 | Path | Cost | Key |
 |---|---|---|
-| diagram / character / text-card scenes | $0 | none |
-| still scenes | $0 (free tier) / ~$0.04 img | `GEMINI_API_KEY` / `OPENROUTER_API_KEY` |
+| still scenes | ~$0.04 img | `OPENROUTER_API_KEY` (preferred, `seedream-4.5`) / `GEMINI_API_KEY` (free tier fallback) |
+| text-card scenes | $0 | none |
+| diagram scenes | $0 (compute) | none (needs manim installed) |
 | narration | $0 | none (Edge TTS) |
 
-`.env` lives in the service folder (see `.env.example`). Only stills need a
-key; a 100%-diagram video costs $0.
+`.env` lives in the service folder (see `.env.example`). `run_all.py`
+auto-picks OpenRouter when `OPENROUTER_API_KEY` is set, else Gemini.
 
 ## Languages
 

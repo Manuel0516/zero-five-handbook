@@ -44,6 +44,17 @@ prompt; there is **no manim version** of the character.
    chain idempotently: images → manim clips → narration (Edge TTS) →
    animated word-by-word subtitles → `final_clean.mp4` → `final.mp4`.
 
+Script brain: `scripts/gen_script.py` calls **gpt-5.6-luna via the ChatGPT
+Codex subscription** (`chatgpt.com/backend-api/codex`, OAuth token from
+`~/.hermes/auth.json`), never OpenRouter; override with `--model` or
+`CODEX_SCRIPT_MODEL`.
+
+Image validation: every still is checked after generation
+(`scripts/validate_image.py`: size, decode, 16:9 aspect, not blank);
+failed images are regenerated individually with an improved prompt
+(`--image-retries`, default 2). Standalone check:
+`python scripts/validate_image.py --dir output/<slug>`.
+
 Fully autonomous: no human confirmation gates. Footage scenes are
 supported but never required; `visual.confirmed` is optional.
 

@@ -145,12 +145,14 @@ version of the page appear to "not change anything".
 
 The **Analytics** page also shows an **API spend** card at the top (injected
 via the `analytics:top` page-scoped slot): live balance read from each
-inference provider's billing API (currently DeepSeek via
-`GET https://api.deepseek.com/user/balance`, plus an OpenAI slot when a key is
-configured). Keys are read from `~/.hermes/.env` server-side — they never reach
-the browser. Routes: `GET /api/plugins/hermes-accounts/providers` (which keys
-are configured) and `GET .../provider-balance/<provider>` (admin-only, calls
-the provider endpoint and parses the balance).
+inference provider's billing API. Currently supported: DeepSeek
+(`GET https://api.deepseek.com/user/balance` — total/granted/topped-up),
+OpenRouter (`GET https://openrouter.ai/api/v1/auth/key` — remaining credit,
+used/limit, monthly reset), and an OpenAI slot (`/v1/dashboard/billing/subscription`)
+when a key is configured. Keys are read from `~/.hermes/.env` server-side —
+they never reach the browser. Routes: `GET /api/plugins/hermes-accounts/providers`
+(which keys are configured) and `GET .../provider-balance/<provider>`
+(admin-only, calls the provider endpoint and parses the balance).
 
 Users live in `~/.hermes/accounts/users.json` (mode 600):
 

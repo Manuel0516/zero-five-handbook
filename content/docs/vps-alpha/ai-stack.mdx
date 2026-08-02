@@ -6,7 +6,7 @@ description: The personal-ai project — Open WebUI as the single chat interface
 The [personal-ai repo](https://github.com/Manuel0516/personal-ai) (`~/services/personal-ai`) defines a **distributed AI system**: one chat interface that transparently uses models on the VPS *and* on the laptop, connected over [WireGuard](/docs/vps-alpha/wireguard). The user picks a model in Open WebUI and never thinks about which machine runs it.
 
 ```text
-Browser → https://ai.zero-five.space (Traefik)
+Browser (on VPN) → https://ai.zero-five.space (Traefik, VPN-only)
              │
         Open WebUI (host :3000)
              │
@@ -29,7 +29,7 @@ The chat interface at **[ai.zero-five.space](https://ai.zero-five.space)**. Comp
 |----------|-------|
 | Image | `ghcr.io/open-webui/open-webui:main` |
 | Network | `network_mode: host`, listens on `:3000` |
-| Public access | **Only** `https://ai.zero-five.space` — port 3000 is not opened in [UFW](/docs/vps-alpha/security#firewall-ufw) |
+| Public access | **VPN only** — `https://ai.zero-five.space` (Traefik `ipWhiteList 10.8.0.0/24`, DNS → `10.8.0.1`); port 3000 is not opened in [UFW](/docs/vps-alpha/security#firewall-ufw) |
 | Ollama backend | `OLLAMA_BASE_URLS=http://127.0.0.1:11435` — the router, not Ollama directly |
 | Data | Docker volume `open-webui` (users, chats, settings — back it up) |
 | Routing | Traefik file provider → `host.docker.internal:3000` (see [Traefik](/docs/vps-alpha/traefik)) |
@@ -98,7 +98,7 @@ cp searxng/settings.yml.example searxng/settings.yml   # set a fresh secret
 docker compose up -d
 ```
 
-Then create the first Open WebUI account at `https://ai.zero-five.space` (first signup becomes admin) and configure web search in the Admin Panel to point at `http://127.0.0.1:8081`.
+Then create the first Open WebUI account at `https://ai.zero-five.space` (first signup becomes admin — from inside the VPN) and configure web search in the Admin Panel to point at `http://127.0.0.1:8081`.
 
 ## Operations
 

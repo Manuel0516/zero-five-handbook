@@ -31,7 +31,7 @@ Verified live with `docker ps`:
 | Container | Image | Stack | Exposure |
 |-----------|-------|-------|----------|
 | `traefik` | `traefik:v2.11` | hub | `:80`, `:443` public |
-| `hub-frontend` | built from repo | hub | via Traefik (`hub.zero-five.space`) |
+| `hub-frontend` | built from repo | hub | via Traefik (`hub.zero-five.space`, VPN only) |
 | `hub-backend` | built from repo | hub | internal only |
 | `docker-socket-proxy` | pinned `tecnativa/docker-socket-proxy` digest | hub | internal, Hub GET-only API |
 | `traefik-socket-proxy` | same pinned proxy digest | hub | isolated internal network, Traefik GET-only discovery |
@@ -39,7 +39,7 @@ Verified live with `docker ps`:
 | `secondbrain-api-1` | built from repo | secondbrain | internal only |
 | `secondbrain-db-1` | `postgres:18.3-alpine` | secondbrain | internal only |
 | `secondbrain-minio-1` | `quay.io/minio/minio` | secondbrain | internal only |
-| `open-webui` | `ghcr.io/open-webui/open-webui:main` | personal-ai/server | host `:3000`, public only via Traefik (`ai.zero-five.space`) |
+| `open-webui` | `ghcr.io/open-webui/open-webui:main` | personal-ai/server | host `:3000`, VPN only via Traefik (`ai.zero-five.space`) |
 | `ollama-router` | `python:3.12-slim` | personal-ai/router | host network, `127.0.0.1:11435` |
 | `searxng` | `searxng/searxng:latest` | personal-ai/web-search | `127.0.0.1:8081` |
 | `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |

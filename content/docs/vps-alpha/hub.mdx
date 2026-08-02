@@ -5,6 +5,8 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 
 [Project Hub](https://github.com/Manuel0516/hub) is the dashboard at **[hub.zero-five.space](https://hub.zero-five.space)** that monitors and controls every VPS service. FastAPI + React + SQLite, served behind [Traefik](/docs/vps-alpha/traefik). Deployed at `~/services/hub`.
 
+> **Access:** The dashboard is **VPN-only** — `hub.zero-five.space` resolves to `10.8.0.1` and its Traefik router carries the `ipWhiteList 10.8.0.0/24` middleware, exactly the [VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern) used by the handbook. Off the VPN it is unreachable (DNS points into the tunnel and the public IP answers 403).
+
 ## Features (v2)
 
 | Feature | Detail |
@@ -23,7 +25,7 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 ## Architecture
 
 ```text
-hub.zero-five.space (Traefik, HTTPS)
+hub.zero-five.space (Traefik, HTTPS, VPN-only ipWhiteList)
         │
    hub-frontend (nginx + React)
         │  /api/* proxied to hub-backend:8000

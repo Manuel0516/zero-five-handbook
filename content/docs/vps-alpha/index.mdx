@@ -47,12 +47,12 @@ and unresolved risks.
   Traefik v2.11          Minecraft (Java 17)       sshd
       │                  bare metal, systemd     (key-only)
       │
-      ├─ hub.zero-five.space ──→ hub-frontend ─→ hub-backend
+      ├─ hub.zero-five.space ──→ hub-frontend ─→ hub-backend   (VPN-only)
       │                                │
       │                                ├─→ docker-socket-proxy → Docker Engine
       │                                └─→ hub-agent :8765 → systemd + RCON
       │
-      ├─ ai.zero-five.space ───→ Open WebUI (host :3000)
+      ├─ ai.zero-five.space ───→ Open WebUI (host :3000)        (VPN-only)
       │                                └─→ ollama-router (127.0.0.1:11435)
       │                                        ├─→ Ollama VPS    10.8.0.1:11434
       │                                        └─→ Ollama laptop 10.8.0.2:11434

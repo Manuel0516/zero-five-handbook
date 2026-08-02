@@ -143,6 +143,14 @@ uses **inline forms and buttons, never `window.prompt()`/`confirm()`** — nativ
 dialogs block and fail silently in some browsers/embeds, which made the first
 version of the page appear to "not change anything".
 
+The Accounts tab also shows an **API spend** card: live balance read from each
+inference provider's billing API (currently DeepSeek via
+`GET https://api.deepseek.com/user/balance`, plus an OpenAI slot when a key is
+configured). Keys are read from `~/.hermes/.env` server-side — they never reach
+the browser. Routes: `GET /api/plugins/hermes-accounts/providers` (which keys
+are configured) and `GET .../provider-balance/<provider>` (admin-only, calls
+the provider endpoint and parses the balance).
+
 Users live in `~/.hermes/accounts/users.json` (mode 600):
 
 ```json
@@ -204,7 +212,15 @@ breakdown, aux-task summary, aggregate totals). Costs come from
 | Gateway logs | `journalctl --user -u hermes-gateway -f` |
 | Check auth gate | `curl -s http://127.0.0.1:9119/api/status` → `auth_required: true` |
 | Add a user | Dashboard → **Accounts** tab (or `curl` the plugin API as admin) |
-| Rotate a password | Dashboard → **Accounts** → password on the user row |
+| Rotate a password | Dashboard → **Accounts** → Edit on the user row |
+| Rebuild web UI | `cd ~/.hermes/hermes-agent/web && npm run build` then restart the dashboard |
+
+> **Local patch:** the mobile header/sidebar transparency bug (undefined
+> `--component-header-background` / `--component-sidebar-background` theme vars
+> made the nav transparent on phones) is fixed by a source patch in
+> `web/src/App.tsx` and `web/src/pages/ChatPage.tsx` — the `var()` calls now
+> fall back to `var(--background-base)`. `hermes update` will overwrite these;
+> re-apply the two-line fallback and rebuild after updating.
 
 ## Troubleshooting
 

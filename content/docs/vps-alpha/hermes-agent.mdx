@@ -134,8 +134,14 @@ single-user `basic` provider.
 |-------|----------|------|
 | Auth provider | `__init__.py` | `AccountsAuthProvider` — validates login against the user store, mints stateless HMAC sessions |
 | User store | `hermes_accounts_store.py` | Thread-safe JSON store with scrypt hashes, atomic writes |
-| Dashboard tab | `dashboard/manifest.json` + `dashboard/dist/index.js` | "Accounts" tab — create, rename, display name, role toggle, password reset, delete |
+| Dashboard tab | `dashboard/manifest.json` + `dashboard/dist/index.js` | "Accounts" tab — create user form; per-user inline edit (rename, display name, role, new password) and two-step delete confirmation |
 | API routes | `dashboard/plugin_api.py` | CRUD under `/api/plugins/hermes-accounts/`, admin-gated |
+
+The tab UI is a JSX bundle built with esbuild (`dashboard/src/index.jsx` →
+`dashboard/dist/index.js`, IIFE, React from the plugin SDK). It deliberately
+uses **inline forms and buttons, never `window.prompt()`/`confirm()`** — native
+dialogs block and fail silently in some browsers/embeds, which made the first
+version of the page appear to "not change anything".
 
 Users live in `~/.hermes/accounts/users.json` (mode 600):
 

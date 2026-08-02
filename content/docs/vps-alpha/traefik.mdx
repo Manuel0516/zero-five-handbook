@@ -112,6 +112,7 @@ http:
 | `https://ai.zero-five.space` | Open WebUI on host `:3000` | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
 | `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |
+| `https://hermes.zero-five.space` | Hermes dashboard on host `:9119` — **VPN only** (same `ipWhiteList` pattern, see [Hermes Agent](/docs/vps-alpha/hermes-agent)) | file provider |
 
 The dashboard is protected by basic auth. The credentials hash lives in `~/services/hub/traefik/.htpasswd` (never committed):
 

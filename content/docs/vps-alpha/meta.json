@@ -12,6 +12,7 @@
     "ai-stack",
     "second-brain",
     "minecraft",
-    "telegram-bot"
+    "telegram-bot",
+    "hermes-agent"
   ]
 }

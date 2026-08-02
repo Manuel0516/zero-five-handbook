@@ -110,6 +110,7 @@ sudo systemctl reload ssh
 | `51820/udp` | WireGuard handshake |
 | `from 172.16.0.0/12 to any port 3000 proto tcp` | Traefik (container) → Open WebUI on the host — while public `:3000` stays closed |
 | `from 172.16.0.0/12 to any port 8765 proto tcp` | hub-backend (container) → hub-agent on the host |
+| `from 172.16.0.0/12 to any port 9119 proto tcp` | Traefik (container) → Hermes dashboard on the host (see [Hermes Agent](/docs/vps-alpha/hermes-agent)) |
 | `allow in on wg0` | VPN traffic is trusted (laptop → Ollama `10.8.0.1:11434`) |
 
 Everything else is denied by default: Open WebUI is publicly reachable **only** via `https://ai.zero-five.space`, and hub-agent (`:8765`) and Minecraft RCON (`:25575`) — which listen on all interfaces — are no longer exposed. Services bound to `127.0.0.1` (ollama-router `:11435`, SearXNG `:8081`) were never reachable regardless.
@@ -130,6 +131,7 @@ sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
 sudo ufw allow 25565/tcp && sudo ufw allow 51820/udp
 sudo ufw allow from 172.16.0.0/12 to any port 3000 proto tcp
 sudo ufw allow from 172.16.0.0/12 to any port 8765 proto tcp
+sudo ufw allow from 172.16.0.0/12 to any port 9119 proto tcp
 sudo ufw allow in on wg0
 sudo ufw --force enable
 ```

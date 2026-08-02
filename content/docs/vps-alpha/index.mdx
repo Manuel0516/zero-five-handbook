@@ -64,6 +64,11 @@ and unresolved risks.
       └─ traefik.zero-five.space → Traefik dashboard (basic auth)
 
   Telegram translation bot (container) ──→ Ollama VPS 10.8.0.1:11434
+
+  Hermes Agent (native systemd user units)
+      ├─ Telegram bot @ZeroFive_OpenClaw_Bot (long-polling)
+      └─ web dashboard hermes.zero-five.space (VPN-only, Traefik)
+              └─ multi-user accounts + token cost analytics
 ```
 
 Three kinds of workloads coexist:
@@ -132,6 +137,11 @@ Three kinds of workloads coexist:
     description="Silent ES/EN/SV translator powered by the local Ollama models"
     href="/docs/vps-alpha/telegram-bot"
   />
+  <Card
+    title="Hermes Agent"
+    description="The personal AI agent — Telegram bot and the VPN-only web dashboard at hermes.zero-five.space"
+    href="/docs/vps-alpha/hermes-agent"
+  />
 </Cards>
 
 ---
@@ -150,6 +160,11 @@ Everything deployed on the VPS lives in a repository under [github.com/Manuel051
 | [Manuel0516/zero-five-handbook](https://github.com/Manuel0516/zero-five-handbook) | — | This documentation site |
 | [Manuel0516/localdrop](https://github.com/Manuel0516/localdrop) | — (MacBook/desktop) | Clipboard sync tool, see [LocalDrop](/docs/macbook/localdrop) |
 
+Hermes Agent itself is **not** deployed from a repo — it is installed natively
+at `~/.hermes` (git install of [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent),
+updated with `hermes update`), with its config/secrets in `~/.hermes/config.yaml`
+and `~/.hermes/.env`. See [Hermes Agent](/docs/vps-alpha/hermes-agent).
+
 The Minecraft server (`~/services/minecraft`) is the only service **not** in git — it is world data plus mod jars, backed up as files instead.
 
 ---
@@ -164,6 +179,8 @@ The Minecraft server (`~/services/minecraft`) is the only service **not** in git
 │   ├── second-brain/      # Life OS (git)
 │   ├── telegram-translation-bot/   # Bot (git)
 │   └── minecraft/LynxHouse/        # Fabric server (not git)
+├── .hermes/               # Hermes Agent install + config + secrets + plugins
+├── .config/systemd/user/  # hermes-gateway + hermes-dashboard units
 ├── hub-agent/             # systemd bridge service (venv + agent.py)
 ├── backups/               # Local backups (docker volumes, legacy projects)
 ├── docs/INFRASTRUCTURE.md # Older on-server notes (partly outdated)
@@ -185,5 +202,6 @@ To recreate the server on a fresh Ubuntu VPS, follow the pages in this order:
 7. **[Second Brain](/docs/vps-alpha/second-brain)** — Clone, configure `.env`, deploy
 8. **[Minecraft](/docs/vps-alpha/minecraft)** — Restore world backup, install Fabric, enable the unit
 9. **[Telegram Bot](/docs/vps-alpha/telegram-bot)** — Build and run the container
+10. **[Hermes Agent](/docs/vps-alpha/hermes-agent)** — Native install, Telegram bot, dashboard unit, accounts plugin, VPN-only Traefik route
 
 > **Tip:** DNS (Cloudflare) and the domain survive a server migration — only the A records need to point at the new IP.

@@ -45,6 +45,11 @@ Verified live with `docker ps`:
 | `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |
 | `handbook` | built from repo | handbook | via Traefik (`docs.zero-five.space`, VPN only) |
 
+Two services run as **native systemd user units**, not containers: the
+[Hermes Agent](/docs/vps-alpha/hermes-agent) gateway and web dashboard
+(`hermes-gateway.service`, `hermes-dashboard.service` — the dashboard binds
+host `:9119` and is routed through Traefik's file provider like Open WebUI).
+
 ## Compose projects
 
 `docker compose ls` maps every project to its file:

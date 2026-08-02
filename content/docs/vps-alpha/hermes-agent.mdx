@@ -1,0 +1,212 @@
+---
+title: Hermes Agent
+description: The personal AI agent behind the Telegram bot and the web dashboard at hermes.zero-five.space — gateway, multi-user accounts, and token cost analytics.
+---
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) is an open-source AI
+agent framework running natively on the VPS. It powers two surfaces on Alpha:
+
+| Surface | URL | Access |
+|---------|-----|--------|
+| Telegram bot | [@ZeroFive_OpenClaw_Bot](https://t.me/ZeroFive_OpenClaw_Bot) | private chat, allowlisted user IDs |
+| Web dashboard | `https://hermes.zero-five.space` | **VPN only** + login |
+
+The web dashboard is the browser admin panel for the whole install: status,
+chat (full TUI in the browser), config, API keys, sessions, cron, skills,
+memory, accounts, and token cost analytics. It is the "webUX" management page.
+
+## Architecture
+
+```text
+hermes.zero-five.space (Traefik, HTTPS, VPN-only ipWhiteList)
+        │
+   hermes-dashboard.service  (systemd user unit, :9119)
+        ├── auth gate: accounts provider (multi-user, scrypt)
+        ├── Accounts tab  (hermes-accounts plugin)
+        ├── Analytics tab (native token/cost page)
+        └── embedded TUI chat over PTY/WebSocket
+
+hermes-gateway.service   (systemd user unit)
+        └── Telegram long-polling → @ZeroFive_OpenClaw_Bot
+```
+
+Both run as **systemd user services** (see [Docker & services](/docs/vps-alpha/docker)
+for the container inventory — these two are native units, not containers).
+
+## Why VPN-only
+
+The dashboard holds every API key, all sessions, config, memory, and cron
+jobs — the most sensitive surface on the box. It follows the same
+[VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern) as the
+handbook: DNS points `hermes.zero-five.space` at `10.8.0.1` (WireGuard), and a
+Traefik `ipWhiteList 10.8.0.0/24` middleware rejects anyone reaching the public
+IP with the right Host header. On top of that, the dashboard itself requires a
+login (the `accounts` provider). Two independent gates.
+
+## Deployment
+
+### Prerequisites
+
+- Hermes installed natively at `~/.hermes` (git install, venv at
+  `~/.hermes/hermes-agent/venv`)
+- The dashboard's web extra already present in the venv
+  (`fastapi`, `uvicorn`, `ptyprocess`)
+- UFW scoped allow so the Traefik container can reach the host service:
+
+```bash
+sudo ufw allow from 172.16.0.0/12 to any port 9119 proto tcp
+```
+
+### The dashboard systemd unit
+
+`~/.config/systemd/user/hermes-dashboard.service` — binds `0.0.0.0:9119`
+(needed so Traefik's `host.docker.internal` can reach it), never published
+publicly (UFW keeps `:9119` closed to the internet).
+
+```ini
+[Unit]
+Description=Hermes Agent Web Dashboard - Browser Admin Panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/manuel/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main dashboard --host 0.0.0.0 --port 9119 --no-open
+WorkingDirectory=/home/manuel/.hermes
+Environment="PATH=/home/manuel/.hermes/hermes-agent/venv/bin:/home/manuel/.hermes/hermes-agent/node_modules/.bin:/home/manuel/.hermes/node/bin:/home/manuel/.hermes/node:/home/manuel/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="VIRTUAL_ENV=/home/manuel/.hermes/hermes-agent/venv"
+Environment="HERMES_HOME=/home/manuel/.hermes"
+Restart=always
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+```
+
+First launch builds the web UI (npm) and prints `HERMES_DASHBOARD_READY port=9119`.
+
+### Traefik route
+
+`~/services/hub/traefik/dynamic/host-services.yml` — file-provider entry (the
+dashboard is a host service, not a container, so no Docker labels):
+
+```yaml
+hermes-dashboard:
+  rule: "Host(`hermes.zero-five.space`)"
+  entryPoints: [websecure]
+  service: hermes-dashboard
+  tls:
+    certResolver: letsencrypt
+  middlewares: [hermes-vpn-only]
+
+middlewares:
+  hermes-vpn-only:
+    ipWhiteList:
+      sourceRange: [10.8.0.0/24]
+```
+
+### DNS
+
+Cloudflare A record `hermes` → `10.8.0.1` (grey cloud / DNS-only), overriding
+the wildcard — same as `docs`. No DNS work needed for new subdomains (wildcard
+covers them), but VPN-only subdomains need the explicit record.
+
+### Hub registration
+
+A `web`-kind service row in the hub DB (id 8) with
+`url: https://hermes.zero-five.space`, `health_url:
+http://host.docker.internal:9119/api/status`, `visibility: admin`. The hub
+backend health-checks the dashboard through `host.docker.internal` (allowed by
+the UFW rule above) and shows a 🟢/🔴 card on the dashboard for admins.
+
+## Accounts — multi-user login
+
+The dashboard auth is provided by the **hermes-accounts plugin**
+(`~/.hermes/plugins/hermes-accounts/`), which registers an `accounts` password
+provider via `register_dashboard_auth_provider`. It replaces the bundled
+single-user `basic` provider.
+
+| Piece | Location | Role |
+|-------|----------|------|
+| Auth provider | `__init__.py` | `AccountsAuthProvider` — validates login against the user store, mints stateless HMAC sessions |
+| User store | `hermes_accounts_store.py` | Thread-safe JSON store with scrypt hashes, atomic writes |
+| Dashboard tab | `dashboard/manifest.json` + `dashboard/dist/index.js` | "Accounts" tab — create, rename, display name, role toggle, password reset, delete |
+| API routes | `dashboard/plugin_api.py` | CRUD under `/api/plugins/hermes-accounts/`, admin-gated |
+
+Users live in `~/.hermes/accounts/users.json` (mode 600):
+
+```json
+{
+  "users": {
+    "admin": {
+      "display_name": "Admin",
+      "password_hash": "scrypt$16384$8$1$<salt>$<dk>",
+      "role": "admin",
+      "created_at": 1785681863
+    }
+  },
+  "secret": "<base64 32+ bytes — token-signing key>"
+}
+```
+
+Rules:
+
+- `admin` is the bootstrap account (seeded from the original `basic` auth
+  password); the plugin API refuses to rename or delete the currently
+  logged-in admin
+- Only `role: admin` users can call the management API — non-admin sessions
+  get `403`; unauthenticated requests get `401`
+- Password resets and renames take effect immediately (the store is re-read on
+  every login); sessions are stateless so a rename logs the user out (old
+  token's subject no longer matches)
+
+### Recreate
+
+```bash
+mkdir -p ~/.hermes/plugins/hermes-accounts/{dashboard/dist}
+# ...copy the four plugin files + manifest from a backup...
+hermes plugins enable hermes-accounts
+systemctl --user restart hermes-dashboard
+```
+
+## Token cost analytics ("expending" page)
+
+The dashboard has a native **Analytics** tab (URL `/analytics`) showing token
+usage and estimated cost per day, per model, and per auxiliary task (vision,
+compression, title generation). It is gated behind a config flag:
+
+```bash
+hermes config set dashboard.show_token_analytics true
+```
+
+Backed by `GET /api/analytics/usage?days=N` (per-day totals, per-model
+breakdown, aux-task summary, aggregate totals). Costs come from
+`estimated_cost_usd` / `actual_cost_usd` recorded per session in
+`~/.hermes/state.db`.
+
+## Operations
+
+| Task | Command |
+|------|---------|
+| Status | `hermes gateway status` / `systemctl --user status hermes-dashboard` |
+| Restart dashboard | `systemctl --user restart hermes-dashboard` |
+| Dashboard logs | `journalctl --user -u hermes-dashboard -f` |
+| Gateway logs | `journalctl --user -u hermes-gateway -f` |
+| Check auth gate | `curl -s http://127.0.0.1:9119/api/status` → `auth_required: true` |
+| Add a user | Dashboard → **Accounts** tab (or `curl` the plugin API as admin) |
+| Rotate a password | Dashboard → **Accounts** → password on the user row |
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| 403 from Traefik | You are not on WireGuard (`dig hermes.zero-five.space` should return `10.8.0.1`) |
+| Login page shows no form | `curl -s http://127.0.0.1:9119/api/status` — `auth_providers` must include `accounts`; if empty, the plugin failed to load (`journalctl --user -u hermes-dashboard`) |
+| 401 on Accounts API | Session expired or cookie missing — log in again |
+| 403 on Accounts API | The logged-in user is not `role: admin` |
+| `HERMES_DASHBOARD_READY` never appears | First-launch web build is slow (`npm run build` inside the unit); check `journalctl` for the build log |
+| Hub card shows 🟡 unknown | Hub backend cannot reach `host.docker.internal:9119` — verify the UFW scoped allow survived a firewall reload |

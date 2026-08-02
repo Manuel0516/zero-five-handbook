@@ -225,6 +225,20 @@ breakdown, aux-task summary, aggregate totals). Costs come from
 > fall back to `var(--background-base)`. `hermes update` will overwrite these;
 > re-apply the two-line fallback and rebuild after updating.
 
+> **Chat was slow / "WebSocket connection failed" (code 1006):** the chat tab
+> spawns `hermes --tui` in a PTY, and Hermes runs an npm staleness check first
+> (root `package-lock.json` vs `node_modules/.package-lock.json`). On this box
+> the root lock listed all monorepo workspaces while only a subset was ever
+> installed, so the check always failed and ran a ~50 s `npm install` on every
+> chat spawn — the browser's WS dropped (1006) and reconnects failed during the
+> install. Fix: run a full root install once so the hidden lockfile matches:
+>
+> ```bash
+> cd ~/.hermes/hermes-agent && npm install --include=dev --silent --no-fund --no-audit
+> ```
+>
+> Verify with `python -c "from hermes_cli.main import _tui_need_npm_install; from pathlib import Path; print(_tui_need_npm_install(Path('ui-tui')))"` → should print `False`. Re-run the npm install after any `hermes update` that changes `package-lock.json`.
+
 ## Troubleshooting
 
 | Symptom | Check |

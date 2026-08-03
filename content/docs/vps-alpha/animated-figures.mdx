@@ -5,12 +5,21 @@ title: Animated Figures (YouTube AI pipeline)
 # Animated Figures — YouTube AI video pipeline
 
 Full-stack pipeline for generating faceless YouTube videos in the
-"animated curiosity" style (like Whymentary), in the **engineering
-deep-dive** niche: ONE engineering concept per video, explained in depth
-for **~5 minutes (700-800 words)** — what it is, how it works, why it
-works, real-life examples, final fact. **Active language: English**
-(`--lang en`); the Spanish master prompt is ready but the channel
-publishes in English for now.
+"animated curiosity" style (like Whymentary), in the **transportation
+engineering** niche: ONE iconic machine per video (plane, train, ship,
+rocket, submarine...), explained in depth for **~3 minutes (450-550
+words)** — what it is, how it works, why it works, real-life moments,
+final fact. **Active language: English** (`--lang en`).
+
+**Design rule:** AI images are 100% visual — never contain text, labels or
+numbers (image models garble them). All text lives in crisp Pillow
+`text-card` scenes. Manim is disabled; `diagram`/`character` scenes
+auto-convert to text-cards.
+
+**Shorts mode:** each concept can also produce a vertical 9:16 Short
+(50-60s) derived from the long script: `gen_script.py --mode short
+--derive-from output/<slug>` + `run_all.py --dir <slug>-short --shorts`
+(uses `brand-shorts.yaml`, 1080×1920).
 
 ## Location & repo
 

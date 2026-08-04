@@ -1,0 +1,46 @@
+---
+title: Trafiko Monitor
+description: Notification-only watcher for manual driving lessons in Lund on Trafiko, pushing ntfy alerts when a matching lesson appears.
+---
+
+The [trafiko-monitor](https://github.com/Manuel0516/trafiko-monitor) (`~/services/trafiko-monitor`) watches Trafiko's public lesson availability for **manual-transmission driving lessons in Lund** between 6–10 August 2026 (the user's practical test is 11 August 2026 at 08:40) and pushes an **ntfy** notification the moment a matching lesson appears. It is **notification-only**: no login, no cookies, no booking.
+
+## How it works
+
+- Trafiko is a Next.js site (`trafiko.se/korlektioner/lund`) whose availability comes from a **public, unauthenticated GraphQL API** at `https://prod.trafiko.se/graphql` — the same endpoint the public page calls. robots.txt explicitly allows crawling of `/korlektioner/`.
+- The monitor sends the page's own `DrivingLessons` query with `filter: {pickup_point: <Lund id>, transmission_types: ["manual"]}` (omitting `instructor` = all instructors, verified).
+- `date_chunk: 7` covers the whole 5-day window (the API returns the first N *distinct dates with lessons*, max 7).
+- Transmission is enforced server-side *and* per-instructor client-side (only instructors whose `transmission_types` contains `manual` become candidates).
+- Polls every ~3 min (180 s + 0–45 s jitter), exponential backoff after failures, one ntfy warning after >30 min of continuous failure, one if Trafiko's response structure changes.
+
+Notifications go to a private random ntfy topic (the topic name *is* the security — never logged). Lesson alerts carry date, time, instructor, pickup point, transmission, the booking page URL, and detection time. Duplicate alerts are suppressed via `data/state.json`; a lesson that disappears for ≥3 successful checks and reappears notifies again.
+
+## Deployment
+
+Runs as a **systemd system service** under a dedicated unprivileged user `trafiko-monitor`:
+
+```bash
+sudo bash ~/services/trafiko-monitor/scripts/install-systemd.sh
+systemctl status trafiko-monitor
+journalctl -u trafiko-monitor -f
+```
+
+| File | Responsibility |
+|------|----------------|
+| `src/trafiko_monitor/monitor.py` | CLI + polling loop + state diff |
+| `src/trafiko_monitor/discovery.py` | GraphQL client (region + lessons) |
+| `src/trafiko_monitor/parser.py` | Response parsing + structure-change detection |
+| `src/trafiko_monitor/notifier.py` | ntfy publishing |
+| `src/trafiko_monitor/state.py` | Atomic `data/state.json` + `flock` |
+| `systemd/trafiko-monitor.service` | Hardened unit (ProtectSystem=strict, ReadWritePaths=data/, NoNewPrivileges) |
+| `.env` | Config: `NTFY_TOPIC`, `DATE_FROM`, `DATE_TO`, interval/jitter (git-ignored) |
+
+## Operations
+
+- **One-time check:** `cd ~/services/trafiko-monitor && .venv/bin/trafiko-monitor check` (sanitized summary)
+- **Test notification:** `.venv/bin/trafiko-monitor test-notify`
+- **Change date range / interval:** edit `.env`, then `systemctl restart trafiko-monitor`
+- **Restart / stop:** `systemctl restart trafiko-monitor` / `systemctl stop trafiko-monitor`
+- **Uninstall:** `sudo systemctl disable --now trafiko-monitor && sudo rm /etc/systemd/system/trafiko-monitor.service && sudo systemctl daemon-reload && sudo userdel trafiko-monitor && sudo rm -rf ~/services/trafiko-monitor`
+
+See the repo README for the full discovery write-up, iPhone subscription steps, and verification results.

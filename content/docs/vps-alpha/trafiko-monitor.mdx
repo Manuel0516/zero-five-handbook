@@ -17,7 +17,7 @@ Notifications go to a private random ntfy topic (the topic name *is* the securit
 
 ## Deployment
 
-Runs as a **systemd system service** under a dedicated unprivileged user `trafiko-monitor`:
+Runs as a **systemd system service** under a dedicated unprivileged user `trafiko-monitor`. Verified on 4 August 2026: the unit is `enabled` (automatic boot start), `active`, waits for `network-online.target`, and is configured with `Restart=always` + a 10-second delay so systemd restarts it after both failures and unexpected clean exits. Runtime state is persisted in `data/state.json`, so service restarts do not duplicate alerts.
 
 ```bash
 sudo bash ~/services/trafiko-monitor/scripts/install-systemd.sh
@@ -34,6 +34,27 @@ journalctl -u trafiko-monitor -f
 | `src/trafiko_monitor/state.py` | Atomic `data/state.json` + `flock` |
 | `systemd/trafiko-monitor.service` | Hardened unit (ProtectSystem=strict, ReadWritePaths=data/, NoNewPrivileges) |
 | `.env` | Config: `NTFY_TOPIC`, `DATE_FROM`, `DATE_TO`, interval/jitter (git-ignored) |
+
+## Reliability and boot guarantees
+
+This monitor is deadline-critical until the practical test. Its uptime contract is:
+
+- `systemctl is-enabled trafiko-monitor` → `enabled`: starts at every VPS boot.
+- `After=Wants=network-online.target`: checks begin only when networking is ready.
+- `Restart=always`, `RestartSec=10`: systemd restarts it after crashes, non-zero exits, and unexpected clean exits.
+- `StartLimitIntervalSec=300`, `StartLimitBurst=10`: prevents an unbounded crash loop while allowing quick recovery.
+- The polling loop catches temporary HTTP/API/parser failures internally and retries with exponential backoff (up to 30 minutes); HTTP 429 gets a 5-minute cooldown.
+- One ntfy warning is sent after 30 minutes of continuous check failure and one if Trafiko's response schema stops parsing.
+- `data/state.json` is atomic and durable; a restart keeps dedup/reappearance history.
+
+Operational verification:
+
+```bash
+systemctl is-active trafiko-monitor     # active
+systemctl is-enabled trafiko-monitor    # enabled
+systemctl show trafiko-monitor -p Restart -p RestartUSec
+systemctl status trafiko-monitor
+```
 
 ## Operations
 

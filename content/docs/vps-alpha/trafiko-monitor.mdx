@@ -15,9 +15,11 @@ The [trafiko-monitor](https://github.com/Manuel0516/trafiko-monitor) (`~/service
 
 Notifications go to a private random ntfy topic (the topic name *is* the security — never logged). Lesson alerts carry date, time, instructor, pickup point, transmission, the booking page URL, and detection time. Duplicate alerts are suppressed via `data/state.json`; a lesson that disappears for ≥3 successful checks and reappears notifies again.
 
+Delivery uses a **durable at-least-once outbox**. A newly detected slot is saved with the complete alert payload before ntfy is called and is acknowledged only after ntfy confirms success. Pending alerts survive restarts and continue retrying even if the cancellation has already disappeared from Trafiko. A crash may therefore cause a duplicate, but an ntfy outage cannot silently consume the only alert.
+
 ## Deployment
 
-Runs as a **systemd system service** under a dedicated unprivileged user `trafiko-monitor`. Verified on 4 August 2026: the unit is `enabled` (automatic boot start), `active`, waits for `network-online.target`, and is configured with `Restart=always` + a 10-second delay so systemd restarts it after both failures and unexpected clean exits. Runtime state is persisted in `data/state.json`, so service restarts do not duplicate alerts.
+Runs as a **systemd system service** under a dedicated unprivileged user `trafiko-monitor`. The unit is enabled for automatic boot start and uses `Type=notify`, `Restart=always`, a 10-second restart delay, unlimited restart attempts, and an 8-minute watchdog. The process emits watchdog heartbeats during normal polling and long API-backoff sleeps; a wedged process is forcibly restarted. Runtime state is persisted atomically in `data/state.json`.
 
 ```bash
 sudo bash ~/services/trafiko-monitor/scripts/install-systemd.sh
@@ -40,12 +42,13 @@ journalctl -u trafiko-monitor -f
 This monitor is deadline-critical until the practical test. Its uptime contract is:
 
 - `systemctl is-enabled trafiko-monitor` → `enabled`: starts at every VPS boot.
-- `After=Wants=network-online.target`: checks begin only when networking is ready.
-- `Restart=always`, `RestartSec=10`: systemd restarts it after crashes, non-zero exits, and unexpected clean exits.
-- `StartLimitIntervalSec=300`, `StartLimitBurst=10`: prevents an unbounded crash loop while allowing quick recovery.
-- The polling loop catches temporary HTTP/API/parser failures internally and retries with exponential backoff (up to 30 minutes); HTTP 429 gets a 5-minute cooldown.
-- One ntfy warning is sent after 30 minutes of continuous check failure and one if Trafiko's response schema stops parsing.
-- `data/state.json` is atomic and durable; a restart keeps dedup/reappearance history.
+- `After=Wants=network-online.target`: orders startup after the network target; actual Internet/API outages are handled by indefinite in-process retries.
+- `Restart=always`, `RestartSec=10`, `StartLimitIntervalSec=0`: crashes, clean exits, and prolonged startup failures cannot leave the unit permanently start-limited.
+- `Type=notify`, `WatchdogSec=8min`: systemd restarts a live but wedged process; the loop keeps heartbeating during exponential backoff.
+- Region/pickup metadata refreshes every check. If one of multiple pickup points fails, healthy points still alert while failed-point absence counters remain unchanged.
+- HTTP/API/parser failures retry with exponential backoff (up to 30 minutes); HTTP 429 gets a real 5-minute loop cooldown.
+- Startup, schema, and >30-minute warnings retry when ntfy itself is temporarily unavailable.
+- `data/state.json` is atomic and contains a durable pending-alert outbox; only confirmed ntfy delivery marks an alert notified.
 
 Operational verification:
 
@@ -58,9 +61,10 @@ systemctl status trafiko-monitor
 
 ## Operations
 
-- **One-time check:** `cd ~/services/trafiko-monitor && .venv/bin/trafiko-monitor check` (sanitized summary)
+- **One-time check:** `cd ~/services/trafiko-monitor && .venv/bin/trafiko-monitor check` (sanitized and strictly state-read-only)
 - **Test notification:** `.venv/bin/trafiko-monitor test-notify`
-- **Change date range / interval:** edit `.env`, then `systemctl restart trafiko-monitor`
+- **Safe logs:** `sudo journalctl -u trafiko-monitor -f` (`manuel` does not currently have direct journal-group access)
+- **Change date range / interval:** edit `.env`, then rerun `sudo bash ~/services/trafiko-monitor/scripts/install-systemd.sh`; it validates typed configuration before restart.
 - **Restart / stop:** `systemctl restart trafiko-monitor` / `systemctl stop trafiko-monitor`
 - **Uninstall:** `sudo systemctl disable --now trafiko-monitor && sudo rm /etc/systemd/system/trafiko-monitor.service && sudo systemctl daemon-reload && sudo userdel trafiko-monitor && sudo rm -rf ~/services/trafiko-monitor`
 

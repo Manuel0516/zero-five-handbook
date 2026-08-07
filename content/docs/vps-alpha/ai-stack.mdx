@@ -12,7 +12,7 @@ Browser (on VPN) → https://ai.zero-five.space (Traefik, VPN-only)
              │
         ollama-router (127.0.0.1:11435)
              ├──→ VPS Ollama    10.8.0.1:11434  → qwen2.5:3b, translategemma:4b
-             └──→ laptop Ollama 10.8.0.2:11434  → deepseek-r1:7b, qwen2.5-coder:7b
+             └──→ MSI Ollama     10.8.0.2:11434  → models planned; inventory empty 2026-08-07
 ```
 
 The repo contains three deployable pieces (each its own Compose project) plus the WireGuard templates and a `docs/` folder with the original runbooks (`architecture.md`, `setup-server.md`, `setup-laptop.md`, `operations.md`, `security.md`).

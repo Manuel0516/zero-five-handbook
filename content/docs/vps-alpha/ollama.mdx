@@ -42,7 +42,10 @@ Verified with `ollama list`:
 | `translategemma:4b` | 3.3 GB | [Telegram translation bot](/docs/vps-alpha/telegram-bot) |
 | `nomic-embed-text` | 274 MB | Embeddings (Open WebUI RAG) |
 
-Heavier models (`deepseek-r1:7b`, `qwen2.5-coder:7b`) intentionally live on the **laptop's** Ollama (`10.8.0.2:11434`) and are reached over the VPN — the VPS doesn't have the RAM for them.
+The MSI laptop was historically intended to host heavier models such as
+`deepseek-r1:7b` and `qwen2.5-coder:7b` at `10.8.0.2:11434`. The 2026-08-07
+MSI inventory found no local Ollama models or model blobs, so that laptop
+inventory is currently planned/stale rather than verified deployed state.
 
 ---
 

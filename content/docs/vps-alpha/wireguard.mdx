@@ -4,7 +4,8 @@ description: The VPS-centered private network, its routing and security model, o
 ---
 
 WireGuard creates Zero Five's private `10.8.0.0/24` network. The VPS is the
-stable public hub; the CachyOS laptop and MacBook connect to it as clients.
+stable public hub; the MSI laptop (tracked by the legacy `cachyos-laptop`
+template) and MacBook connect to it as clients.
 Gamma and the iPhone also connect as deployed clients.
 Beta is registered as a deployed client.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
@@ -15,7 +16,7 @@ without exposing the Ollama API publicly.
 ```mermaid
 flowchart LR
     subgraph clients["Trusted clients"]
-        cachyos["CachyOS laptop<br/>10.8.0.2/24<br/>Live verification pending"]
+        cachyos["MSI laptop<br/>10.8.0.2/24<br/>Live verification pending"]
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
         gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
         beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
@@ -40,7 +41,7 @@ flowchart LR
 | Machine | Address | Verification |
 | --- | --- | --- |
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
-| CachyOS laptop | `10.8.0.2/24` | Existing configuration documented; live re-verification pending |
+| MSI laptop | `10.8.0.2/24` | Existing legacy CachyOS configuration documented; live re-verification pending |
 | MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
 | Gamma | `10.8.0.4/32` | Interface and boot service active; bidirectional ping, resume persistence, and SSH path verified 2026-07-22 |
 | Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |

@@ -68,6 +68,14 @@ date, Wi-Fi/audio/microphone/lock indicators, five workspaces, lyrics, and a
 Firefox favorite. The launcher includes settings, wallpaper, scheme, power,
 lock, sleep, and LocalDrop send-file actions.
 
+## Suspend and resume
+
+The Quickshell process behind Caelestia can crash when its Wayland layer-shell
+panels survive a suspend/resume cycle. The tracked
+`caelestia-suspend-watchdog.service` closes Caelestia before sleep and starts a
+fresh shell one second after resume. This avoids reusing stale Wayland surfaces
+while leaving Hyprland and user applications running.
+
 ## Personal keybinds
 
 | Action | Binding |

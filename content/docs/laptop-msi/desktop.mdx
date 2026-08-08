@@ -76,6 +76,10 @@ panels survive a suspend/resume cycle. The tracked
 fresh shell one second after resume. This avoids reusing stale Wayland surfaces
 while leaving Hyprland and user applications running.
 
+The lock command uses Hyprlock, not Caelestia's lock surface. Install the
+official `hyprlock` package and restore `~/.config/hypr/hyprlock.conf`; the
+lock fallback to Caelestia is only for systems where Hyprlock is unavailable.
+
 ## Personal keybinds
 
 | Action | Binding |

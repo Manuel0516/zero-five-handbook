@@ -17,9 +17,11 @@ quarantine → Jellyfin) split across two machines with a strict trust boundary:
   importer agent. It must stay **100% clean, always**: zero internet egress,
   zero untrusted file processing, and the only files that enter its library
   are cryptographically signed by the quarantine VM.
-- **Beta** (laptop-beta, the Proxmox host) runs a **download VM** with the
-  whole dirty process (Gluetun + Mullvad, qBittorrent, Prowlarr, Radarr,
-  Sonarr) and, *nested inside that VM*, an air-gapped **quarantine VM**.
+- **Beta** (laptop-beta, the Proxmox host) runs **two sibling VMs**: a
+  **download VM** with the whole dirty process (Gluetun + Mullvad, qBittorrent,
+  Prowlarr, Radarr, Sonarr) and an air-gapped **quarantine VM**. Files move
+  between them through a host-owned transfer directory — no nesting, no
+  shared kernel between the dirty and the hermetic world.
 - **Public trackers only.** Private trackers are rejected by design: they
   require accounts (a linkable identity). Public trackers have no accounts;
   their higher malware risk is exactly what the quarantine VM exists for.
@@ -43,8 +45,9 @@ design.
 | Name | What it is |
 | --- | --- |
 | Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.5). See [Proxmox baseline](/docs/laptop-beta/proxmox). |
-| `media-dl-vm` | Dirty download VM running on Beta. Hosts Gluetun+Mullvad, qBittorrent, Prowlarr, Radarr, Sonarr, and the nested quarantine VM. |
-| `quarantine-vm` | Hermetic scan VM, **nested inside `media-dl-vm`**. No network interfaces at all; files in/out only via shared folders. Holds the signing key. |
+| `media-dl-vm` | Dirty download VM on Beta. Hosts Gluetun+Mullvad, qBittorrent, Prowlarr, Radarr, Sonarr. |
+| `quarantine-vm` | Hermetic scan VM, **sibling of `media-dl-vm` on Beta** (not nested). No network interfaces at all; files in/out only via the host-owned transfer directory. Holds the signing key. |
+| Transfer directory | Host-owned shared dir on Beta (`/srv/media-transfer`): `inbox` (written by the download VM, read by the quarantine VM) and `outbox` (written by the quarantine VM, pulled by Gamma). |
 | Gamma | Clean box (192.168.1.164, wg0 10.8.0.4). Jellyfin + Jellyseerr + importer agent. See [WireGuard](/docs/laptop-gamma/wireguard). |
 | Alpha | VPS WireGuard hub + Traefik (10.8.0.1). Provides VPN-only remote access to Jellyfin/Jellyseerr on Gamma. |
 
@@ -61,15 +64,20 @@ flowchart LR
             prowlarr["Prowlarr"]
             arrs["Radarr / Sonarr"]
             qbt --- arrs --- prowlarr --- gluetun
-            subgraph qvm["quarantine-vm — nested, NO network"]
-                scan["ClamAV + YARA + ffprobe<br/>+ Ed25519 signing key"]
-            end
-            qbt -->|"inbox (virtiofs shared folder)"| qvm
-            qvm -->|"signed outbox (virtiofs)"| outbox["outbox — signed files"]
         end
+        subgraph transfer["transfer dir on host — /srv/media-transfer"]
+            inbox["inbox — download VM writes"]
+            outbox["outbox — quarantine VM writes"]
+        end
+        subgraph qvm["quarantine-vm — sibling VM, NO network"]
+            scan["ClamAV + YARA + ffprobe<br/>+ Ed25519 signing key"]
+        end
+        dlvm -->|"writes (virtiofs)"| inbox
+        inbox -->|"reads (virtiofs)"| qvm
+        qvm -->|"writes signed files (virtiofs)"| outbox
     end
 
-    outbox -->|"LAN rsync pull — Gamma initiates"| agent["Importer agent<br/>(verify signature, move, ACK)"]
+    outbox -->|"LAN rsync pull — Gamma initiates, via Beta host"| agent["Importer agent<br/>(verify signature, move, ACK)"]
     agent --> lib["Jellyfin library on Gamma<br/>(192.168.1.164 / 10.8.0.4)"]
     jellyfin["Jellyfin + Jellyseerr"] --> lib
     alpha["Alpha VPS — Traefik 10.8.0.1"] -->|"VPN-only routes (ipWhiteList 10.8.0.0/24)"| jellyfin
@@ -84,26 +92,27 @@ flowchart LR
 | qBittorrent | `media-dl-vm` | Torrent client, bound to Gluetun's network namespace. Seeding limit: stop at ratio 0.05. WebUI LAN-only. |
 | Prowlarr | `media-dl-vm` | All indexer traffic (public trackers), through the VPN. |
 | Radarr / Sonarr | `media-dl-vm` | Decide what to grab; send magnets to qBittorrent. Never touch Gamma. |
-| quarantine-vm | nested in `media-dl-vm` | ClamAV + YARA + ffprobe structural validation + sandboxed decode attempt. Signs passing files. Air-gapped, snapshotted, disposable. |
-| Importer agent | Gamma | Pulls signed files over LAN, verifies Ed25519 signature + manifest hashes, moves into library, notifies the arrs via API, sends ACK back. The **only** writer into the library. |
+| quarantine-vm | sibling VM on Beta (not nested) | ClamAV + YARA + ffprobe structural validation + sandboxed decode attempt. Signs passing files. Air-gapped (no NICs), snapshotted, disposable. |
+| Importer agent | Gamma | Pulls signed files over LAN from the Beta host, verifies Ed25519 signature + manifest hashes, moves into library, notifies the arrs via API, sends ACK back. The **only** writer into the library. |
 | Jellyfin + Jellyseerr | Gamma | Serve content to users; receive pipeline alerts as in-app notifications. |
-| Cleanup daemon | `media-dl-vm` | On ACK: deletes outbox copy + qBittorrent torrent entry and leftover data. |
+| Cleanup daemon | `media-dl-vm` | On ACK: deletes inbox copy + qBittorrent torrent entry and leftover data. |
 
 ## Pipeline flow
 
 ```
 1. Request (Jellyseerr) → Radarr/Sonarr grab via Prowlarr → qBittorrent
 2. Torrent completes → seeding stops (ratio 0.05 limit)
-3. Completed files moved into quarantine-vm inbox (shared folder)
+3. Completed files moved into the host-owned transfer inbox
+   (download VM writes, quarantine VM reads)
 4. quarantine-vm (no network): ClamAV + YARA + ffprobe + sandboxed decode
    - PASS → manifest (SHA-256 + verdict) signed with Ed25519 key
-     → files + manifest to outbox
+     → files + manifest to outbox (host-owned, quarantine writes only)
    - FAIL → Destruction protocol A
-5. Gamma importer agent (inotify/timer) pulls outbox via LAN rsync
-   → verifies signature and hashes
+5. Gamma importer agent (inotify/timer) pulls outbox via LAN rsync from the
+   Beta host → verifies signature and hashes
    → FAIL → Destruction protocol B
    → PASS → move into library with arr naming, notify arr API, send ACK
-6. Cleanup daemon on media-dl-vm receives ACK → deletes outbox copy,
+6. Cleanup daemon on media-dl-vm receives ACK → deletes inbox copy,
    qBittorrent torrent entry and leftover data
 7. Jellyfin library refreshes (arr notification); user streams
 ```
@@ -118,8 +127,8 @@ gone from both sides.
   scan verdict, tool versions, timestamp}`. Multi-file releases (mkv + srt +
   jpg) are covered as one signed bundle.
 - **Ed25519.** The private key never leaves the quarantine VM; it lives on a
-  small persistent key disk that survives VM rebuilds. Gamma holds only the
-  public verify key.
+  small persistent key disk attached to the VM that survives rebuilds. Gamma
+  holds only the public verify key.
 - Gamma rejects any file whose signature or hash does not verify — nothing
   enters the library unsigned.
 - **Rotation rule:** any incident (scan hit or signature failure) means the key
@@ -132,34 +141,41 @@ Both triggers follow the same scorched-earth response:
 
 1. **Delete the offending artifacts** (malicious file in the quarantine VM and
    any outbox remnants; or the unverified file on Gamma).
-2. **Destroy `quarantine-vm`** and rebuild from a pristine template (fresh
-   boot, clean scan toolchain).
+2. **Destroy `quarantine-vm`** at the Beta host level (Proxmox `qm` destroy)
+   and rebuild from a pristine template (fresh boot, clean scan toolchain).
 3. **Rotate the signing key** (new keypair; Gamma's public key updated).
 4. **Alert** inside Jellyfin's in-app notifications.
 
 | Trigger | Detected where | Actions |
 | --- | --- | --- |
-| **A — malware / scan failure** | inside quarantine-vm | Delete file(s), destroy + rebuild quarantine-vm, rotate key, alert. |
-| **B — signature verification failure** | on Gamma | Delete the unverified file locally, send the **destruction command** to `media-dl-vm` (restricted SSH key limited to the rebuild script, or a LAN-only authenticated endpoint), then same rebuild + rotation + alert. |
+| **A — malware / scan failure** | inside quarantine-vm | Delete file(s), destroy + rebuild quarantine-vm via Proxmox, rotate key, alert. |
+| **B — signature verification failure** | on Gamma | Delete the unverified file locally, send the **destruction command** to the Beta host (restricted SSH key limited to the Proxmox rebuild script, or the Proxmox API), then same rebuild + rotation + alert. |
 
 A signature failure is treated as tampering with the pipeline itself, which is
 why it escalates to a full rebuild even though Gamma has no malware — the
-integrity chain is broken and must be re-established.
+integrity chain is broken and must be re-established. Because the quarantine VM
+is a Proxmox-managed sibling, the download VM has **no power to destroy or
+tamper with it** — only the host can, which is exactly the authority the
+destruction protocol needs.
 
 ## Network rules
 
 | Component | Egress | Inbound (LAN only) | Never |
 | --- | --- | --- | --- |
-| `media-dl-vm` | Mullvad tunnel only | SSH (pull), arr/qBittorrent WebUIs, ACK endpoint | WireGuard mesh, Alpha, Gamma-initiated connections out |
-| `quarantine-vm` | **none** (no NICs) | none (shared folders only) | anything network |
-| Beta host | as per [baseline](/docs/laptop-beta/proxmox) | LAN admin + Alpha ProxyJump (wg0 10.8.0.5) | — |
+| `media-dl-vm` | Mullvad tunnel only | arr/qBittorrent WebUIs, ACK endpoint | WireGuard mesh, Alpha, Gamma-initiated connections out, touching the outbox |
+| `quarantine-vm` | **none** (no NICs) | none (transfer dir via virtiofs only) | anything network |
+| Beta host | as per [baseline](/docs/laptop-beta/proxmox) | LAN admin + Alpha ProxyJump (wg0 10.8.0.5) + restricted rsync pull of outbox | — |
 | Gamma | **none** (default-deny outbound) | mesh (10.8.0.4) + LAN | internet |
 | Alpha | — | Traefik VPN-only routes | public exposure of Jellyfin/Jellyseerr |
 
 UFW on `media-dl-vm`: default deny; allow the LAN ports above plus the Mullvad
 interface only. The download VM gets **no 10.8.0.x address** — it is an island
-that can only crawl out through its own Mullvad tunnel and serve signed files
-to Gamma.
+that can only crawl out through its own Mullvad tunnel and feed the inbox.
+
+The transfer directory is host-owned with strict permissions: the **inbox** is
+writable only by `media-dl-vm`, the **outbox** is writable only by
+`quarantine-vm` and read-only to Gamma's restricted pull account — so a
+compromised download VM can neither read signed output nor tamper with it.
 
 ## Remote access
 
@@ -181,8 +197,9 @@ Same VPN-only pattern as the handbook services:
 2. **Enable Proxmox firewall policy** before workloads run (baseline #3).
 3. **Create a backup target** for VM templates/configs before the first VM
    (baseline #4).
-4. **Nested virtualization:** enable nested KVM on Beta
-   (`kvm_intel nested=1`) so `media-dl-vm` can host `quarantine-vm`.
+4. **Host-owned transfer directory** (`/srv/media-transfer`) with virtiofs
+   mounts into both VMs and strict permissions: inbox writable by
+   `media-dl-vm` only, outbox writable by `quarantine-vm` only.
 5. **Full-disk encryption on both laptops** (Beta and Gamma). Laptops get
    stolen; the Mullvad account key and download logs on Beta are the anonymity
    link and must be protected at rest.
@@ -191,20 +208,21 @@ Same VPN-only pattern as the handbook services:
 
 | Piece | Where | Trigger |
 | --- | --- | --- |
-| Inbox/outbox watchers | `media-dl-vm` | inotify on completion/shared folders |
+| Inbox/outbox watchers | `media-dl-vm` / Beta host | inotify on completion/transfer dir |
 | Scan pipeline | quarantine-vm | new inbox file |
 | Signing daemon | quarantine-vm | scan PASS |
 | Importer agent (systemd) | Gamma | inotify/timer on pulled outbox |
 | Cleanup daemon | `media-dl-vm` | ACK from Gamma |
-| Rebuild + key rotation script | `media-dl-vm` | destruction command |
+| Rebuild + key rotation script | Beta host (Proxmox `qm`) | destruction command |
 | Alerts → Jellyfin notifications | pipeline scripts | incident / import events |
 
 ## Trade-offs and open questions
 
-- **Nested virtualization on a Haswell laptop:** performance overhead plus the
-  L1TF/SMT consideration above. The inner VM's snapshots live inside
-  `media-dl-vm`'s disk — full `media-dl-vm` rebuild is the escalation path,
-  with arr config on a persistent disk so history survives.
+- **Two sibling VMs on a Haswell laptop:** no nested-virtualization overhead,
+  and the quarantine VM is Proxmox-managed, so destroy/rebuild is a clean
+  host-level operation with snapshots/backups on Beta's storage. Cost: a
+  host-owned transfer directory on Beta's disk and strict virtiofs permission
+  mapping. The L1TF/SMT consideration above still applies (untrusted guest).
 - **Arr history cosmetics:** because the importer agent (not the arrs) moves
   files, arr history may show downloads as "removed/imported elsewhere". A
   read-only view of the library on `media-dl-vm` can give clean history; decide
@@ -219,10 +237,10 @@ Same VPN-only pattern as the handbook services:
 
 ## Next steps
 
-1. Lock Beta prerequisites (SMT, firewall, backup target, nested virt, FDE).
+1. Lock Beta prerequisites (SMT, firewall, backup target, transfer dir, FDE).
 2. Build `media-dl-vm` template; deploy Gluetun/Mullvad + qBittorrent + arr
    stack; verify leak-freedom (ipleak.net from inside the container).
-3. Build `quarantine-vm` with the scan/sign pipeline.
-4. Build the Gamma importer agent + ACK/cleanup loop.
+3. Build `quarantine-vm` (sibling VM) with the scan/sign pipeline.
+4. Build the Gamma importer agent + ACK/cleanup loop (pull from Beta host).
 5. Alpha Traefik routes for jellyfin/jellyseerr.
 6. This page moves from proposal to verified state as each step lands.

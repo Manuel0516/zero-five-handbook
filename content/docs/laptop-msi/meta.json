@@ -1,0 +1,13 @@
+{
+  "title": "Laptop - MSI",
+  "pages": [
+    "index",
+    "configuration-reference",
+    "desktop",
+    "wireguard",
+    "ollama",
+    "localdrop",
+    "tools",
+    "recovery"
+  ]
+}

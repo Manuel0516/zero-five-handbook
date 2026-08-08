@@ -1,0 +1,56 @@
+---
+title: Tools, Shell, and Editors
+description: Reproducible package, terminal, shell, editor, and desktop-tool inventory for the MSI.
+---
+
+## Package inventory
+
+The full explicit package capture is in
+`zero-five-infra/settings/msi/manifests/`:
+
+| File | Meaning |
+| --- | --- |
+| `packages.pacman.txt` | Official-repository packages safe to pass to `pacman -S` |
+| `packages-foreign.txt` | AUR, AppImage, or other foreign packages requiring separate review |
+| `packages-all-explicit.txt` | Complete `pacman -Qqe` capture |
+| `packages.flatpak.txt` | Flatpak applications; Prism Launcher was present |
+
+The foreign list is not an unattended install script. AUR packages and
+AppImages may need new versions, manual review, or replacement with official
+packages before restoration.
+
+## Shell and terminal
+
+Fish is the interactive shell. Its tracked configuration enables Starship,
+direnv, zoxide, eza aliases, Git abbreviations, Caelestia color sequences, and
+the prompt marker used by Foot. The principal abbreviations include `gs`,
+`gd`, `ga`, `gc`, `gp`, `gpl`, `gsw`, `lg`, `ll`, and `lla`.
+
+Foot is the active terminal configuration. Kitty and Alacritty are installed,
+but Foot is the Hyprland default in the personal Lua variables. This is a
+preference, not a requirement for the system to boot.
+
+## Editors
+
+| Editor | Captured settings |
+| --- | --- |
+| Zed | One Dark/One Light system theme, 16px fonts, Caskaydia Cove, Nix/QML language servers |
+| VS Code | SynthWave theme, LaTeX tools/recipes, Python indexing, Claude Code panel |
+| VSCodium | Caelestia theme, Prettier/Ruff/clangd formatters, import organization, QML paths |
+| Micro | Settings file captured; package-owned defaults remain outside the snapshot |
+
+Settings are preferences, not a replacement for extensions, language servers,
+project toolchains, or credentials. Reinstall extensions from their manifests
+or provider accounts after the base restore.
+
+## Validation
+
+```bash
+command -v fish foot fuzzel cava btop hyprctl caelestia
+fish -n ~/.config/fish/config.fish
+hyprctl version
+hyprctl binds
+```
+
+If a package has disappeared, compare `pacman -Qqe` with the tracked manifest
+and update the infra snapshot after intentionally installing or removing it.

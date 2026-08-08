@@ -14,6 +14,29 @@ The reproducible, secret-free settings snapshot lives in
 This page explains the machine; the infrastructure repository carries the
 restorable source files.
 
+## Role in Zero Five
+
+```mermaid
+flowchart LR
+    msi["MSI Alpha 15<br/>laptop-msi<br/>CachyOS + Hyprland"]
+    alpha["Alpha VPS<br/>10.8.0.1<br/>WireGuard hub"]
+    webui["Private AI services<br/>Open WebUI / router"]
+    mac["MacBook<br/>administration"]
+    localdrop["LocalDrop<br/>clipboard + files"]
+
+    msi -->|"planned/narrow peer<br/>10.8.0.2"| alpha
+    alpha -->|"VPN-only Ollama path<br/>10.8.0.2:11434"| msi
+    mac -->|"local network"| localdrop
+    msi -->|"local network"| localdrop
+    alpha --> webui
+```
+
+The MSI is primarily a personal Linux desktop. It also has the planned shape
+of a second AI backend: the VPS router can reach `10.8.0.2:11434` over
+WireGuard when the laptop peer and Ollama service are actually enabled. The
+2026-08-07 inventory found no local Ollama models, so that backend is not
+currently a verified deployed capability.
+
 | Property | State |
 | --- | --- |
 | Handbook identity | `laptop-msi` |
@@ -38,6 +61,18 @@ Machine names describe their role in the estate where that role is stable:
 Using `msi` avoids renaming the VPS and avoids assigning the MSI a role it may
 not keep. If the laptop later becomes a defined service node, its operational
 hostname and handbook title can be updated in one reviewed change.
+
+## Documentation map
+
+| Page | Use it for |
+| --- | --- |
+| [Configuration reference](/docs/laptop-msi/configuration-reference) | Ownership and exact paths for captured settings and excluded state |
+| [Desktop](/docs/laptop-msi/desktop) | Hyprland, Caelestia, monitors, keybinds, themes, and session environment |
+| [WireGuard](/docs/laptop-msi/wireguard) | The legacy `cachyos-laptop` peer, narrow routing, verification, and rollback |
+| [Ollama](/docs/laptop-msi/ollama) | Native service, VPN binding, model inventory, and AI-stack relationship |
+| [LocalDrop](/docs/laptop-msi/localdrop) | Clipboard/file sync project, secret-bearing config, systemd, and recovery |
+| [Tools](/docs/laptop-msi/tools) | Packages, terminals, editors, and reproducible user tooling |
+| [Recovery](/docs/laptop-msi/recovery) | Fresh-install sequence and what still needs manual restoration |
 
 ## First inventory
 

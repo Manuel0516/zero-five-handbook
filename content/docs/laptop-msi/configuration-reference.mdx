@@ -1,0 +1,88 @@
+---
+title: Configuration Reference
+description: Ownership, paths, tracked snapshots, generated defaults, and excluded state for the MSI laptop.
+---
+
+This is the MSI path map. It separates durable personal choices from package
+defaults, generated desktop files, runtime state, and secrets. A file existing
+on disk does not prove that its feature is enabled; use the effective-state
+commands on the subsystem pages.
+
+## Ownership model
+
+| Kind | Meaning |
+| --- | --- |
+| Authored | Personal configuration that may be restored from the infra snapshot |
+| Package-owned | Installed by CachyOS, an AUR package, or an upstream installer; reinstall the owner instead of hand-copying its defaults |
+| Generated | Created by Caelestia, Hyprland, or a desktop tool from another source |
+| Runtime | Kernel, systemd, network, process, or cache state; inspect it live |
+| Sensitive | Private keys, tokens, credentials, identities, or personal data; never copy into Git |
+
+## Tracked source
+
+All tracked MSI settings live under `zero-five-infra/settings/msi/`:
+
+| Source | Live destination | Purpose |
+| --- | --- | --- |
+| `caelestia/shell.json` | `~/.config/caelestia/shell.json` | Caelestia shell appearance, bar, launcher, background, and notifications |
+| `caelestia/hypr-user.lua` and `.conf` | `~/.config/caelestia/` | Monitor layout overrides |
+| `caelestia/hypr-vars.lua` | `~/.config/caelestia/hypr-vars.lua` | Personal keybind overrides |
+| `hypr/variables.lua` and `.conf` | `~/.config/hypr/` | Hyprland application, appearance, gesture, workspace, and keybind values |
+| `hypr/hyprpaper.conf` | `~/.config/hypr/hyprpaper.conf` | Wallpaper directory and output assignment |
+| `fish/` | `~/.config/fish/` | Interactive shell initialization and greeting |
+| `desktop/` | `~/.config/{foot,fuzzel,cava,btop,gtk-3.0,gtk-4.0,qtengine,uwsm}` | Terminal, launcher, audio visualizer, monitor, theme, and toolkit settings |
+| `editors/` | `~/.config/{zed,Code,VSCodium,micro}` | Editor preferences and formatters |
+| `services/localdrop.service` | `~/.config/systemd/user/localdrop.service` | LocalDrop user-service definition |
+| `ai/claude-settings.json` | `~/.claude/settings.json` | Non-secret Claude Code preferences |
+| `ai/ollama-*.example` | `/etc/systemd/system/ollama*` | Reviewed non-secret Ollama service model |
+| `manifests/` | No live destination | Package and model inventory used for rebuilds |
+
+The authoritative restore commands are in
+[`zero-five-infra/settings/msi/README.md`](https://github.com/Manuel0516/zero-five-infra/blob/main/settings/msi/README.md).
+
+## Generated and package-owned paths
+
+| Path | Owner | Rule |
+| --- | --- | --- |
+| `~/.config/hypr/hyprland.conf` | Caelestia/Hyprland template | Restore the package and personal overlays; do not hand-copy the complete generated tree |
+| `~/.config/hypr/hyprland/` | Caelestia/Hyprland template | Generated `.conf`/Lua modules; inspect but do not treat as personal source |
+| `~/.config/hypr/scheme/` | Caelestia theme generator | Current palette is derived from the selected scheme |
+| `~/.cache/caelestia/` | Runtime cache | Never back up; regenerate it |
+| `~/.local/state/caelestia/` | Runtime state | Contains generated sequences and state; restore only if a future setting depends on it |
+| `~/.cache/*` | Applications | Rebuild from packages and application startup |
+
+## Sensitive and intentionally absent paths
+
+The following are deliberately not mirrored:
+
+- `~/.ssh/`, `~/.gnupg/`, `~/.pki/`, and WireGuard private configuration;
+- `~/.ollama/id_ed25519` and other Ollama identity material;
+- `~/projects/localdrop/config.toml`, because its shared token is secret;
+- browser profiles, cookies, credentials, extension state, and application
+  accounts;
+- project repositories, wallpapers, downloads, personal documents, model
+  blobs, caches, logs, and generated build output.
+
+Inspect ownership and modes without printing contents:
+
+```bash
+stat -c '%n owner=%U:%G mode=%a' ~/.config/caelestia/* ~/.config/hypr/*
+find ~/.ssh ~/.gnupg ~/.ollama -maxdepth 2 -type f -printf '%p %m\n'
+```
+
+The second command is inventory only. Do not paste its contents into the
+handbook if filenames reveal sensitive identities.
+
+## Effective-state checks
+
+```bash
+hostnamectl
+hyprctl monitors
+hyprctl clients
+systemctl --user --no-pager list-units --state=running
+systemctl --user --no-pager status localdrop.service
+systemctl --no-pager status ollama
+```
+
+Use the subsystem pages for changes. Keep desktop, VPN, Ollama, and LocalDrop
+changes separate so one failed setting has a small rollback surface.

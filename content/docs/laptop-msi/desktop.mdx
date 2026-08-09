@@ -20,7 +20,7 @@ flowchart TD
     personal --> shell
     shell --> bar["Bar / dashboard / launcher"]
     shell --> wallpaper["Wallpaper and desktop clock"]
-    hypr --> apps["Foot, Firefox, Code, Thunar"]
+    hypr --> apps["Foot, Firefox, Code, Dolphin"]
     hypr --> localdrop["LocalDrop user service"]
 ```
 
@@ -49,12 +49,16 @@ breaking the operating system.
 
 The personal overlay records:
 
-- Foot as terminal, Firefox as browser, Codium as editor, and Thunar as file
+- Foot as terminal, Firefox as browser, Code as editor, and Dolphin as file
   manager in the Lua configuration;
 - 20 workspace gaps, 5 inner window gaps, 10 outer gaps, 15px rounding, 95%
   window opacity, blur, shadows, and a `sweet-cursors` cursor at size 24;
-- four-finger workspace swipes and three-finger gestures;
+- four-finger workspace swipes and three-finger gestures, with US/Spanish
+  keyboard switching and flat pointer acceleration;
 - media, screenshot, clipboard, emoji, session, lock, and workspace bindings;
+- `Super+Shift+B/C/G` battery, calm, and gaming modes;
+- `Super+Shift+0/1/2/D` automatic, single, dual, and toggled display layouts;
+- startup display-layout, monitor-hotplug, and lid-state watchers;
 - a 60 FPS Cava visualizer with smooth noise reduction and Caelestia colors;
 - a Foot terminal with Fish, JetBrains Mono Nerd Font size 12, 10,000 lines of
   scrollback, and translucent blurred background;
@@ -67,6 +71,18 @@ The shell override enables transparency, wallpaper, desktop clock, visualizer,
 date, Wi-Fi/audio/microphone/lock indicators, five workspaces, lyrics, and a
 Firefox favorite. The launcher includes settings, wallpaper, scheme, power,
 lock, sleep, and LocalDrop send-file actions.
+
+The tracked personal overlay is loaded after Caelestia's generated modules.
+Generated `.conf` files are not the active source for these settings. The
+overlay starts the display helpers and calls the authored scripts under
+`zero-five-infra/settings/msi/hypr/scripts/`. `hyprctl monitors` and
+`cat /tmp/hypr-mode /tmp/hypr-display-layout` show the effective display state.
+
+The display helper uses the laptop's `eDP-1` and external `DP-1` names, moves
+workspaces before disabling the laptop panel, and skips lid-triggered layout
+changes while the session is locked. If a dock exposes a different output
+name, inspect `hyprctl monitors` before using a layout mode. The scripts do not
+replace systemd/logind's own suspend policy.
 
 ## Suspend and resume
 
@@ -112,6 +128,8 @@ not replace the Caelestia package or its generated palette.
 
 ```bash
 hyprctl monitors
+hyprctl binds | rg 'mode-|display-layout|safe-lock'
+cat /tmp/hypr-mode /tmp/hypr-display-layout
 hyprctl reload
 journalctl --user -b | rg -i 'hypr|caelestia|uwsm'
 ```

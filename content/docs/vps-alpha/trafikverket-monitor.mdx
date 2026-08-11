@@ -1,0 +1,54 @@
+---
+title: Trafikverket Monitor
+description: Read-only practical-test availability monitor discovery for Category B, manual transmission, in Lund.
+---
+
+The source workspace at `~/services/trafikverket-monitor` is a safety-gated project for a notification-only Trafikverket practical-driving-test monitor. Its intended filter is **Category B, körprov, Lund, manual transmission**, through 13 October 2026, with priority for times through 31 August and morning appointments.
+
+## Current state: blocked at authenticated discovery
+
+The final polling process and systemd service are **not deployed**. Phase 1 established on 11 August 2026 that the current booking SPA requires authentication before availability can be searched. The project stopped at the user-approved authentication handoff rather than automating BankID or handling a Swedish identity number.
+
+Verified current behavior:
+
+- Frontend: Angular/JavaScript SPA at `https://fp.trafikverket.se/Boka/ng/`, version `7.39.5.28068` at inspection time.
+- Availability is JSON REST from `POST /Boka/occasion-bundles`, not GraphQL or server-rendered HTML.
+- The frontend request contains `bookingSession` and `occasionBundleQuery`.
+- `POST /Boka/start` reported `loginRequired=true`, `bankIdLoginRequired=true`, and `continueWithoutLoginEnabled=false`.
+- Unauthenticated, read-only probes of `search-information` and `occasion-bundles` returned HTTP 400.
+- No authentication, CAPTCHA, rate limit, or anti-bot control was bypassed.
+- The live request model includes `bookingSession.socialSecurityNumber`; the discovery artifact redacts that field and Swedish identity-number patterns.
+
+The current frontend and ecosystem identify Category B as `licenceId=5`, körprov as `examinationTypeId=12`, and manual car as `vehicleTypeId=2`. These values and Lund's current location ID still require confirmation from one authenticated read-only capture before being accepted into the monitor.
+
+## Manual discovery helper
+
+The `trafikverket-monitor discover` helper is designed to run on the operator's desktop computer. It opens Chromium but performs no clicks, form filling, or BankID automation. The operator logs in and performs one ordinary search manually. The helper observes only the `occasion-bundles` response and blocks known reservation, cancellation, rebooking, confirmation, and payment API paths.
+
+It creates two mode-`0600` files:
+
+- `secrets/trafikverket-state.json`: Playwright storage state, treated as a password and never committed or logged.
+- `data/discovery-capture.json`: sanitized request/response evidence with cookies, authorization, tokens, SSN/personnummer fields, and Swedish identity-number patterns redacted.
+
+Copy the workspace to the desktop computer, run the helper, and return the files without printing them. The source README contains exact commands and the safe browser procedure.
+
+## Safety boundary
+
+The project is structurally read-only. It must never reserve, book, rebook, cancel, confirm, or pay for a test, and must never automate BankID or bypass controls. Trafikverket's published statement prohibits automated booking services; if the authenticated investigation shows that read-only monitoring is also blocked or prohibited, this project stops and records the limitation.
+
+The desired end-to-end workflow remains:
+
+```text
+detect availability -> send ntfy alert -> operator books manually
+```
+
+## Next gate
+
+After the operator returns a manual Playwright storage state and sanitized capture:
+
+1. confirm Lund, B, körprov, manual, date representation, and response schema from the real request;
+2. determine whether storage state alone can safely reproduce the read request without persisting a personnummer;
+3. only if that is safe, implement and test the direct `httpx` monitor, durable duplicate/reappearance state, ntfy delivery, backoff, and systemd sandbox;
+4. run a real read-only check and two polling cycles before enabling the service.
+
+There is currently no system unit, dedicated user, `/opt/trafikverket-monitor` installation, ntfy topic, or production state to operate or uninstall.

@@ -1,0 +1,85 @@
+---
+title: BlackArch VM
+description: The BlackArch security-testing VM hosted on Proxmox Beta.
+---
+
+BlackArch is an Arch Linux VM on Beta. The base VM and private management path
+are complete; BlackArch repository and tool selection remain the next work in
+progress.
+
+## Identity and resources
+
+| Property | Value |
+| --- | --- |
+| Proxmox host | Beta (`192.168.1.166`) |
+| VM name | `blackarch` |
+| LAN address | `192.168.1.104` |
+| WireGuard address | `10.8.0.101/32` |
+| Login user | `zero` |
+| Password | Stored in Bitwarden; never document it here |
+| SSH path | `MSI → Alpha/contabo → WireGuard → blackarch` |
+| SSH alias | `ssh blackarch` |
+
+VMs use the three-digit WireGuard range beginning at `10.8.0.101`. Physical
+devices and infrastructure keep their existing lower addresses.
+
+## Verified base state
+
+Verified on 2026-08-12:
+
+- Arch Linux installed from the verified `archlinux-2026.08.01-x86_64.iso`.
+- Hostname is `blackarch`.
+- User `zero` authenticates with the MSI SSH key.
+- SSH password and root logins are disabled.
+- `sshd` and `wg-quick@wg0` are active.
+- WireGuard routes only `10.8.0.1/32` through Alpha.
+- `ssh blackarch` works through Alpha's `ProxyJump contabo` path.
+- The temporary passwordless-sudo rule and its timer were removed after setup.
+- User `zero` has a small Bash terminal view with colors, Git branch display,
+  the VM identity banner, and a two-line prompt.
+
+The tracked source is
+`zero-five-infra/settings/blackarch/bashrc`; it is installed as
+`/home/zero/.bashrc`. The configuration uses Bash and standard command-line
+tools only—no shell framework or graphical desktop is required.
+
+## SSH configuration
+
+```ssh
+Host blackarch
+  HostName 10.8.0.101
+  User zero
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump contabo
+  HostKeyAlias 192.168.1.104
+```
+
+Use the alias for administration:
+
+```bash
+ssh blackarch
+scp ./file blackarch:/home/zero/
+```
+
+## WireGuard model
+
+BlackArch is a direct peer of Alpha, not a peer routed through Beta's host.
+Alpha owns the persistent route `10.8.0.101/32`; the VM owns the corresponding
+private key and `wg0.conf`. The VM configuration is modeled in
+`zero-five-infra/wireguard/blackarch.conf.example`.
+
+The VM has a narrow route to Alpha only. Ordinary LAN and internet traffic
+continues through `ens18` and Beta's bridge.
+
+## Work in progress
+
+- Install the BlackArch repository using its verified official bootstrap.
+- Update Arch before adding security tools.
+- Install selected BlackArch categories rather than the entire repository.
+- Inventory installed tools, services, ports, and configuration paths.
+- Test VM reboot persistence for SSH and WireGuard.
+- Add a restricted lab network before running tools against anything beyond
+  explicitly authorized targets.
+
+Never use this VM against systems without authorization.

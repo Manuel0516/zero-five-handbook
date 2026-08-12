@@ -1,0 +1,58 @@
+---
+title: Wake-on-LAN
+description: Configure and operate Beta's Ethernet Wake-on-LAN path.
+---
+
+Beta's wired Ethernet controller is configured for magic-packet wake. The
+supported path is the home LAN broadcast; WireGuard and Alpha do not carry
+LAN broadcasts while Beta is asleep.
+
+## Verified state
+
+| Property | Value |
+| --- | --- |
+| Ethernet interface | `nic0` attached to `vmbr0` |
+| MAC address | `d0:bf:9c:16:24:b8` |
+| Supported wake modes | `pumbg` |
+| Configured mode | `Wake-on: g` |
+| PCI wake state | `enabled` |
+| LAN broadcast | `192.168.1.255` |
+| Persistent source | `/etc/network/interfaces` |
+
+The live state was enabled on 2026-08-12. The network source contains these
+`post-up` commands:
+
+```text
+post-up /usr/sbin/ethtool -s nic0 wol g
+post-up /bin/sh -c 'echo enabled > /sys/class/net/nic0/device/power/wakeup'
+```
+
+Inspect Beta locally or over SSH:
+
+```bash
+sudo ethtool nic0 | grep -E 'Supports Wake-on|Wake-on|Link detected'
+cat /sys/class/net/nic0/device/power/wakeup
+```
+
+## Send a magic packet
+
+From a trusted device on the same home LAN:
+
+```bash
+wakeonlan -i 192.168.1.255 -p 9 d0:bf:9c:16:24:b8
+```
+
+Test suspend first. Full-shutdown wake depends on Beta's firmware and remains
+untested. Do not expose UDP port 9 to the public internet. If remote wake is
+needed later, use an always-on LAN relay or router capability.
+
+## Work in progress: remote and named wake
+
+The current command requires a device on the home LAN because Wake-on-LAN is
+a Layer-2 broadcast. Future work may provide a stable hostname or WireGuard
+workflow for requesting wake remotely, likely through an always-on LAN relay,
+router capability, or another trusted device inside `192.168.1.0/24`.
+
+Do not send the packet directly to Beta's WireGuard address: the sleeping host
+has no active WireGuard endpoint, and WireGuard does not transport the LAN
+broadcast domain. Do not expose UDP port 9 publicly.

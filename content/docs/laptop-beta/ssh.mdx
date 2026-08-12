@@ -1,11 +1,10 @@
 ---
 title: SSH through Alpha
-description: Reach root on Beta from the Mac through Alpha, with exact client files, host-key reuse, verification, recovery, and rollback.
+description: Reach the manuel account on Beta from the client laptop through Alpha.
 ---
 
-Beta has no `manuel` account. Its only administrative login is `root`, and the
-Mac reaches it through Alpha rather than depending on the home-LAN address for
-normal administration.
+Beta uses the non-root `manuel` account for normal administration. The client
+laptop reaches it through Alpha rather than depending on the home-LAN address.
 
 ## Verified access path
 
@@ -14,10 +13,9 @@ MacBook -> contabo:2020  (Alpha's public SSH alias)
         -> 10.8.0.5:22   (Beta over Alpha-to-Beta WireGuard)
 ```
 
-On 2026-07-22, `ssh beta` completed from the MacBook both before and after
-Beta's persistence reboot. The resolved client state was `root@10.8.0.5:22`,
-identity `~/.ssh/id_ed25519`, and
-`ProxyJump contabo`. Beta reported:
+On 2026-08-12, `ssh beta` completed from the MSI laptop through Alpha. The
+resolved client state is `manuel@10.8.0.5:22`, identity
+`~/.ssh/id_ed25519`, and `ProxyJump contabo`. Beta reported:
 
 ```text
 10.8.0.1 <ephemeral-port> 10.8.0.5 22
@@ -35,12 +33,12 @@ forwarding between WireGuard clients. `ProxyJump` uses SSH's stdio forwarding:
 1. The Mac authenticates to Alpha through the `contabo` alias.
 2. Alpha's SSH daemon opens a new TCP connection from `10.8.0.1` to
    `10.8.0.5:22`.
-3. The Mac authenticates end-to-end to Beta as `root` through that channel.
+3. The client laptop authenticates end-to-end to Beta as `manuel` through that channel.
 
 The Mac private key remains on the Mac. It is not installed on or forwarded to
 Alpha.
 
-## Exact MacBook configuration
+## Exact client-laptop configuration
 
 The active file is `~/.ssh/config`, owned by `manuel:staff` with mode `0600`.
 The reviewed fragment is tracked at
@@ -51,7 +49,7 @@ The Beta block is:
 ```text
 Host beta
   HostName 10.8.0.5
-  User root
+  User manuel
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
@@ -174,5 +172,5 @@ client alias.
 | `ssh beta` fails before the second hop | `ssh contabo`; Alpha public SSH and the Mac's Alpha host-key pin |
 | Alpha works but Beta times out | Alpha route to `10.8.0.5`, Beta handshake, TCP `22`, and Beta SSH service |
 | Host-key mismatch names `192.168.1.166` | Compare Beta's current Ed25519 fingerprint through the LAN or physical console; never delete the pin blindly |
-| Authentication fails as `manuel` | Beta has no `manuel` account; resolved `user` must be `root` |
+| Authentication fails as `manuel` | Confirm the MSI public key is in `/home/manuel/.ssh/authorized_keys` |
 | Connection source is `192.168.1.x` | A direct LAN command was used; the verified jump path must show source `10.8.0.1` |

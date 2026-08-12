@@ -45,11 +45,44 @@ attaches it to the Linux bridge `vmbr0`, and the bridge owns the management IP:
 | --- | --- |
 | Bridge | `vmbr0` |
 | Physical port | `nic0` |
+| Ethernet MAC | `d0:bf:9c:16:24:b8` |
 | Address | `192.168.1.166/24` |
 | Gateway | `192.168.1.1` |
 | DNS | `192.168.1.1`, search domain `zero-five.space` |
 | STP | Off |
 | Forward delay | `0` |
+
+## Wake-on-LAN
+
+Beta's wired NIC supports magic-packet wake. The persistent source is
+`/etc/network/interfaces`; its `post-up` commands enable both the NIC's `wol g`
+mode and the PCI device wake flag whenever `nic0` is brought up.
+
+| Property | Verified value |
+| --- | --- |
+| Interface | `nic0` |
+| MAC address | `d0:bf:9c:16:24:b8` |
+| Supported modes | `pumbg` |
+| Configured mode | `g` |
+| PCI wake state | `enabled` |
+| LAN broadcast | `192.168.1.255` |
+
+Inspect the live state:
+
+```bash
+sudo ethtool nic0 | grep -E 'Supports Wake-on|Wake-on|Link detected'
+cat /sys/class/net/nic0/device/power/wakeup
+```
+
+From a trusted device on the home LAN, send the magic packet:
+
+```bash
+wakeonlan -i 192.168.1.255 -p 9 d0:bf:9c:16:24:b8
+```
+
+Test suspend first. Full-shutdown wake depends on Beta's firmware and is not
+declared supported until it is tested. Do not expose UDP port 9 to the public
+internet; WireGuard does not carry the sleeping host's LAN broadcast.
 
 Future guests can attach virtual network interfaces to `vmbr0` and appear as
 separate devices on the home LAN. Changing `/etc/network/interfaces` can cut
@@ -93,8 +126,8 @@ of the network isolation.
 
 Effective SSH state is key-only: `PasswordAuthentication no`,
 `KbdInteractiveAuthentication no`, and `PermitRootLogin without-password`.
-The only administrative OS account is `root`, the only Proxmox account is
-`root@pam`, and no `manuel` account exists. X11 and TCP forwarding remain
+The normal administrative OS account is `manuel`; `root` remains available for
+recovery. The only Proxmox account is `root@pam`. X11 and TCP forwarding remain
 enabled. They are documented current state, not an intentional hardened target.
 
 ## Package repositories

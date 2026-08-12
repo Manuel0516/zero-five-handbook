@@ -8,6 +8,7 @@ stable public hub; the MSI laptop (tracked by the legacy `cachyos-laptop`
 template) and MacBook connect to it as clients.
 Gamma and the iPhone also connect as deployed clients.
 Beta is registered as a deployed client.
+The BlackArch VM on Beta is registered as a direct VM client at `10.8.0.101/32`.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
 
@@ -20,6 +21,7 @@ flowchart LR
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
         gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
         beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
+        blackarch["BlackArch VM<br/>10.8.0.101/32<br/>SSH and runtime verified"]
         iphone["iPhone<br/>10.8.0.10/32<br/>Runtime restored 2026-07-24"]
     end
 
@@ -32,6 +34,7 @@ flowchart LR
     macbook -->|"Encrypted tunnel<br/>VPS-only route"| wg
     gamma -->|"Encrypted tunnel<br/>VPS-only route"| wg
     beta -->|"Encrypted tunnel<br/>VPS-only route"| wg
+    blackarch -->|"Encrypted tunnel<br/>VPS-only route"| wg
     iphone -->|"Encrypted tunnel<br/>VPS-only route"| wg
     wg -->|"Private service traffic"| ollama
     macbook -. "No peer route and UFW routed deny" .-> cachyos
@@ -46,6 +49,7 @@ flowchart LR
 | Gamma | `10.8.0.4/32` | Interface and boot service active; bidirectional ping, resume persistence, and SSH path verified 2026-07-22 |
 | Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
 | iPhone | `10.8.0.10/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
+| BlackArch VM | `10.8.0.101/32` | Direct VM peer; SSH through Alpha, active WireGuard, and key-only access verified 2026-08-12 |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
@@ -125,6 +129,7 @@ The tracked source is deliberately small:
 | `wireguard/gamma.conf.example` | Gamma interface and VPS-only peer |
 | `wireguard/beta.conf.example` | Beta interface and VPS-only peer |
 | `wireguard/iphone.conf.example` | iPhone interface and VPS-only peer |
+| `wireguard/blackarch.conf.example` | BlackArch VM interface and VPS-only peer |
 | `scripts/validate_wireguard.py` | Secret-safe structural and topology checks |
 
 These are native WireGuard examples, not generated output. Deployed peers

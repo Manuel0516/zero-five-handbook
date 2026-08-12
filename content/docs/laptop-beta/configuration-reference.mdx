@@ -59,7 +59,7 @@ second, misleading source of truth.
 | Local name mapping | `/etc/hosts` | `root:root`, `0644` | Maps `192.168.1.166` to `beta.zero-five.space` and `beta` |
 | Time-zone selector | `/etc/localtime` | Symlink to `/usr/share/zoneinfo/Europe/Stockholm` | Current state; planned correction should replace the symlink through `timedatectl` |
 | Legacy time-zone file | `/etc/timezone` | Absent | Do not create merely to mirror another distribution |
-| Linux account database | `/etc/passwd` | Root-owned system file | `root` is the only login-capable administrative account; `manuel` is absent |
+| Linux account database | `/etc/passwd` | Root-owned system file | `root` and the non-root administrative account `manuel` are present |
 | Password hashes | `/etc/shadow` | Sensitive root-only system file | Never copy or print; use `passwd -S root` for safe state inspection |
 | Proxmox users | `/etc/pve/user.cfg` | `root:www-data`, `0640` | Proxmox-managed; only `root@pam` exists |
 
@@ -86,11 +86,14 @@ module/sysfs paths prove that the current boot detected and activated it.
 
 | Purpose | Exact Beta path | Observed owner/mode | Rule |
 | --- | --- | --- | --- |
-| Primary network source | `/etc/network/interfaces` | `root:root`, `0644` | Authored source for `nic0`, `vmbr0`, static `192.168.1.166/24`, and gateway `192.168.1.1` |
+| Primary network source | `/etc/network/interfaces` | `root:root`, `0644` | Authored source for `nic0`, `vmbr0`, static `192.168.1.166/24`, gateway `192.168.1.1`, and persistent Wake-on-LAN commands |
 | Included network fragments | `/etc/network/interfaces.d/` | `root:root`, `0755`; empty | Included by the primary source; add only intentional reviewed fragments |
 | Resolver source | `/etc/resolv.conf` | `root:root`, `0644` | Current DNS server `192.168.1.1` and search domain `zero-five.space` |
 | Runtime bridge | Kernel interface `vmbr0` | Runtime state, not a file | Inspect with `ip -brief address show vmbr0` and `bridge link` |
 | Runtime physical port | Kernel interface `nic0` | Runtime state, not a file | Attached to `vmbr0`; it intentionally owns no host IP |
+| Ethernet MAC | `/sys/class/net/nic0/address` | Runtime hardware identity | `d0:bf:9c:16:24:b8`; use it for LAN Wake-on-LAN |
+| NIC wake state | `ethtool nic0` | Runtime state | Expected `Wake-on: g`; authored `post-up` commands restore it |
+| PCI wake state | `/sys/class/net/nic0/device/power/wakeup` | Runtime power state | Expected `enabled`; authored `post-up` command restores it |
 
 Beta does not use Netplan. `/etc/network/interfaces` is the durable edit point.
 Changing it can remove both SSH and web access, so keep the physical console

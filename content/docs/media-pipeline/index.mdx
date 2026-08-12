@@ -1,3 +1,4 @@
+Warning: Permanently added '[95.111.229.142]:2020' (ED25519) to the list of known hosts.
 ---
 title: Media Pipeline — Design Proposal
 description: Proposed two-box Jellyfin automation pipeline (Beta download VM + Gamma clean box) with hermetic quarantine, signed transfers, and destroy-on-detection. Design only — not deployed.
@@ -28,9 +29,10 @@ quarantine → Jellyfin) split across two machines with a strict trust boundary:
 - **Anonymity of downloads:** Mullvad with a **separate, dedicated account**
   used only on the download VM, paid anonymously (cash/crypto — the payment
   trail is the leak vector, not the account number).
-- **Seed only while downloading, never after.** Seeding stops at ratio 0.05;
-  the file is deleted from Beta only after Gamma confirms it is safely in the
-  library (ACK ordering below).
+- **Seed only while downloading, never after.** qBittorrent is paused by an
+  automatic completion hook as soon as the download reaches 100%. The paused
+  data remains on Beta—but is no longer shared—until Gamma confirms it is
+  safely in the library (ACK ordering below).
 - **One-way network:** the download VM never initiates anything toward Gamma,
   Alpha, or the WireGuard mesh. Gamma initiates every cross-box connection.
 - **Destroy on detection:** any malware hit inside the quarantine VM, or any
@@ -89,7 +91,7 @@ flowchart LR
 | Component | Where | Role |
 | --- | --- | --- |
 | Gluetun + Mullvad | `media-dl-vm` | VPN client with hard kill-switch; IPv6 disabled; DNS forced through tunnel. Separate anonymous Mullvad account. |
-| qBittorrent | `media-dl-vm` | Torrent client, bound to Gluetun's network namespace. Seeding limit: stop at ratio 0.05. WebUI LAN-only. |
+| qBittorrent | `media-dl-vm` | Torrent client, bound to Gluetun's network namespace. Automatic completion hook pauses the torrent immediately at 100%; the data remains paused until Gamma's ACK. WebUI LAN-only. |
 | Prowlarr | `media-dl-vm` | All indexer traffic (public trackers), through the VPN. |
 | Radarr / Sonarr | `media-dl-vm` | Decide what to grab; send magnets to qBittorrent. Never touch Gamma. |
 | quarantine-vm | sibling VM on Beta (not nested) | ClamAV + YARA + ffprobe structural validation + sandboxed decode attempt. Signs passing files. Air-gapped (no NICs), snapshotted, disposable. |
@@ -101,7 +103,7 @@ flowchart LR
 
 ```
 1. Request (Jellyseerr) → Radarr/Sonarr grab via Prowlarr → qBittorrent
-2. Torrent completes → seeding stops (ratio 0.05 limit)
+2. Torrent completes → completion hook pauses it immediately (no post-download seeding)
 3. Completed files moved into the host-owned transfer inbox
    (download VM writes, quarantine VM reads)
 4. quarantine-vm (no network): ClamAV + YARA + ffprobe + sandboxed decode

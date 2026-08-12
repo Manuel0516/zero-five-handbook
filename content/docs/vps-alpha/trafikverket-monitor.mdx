@@ -1,54 +1,154 @@
+Warning: Permanently added '[95.111.229.142]:2020' (ED25519) to the list of known hosts.
 ---
-title: Trafikverket Monitor
-description: Read-only practical-test availability monitor discovery for Category B, manual transmission, in Lund.
+title: Trafikverket examination monitor
+description: Structurally read-only Lund Category B practical-test availability alerts
 ---
 
-The source workspace at `~/services/trafikverket-monitor` is a safety-gated project for a notification-only Trafikverket practical-driving-test monitor. Its intended filter is **Category B, körprov, Lund, manual transmission**, through 13 October 2026, with priority for times through 31 August and morning appointments.
+## Status
 
-## Current state: blocked at authenticated discovery
+The source is in `/home/manuel/services/trafikverket-monitor`. The previous third-party Lund activity scraper and its user service were removed. The replacement is implemented and tested but is intentionally **not enabled** until Manuel supplies a manually exported Trafikverket cookie-only session and a real read-only request succeeds.
 
-The final polling process and systemd service are **not deployed**. Phase 1 established on 11 August 2026 that the current booking SPA requires authentication before availability can be searched. The project stopped at the user-approved authentication handoff rather than automating BankID or handling a Swedish identity number.
-
-Verified current behavior:
-
-- Frontend: Angular/JavaScript SPA at `https://fp.trafikverket.se/Boka/ng/`, version `7.39.5.28068` at inspection time.
-- Availability is JSON REST from `POST /Boka/occasion-bundles`, not GraphQL or server-rendered HTML.
-- The frontend request contains `bookingSession` and `occasionBundleQuery`.
-- `POST /Boka/start` reported `loginRequired=true`, `bankIdLoginRequired=true`, and `continueWithoutLoginEnabled=false`.
-- Unauthenticated, read-only probes of `search-information` and `occasion-bundles` returned HTTP 400.
-- No authentication, CAPTCHA, rate limit, or anti-bot control was bypassed.
-- The live request model includes `bookingSession.socialSecurityNumber`; the discovery artifact redacts that field and Swedish identity-number patterns.
-
-The current frontend and ecosystem identify Category B as `licenceId=5`, körprov as `examinationTypeId=12`, and manual car as `vehicleTypeId=2`. These values and Lund's current location ID still require confirmation from one authenticated read-only capture before being accepted into the monitor.
-
-## Manual discovery helper
-
-The `trafikverket-monitor discover` helper is designed to run on the operator's desktop computer. It opens Chromium but performs no clicks, form filling, or BankID automation. The operator logs in and performs one ordinary search manually. The helper observes only the `occasion-bundles` response and blocks known reservation, cancellation, rebooking, confirmation, and payment API paths.
-
-It creates two mode-`0600` files:
-
-- `secrets/trafikverket-state.json`: Playwright storage state, treated as a password and never committed or logged.
-- `data/discovery-capture.json`: sanitized request/response evidence with cookies, authorization, tokens, SSN/personnummer fields, and Swedish identity-number patterns redacted.
-
-Copy the workspace to the desktop computer, run the helper, and return the files without printing them. The source README contains exact commands and the safe browser procedure.
-
-## Safety boundary
-
-The project is structurally read-only. It must never reserve, book, rebook, cancel, confirm, or pay for a test, and must never automate BankID or bypass controls. Trafikverket's published statement prohibits automated booking services; if the authenticated investigation shows that read-only monitoring is also blocked or prohibited, this project stops and records the limitation.
-
-The desired end-to-end workflow remains:
+The service invariant is:
 
 ```text
-detect availability -> send ntfy alert -> operator books manually
+read available times → filter/rank → compare state → notify
 ```
 
-## Next gate
+There is no operation for creating, holding, changing, cancelling, confirming, or paying for an appointment. Manuel opens Trafikverket and books manually.
 
-After the operator returns a manual Playwright storage state and sanitized capture:
+## Target
 
-1. confirm Lund, B, körprov, manual, date representation, and response schema from the real request;
-2. determine whether storage state alone can safely reproduce the read request without persisting a personnummer;
-3. only if that is safe, implement and test the direct `httpx` monitor, durable duplicate/reappearance state, ntfy delivery, backoff, and systemd sandbox;
-4. run a real read-only check and two polling cycles before enabling the service.
+- Licence: Category B / car
+- Examination: practical test / `Körprov B`
+- Place: Lund
+- Vehicle: `Manuellbil`
+- Useful window: Stockholm-local today through 2026-10-13 inclusive
+- Ranking: before 2026-09-01 first, with mornings before 12:00 ahead of afternoons in each date band
+- Polling: 300 seconds plus random 0–60 second jitter
+- Failure handling: exponential backoff starting at 300 seconds, capped at 3600 seconds
 
-There is currently no system unit, dedicated user, `/opt/trafikverket-monitor` installation, ntfy topic, or production state to operate or uninstall.
+## Package decision
+
+The project pins `trafikverket-client==1.0.0` exactly. The audited package is PyPI version 1.0.0, GitHub tag `v1.0.0` at commit `62c1e155bd76a9774bf3de0425ba70003b75eda9`.
+
+Its availability path is real:
+
+1. `Session.get_licences()` → `POST /Boka/licence-information`
+2. `BookableLicence.search()` → `POST /Boka/search-information`
+3. `SearchResult.get_available_slots()` → `POST /Boka/occasion-bundles`
+
+Production does not import the package. `trafikverket_client.fp.__init__` eagerly imports mutation-capable views even when a model submodule is requested. Those views expose `BookableSlot.reserve()`, `Reservation.confirm()`, `ExaminationView.cancel()`, `ExaminationView.rebook()`, and `CancelPreview.confirm()`.
+
+Instead, the monitor verifies the installed version through `importlib.metadata` and reuses only the three read request shapes from the audited source. Its endpoint enum has exactly those three paths and cannot represent another Trafikverket route. Tests inventory the package methods and prove production imports no package modules.
+
+## Authentication boundary
+
+The current package availability flow requires an authenticated Trafikverket session. Its own `Client.login()` starts BankID QR authentication and polls for completion; the package does not expose session export/import.
+
+The monitor never calls package authentication. It never starts BankID, displays a QR code, polls Mobile BankID, requests credentials, or stores BankID secrets. It accepts only a manually exported cookie-only browser state at:
+
+```text
+/home/manuel/services/trafikverket-monitor/secrets/trafikverket-state.json
+```
+
+The user must create that file outside the monitor after manually signing in. Do not paste it into chat. For CachyOS/native Firefox, `tools/export_firefox_session.py` uses only Python's standard library to read the already-authenticated Firefox cookie database locally, retaining only live Secure cookies for the booking host. The Firefox window remains user-controlled and BankID remains entirely manual. Transfer only the filtered JSON directly to alpha over SSH/SCP; never transfer the Firefox profile or raw `cookies.sqlite`. The loader requires owner-only mode `0600`, rejects symlinks and local storage, accepts only `fp.trafikverket.se`, `.fp.trafikverket.se`, or `.trafikverket.se` cookies, and never logs cookie values or the identity returned by Trafikverket.
+
+If the session expires frequently enough to require repeated BankID, leave the monitor disabled. Reauthentication is never automated.
+
+## Read safety
+
+Normal Trafikverket network traffic is restricted to exact-origin POST requests for:
+
+```text
+/Boka/licence-information
+/Boka/search-information
+/Boka/occasion-bundles
+```
+
+Redirect following is disabled. The licence metadata call reproduces the package's literal `null` body with `text/plain`; search calls use JSON. Redirects, 401/403, 429, non-200 status, cross-origin response URLs, HTML, invalid JSON, oversized bodies, unexpected response URLs, body status changes, and schema/semantic conflicts fail closed. Errors do not count as empty inventory or slot disappearance.
+
+Runtime metadata is refreshed on every poll. The monitor uses one discovery `search-information` read with examination type `0`, resolves `Körprov B`, then repeats the same read route with that exact ID. Both responses must agree before the monitor accepts exactly one semantic match for:
+
+- licence `B` with category `Car`;
+- examination `Körprov B`;
+- Lund supporting the examination category;
+- vehicle type `Manuellbil`.
+
+Every returned occasion is cross-checked against those resolved IDs and names before it becomes a slot. `SEARCHED_MONTHS` is constrained to 3–12, is sent in both package-compatible request fields, and must not exceed the live `maxSearchPeriodInMonths` metadata.
+
+## State and notifications
+
+State lives at:
+
+```text
+/home/manuel/.local/state/trafikverket-monitor/state.json
+```
+
+It is atomically replaced with mode `0600`; the parent directory is `0700`. A durable outbox is written before ntfy delivery.
+
+- New slot: notify once.
+- Continuously visible slot: suppress duplicates.
+- Three successful absent polls followed by reappearance: notify again.
+- Failed/authentication/rate-limited poll: does not increment absence.
+- Failed ntfy delivery: retain the event across restart and retry it before the next Trafikverket read, independently of later authentication/API failures.
+
+The notification includes date/time, Lund, `Manuellbil`, `Körprov B`, licence `B`, before-September status, and `https://fp.trafikverket.se/Boka/ng/`. Its ntfy `Click` URL only opens the official page; no ntfy action endpoint is present. Configuration rejects any ntfy hostname at or below `trafikverket.se`, preserving a separate external notification origin and cookie jar.
+
+The private `.env` remains mode `0600` and holds the existing ntfy destination plus:
+
+```dotenv
+SESSION_STATE_PATH=/home/manuel/services/trafikverket-monitor/secrets/trafikverket-state.json
+STATE_PATH=/home/manuel/.local/state/trafikverket-monitor/state.json
+POLL_INTERVAL_SECONDS=300
+JITTER_MAX_SECONDS=60
+BACKOFF_INITIAL_SECONDS=300
+BACKOFF_MAX_SECONDS=3600
+SEARCHED_MONTHS=3
+```
+
+## Operations
+
+The only CLI commands are:
+
+```bash
+cd /home/manuel/services/trafikverket-monitor
+uv run trafikverket-monitor check
+uv run trafikverket-monitor slots
+uv run trafikverket-monitor monitor
+uv run trafikverket-monitor test-notification
+```
+
+`test-notification` does not load Trafikverket cookies. `slots` does not alter seen-slot state. `check` performs one stateful poll and sends new events. `monitor` runs the conservative loop.
+
+The source unit is `systemd/trafikverket-monitor.service`. Do not install or enable it until the cookie seed exists and both `slots` and `check` pass. Once verified:
+
+```bash
+install -m 600 systemd/trafikverket-monitor.service \
+  /home/manuel/.config/systemd/user/trafikverket-monitor.service
+systemctl --user daemon-reload
+systemctl --user enable --now trafikverket-monitor.service
+```
+
+Manuel already has user lingering enabled, so an enabled user service survives logout.
+
+## Verification
+
+```bash
+cd /home/manuel/services/trafikverket-monitor
+uv sync --extra dev --frozen
+uv run pytest
+uv run python -m compileall -q src tests
+rm -rf dist
+uv run python -m build
+systemd-analyze --user verify systemd/trafikverket-monitor.service
+git diff --check
+```
+
+Handbook checks:
+
+```bash
+cd /home/manuel/services/zero-five-handbook
+npm run types:check
+npm run lint
+git diff --check
+```

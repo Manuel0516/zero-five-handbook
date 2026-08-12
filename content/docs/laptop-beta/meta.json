@@ -1,4 +1,4 @@
 {
   "title": "Laptop - Beta",
-  "pages": ["index", "configuration-reference", "wireguard", "ssh", "wake-on-lan", "proxmox"]
+  "pages": ["index", "configuration-reference", "wireguard", "ssh", "wake-on-lan", "proxmox", "blackarch"]
 }

@@ -44,7 +44,7 @@ MacBook                              VPS
 10.8.0.3/32  -------------------->  10.8.0.1/24
 AllowedIPs: 10.8.0.1/32             UDP endpoint :51820
 
-              no WireGuard route to 10.8.0.2
+              no WireGuard route to 10.8.0.12
 ```
 
 Because the peer's `AllowedIPs` contains only `10.8.0.1/32`, macOS installs one
@@ -131,7 +131,7 @@ removed without disrupting the established laptop peer.
 sudo wg-quick up zero-five
 sudo wg show
 route -n get 10.8.0.1
-route -n get 10.8.0.2
+route -n get 10.8.0.12
 route -n get default
 ping -c 3 10.8.0.1
 curl --fail --show-error http://10.8.0.1:11434/api/tags
@@ -140,7 +140,7 @@ curl --fail --show-error http://10.8.0.1:11434/api/tags
 Expected results:
 
 - `10.8.0.1` uses a dynamic `utunN` interface;
-- `10.8.0.2` does not use the WireGuard tunnel;
+- `10.8.0.12` does not use the WireGuard tunnel;
 - the default route remains on the normal network interface;
 - the VPS responds to ping and the private Ollama API;
 - `sudo wg show` reports a recent handshake.

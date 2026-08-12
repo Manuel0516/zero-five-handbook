@@ -113,7 +113,7 @@ labels:
 
 ### Host networking for the AI stack
 
-Open WebUI and ollama-router use `network_mode: host` on purpose — they must reach the WireGuard IPs (`10.8.0.1`, `10.8.0.2`), which are host interfaces. Traefik reaches them back through `host.docker.internal` (see [Traefik](/docs/vps-alpha/traefik)).
+Open WebUI and ollama-router use `network_mode: host` on purpose — they must reach the WireGuard IPs (`10.8.0.1`, `10.8.0.12`), which are host interfaces. Traefik reaches them back through `host.docker.internal` (see [Traefik](/docs/vps-alpha/traefik)).
 
 ---
 

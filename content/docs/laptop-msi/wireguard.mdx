@@ -5,13 +5,13 @@ description: The MSI's narrow, currently unverified Alpha peer and its VPN-only 
 
 ## Design
 
-The MSI is represented by the legacy `cachyos-laptop` template in
-`zero-five-infra`. The intended peer address is `10.8.0.2/32`; Alpha remains
+The MSI is represented by the legacy-named `cachyos-laptop` template in
+`zero-five-infra`. Its migration target is `10.8.0.12/32`; Alpha remains
 the hub at `10.8.0.1/24`.
 
 ```mermaid
 flowchart LR
-    msi["MSI laptop<br/>10.8.0.2/32<br/>candidate peer"] -->|"AllowedIPs: 10.8.0.1/32<br/>keepalive 25s"| wg["Alpha wg0<br/>10.8.0.1/24<br/>UDP 51820"]
+    msi["MSI laptop<br/>10.8.0.12/32<br/>migration target"] -->|"AllowedIPs: 10.8.0.1/32<br/>keepalive 25s"| wg["Alpha wg0<br/>10.8.0.1/24<br/>UDP 51820"]
     wg -->|"VPN-only service path"| vps["Alpha services<br/>Ollama / router"]
 ```
 
@@ -29,8 +29,8 @@ The secret-free sources are:
 
 | Source | Purpose |
 | --- | --- |
-| `zero-five-infra/wireguard/cachyos-laptop.conf.example` | Current legacy MSI peer template; private key remains a placeholder |
-| `zero-five-infra/wireguard/vps.conf.example` | Alpha peer model and `10.8.0.2/32` ownership |
+| `zero-five-infra/wireguard/cachyos-laptop.conf.example` | Legacy-named MSI peer template at `10.8.0.12/32`; private key remains a placeholder |
+| `zero-five-infra/wireguard/vps.conf.example` | Alpha peer model and `10.8.0.12/32` ownership |
 | `zero-five-infra/scripts/validate_wireguard.py` | Local topology and placeholder validation |
 
 Do not rename the template or change the address until the live Alpha peer,
@@ -53,7 +53,7 @@ On Alpha:
 ```bash
 ip -brief address show wg0
 sudo wg show wg0
-ping -c 3 10.8.0.2
+ping -c 3 10.8.0.12
 ```
 
 `wg show` reveals public peer metadata, handshake time, endpoint, and byte
@@ -74,7 +74,7 @@ WireGuard runbook and keep a working SSH path open during the change.
 ## Security boundary
 
 - The MSI's intended route is Alpha-only, not `0.0.0.0/0`.
-- The Ollama API should bind to `10.8.0.2`, never the public interface.
+- The Ollama API should bind to `10.8.0.12`, never the public interface.
 - The VPS firewall must continue to reject general client-to-client forwarding.
 - A WireGuard handshake authenticates the peer; it does not prove that Ollama,
   SSH, or LocalDrop is healthy.

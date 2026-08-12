@@ -55,7 +55,7 @@ and unresolved risks.
       ├─ ai.zero-five.space ───→ Open WebUI (host :3000)        (VPN-only)
       │                                └─→ ollama-router (127.0.0.1:11435)
       │                                        ├─→ Ollama VPS    10.8.0.1:11434
-      │                                        └─→ Ollama laptop 10.8.0.2:11434
+      │                                        └─→ Ollama laptop 10.8.0.12:11434
       │                                                  ▲
       │                                       WireGuard tunnel (UDP 51820)
       │
@@ -75,7 +75,7 @@ Three kinds of workloads coexist:
 
 1. **Docker Compose stacks** behind Traefik — the hub, second-brain, and the AI stack. See [Docker](/docs/vps-alpha/docker).
 2. **Native systemd services** — Ollama, the Minecraft server, and the hub-agent bridge.
-3. **A WireGuard VPN** (`wg0`) connecting the VPS (`10.8.0.1`) to the Linux laptop (`10.8.0.2`) so Ollama traffic never touches the public internet. See [WireGuard](/docs/vps-alpha/wireguard).
+3. **A WireGuard VPN** (`wg0`) connecting the VPS (`10.8.0.1`) to the Linux laptop (`10.8.0.12`) so Ollama traffic never touches the public internet. See [WireGuard](/docs/vps-alpha/wireguard).
 
 ---
 

@@ -24,15 +24,15 @@ flowchart LR
     mac["MacBook<br/>administration"]
     localdrop["LocalDrop<br/>clipboard + files"]
 
-    msi -->|"planned/narrow peer<br/>10.8.0.2"| alpha
-    alpha -->|"VPN-only Ollama path<br/>10.8.0.2:11434"| msi
+    msi -->|"planned/narrow peer<br/>10.8.0.12"| alpha
+    alpha -->|"VPN-only Ollama path<br/>10.8.0.12:11434"| msi
     mac -->|"local network"| localdrop
     msi -->|"local network"| localdrop
     alpha --> webui
 ```
 
 The MSI is primarily a personal Linux desktop. It also has the planned shape
-of a second AI backend: the VPS router can reach `10.8.0.2:11434` over
+of a second AI backend: the VPS router can reach `10.8.0.12:11434` over
 WireGuard when the laptop peer and Ollama service are actually enabled. The
 2026-08-07 inventory found no local Ollama models, so that backend is not
 currently a verified deployed capability.
@@ -44,7 +44,7 @@ currently a verified deployed capability.
 | Hostname | `msi` (renamed from `alpha` on 2026-08-12) |
 | Operating system | CachyOS Linux, rolling release |
 | LAN address | Not yet verified |
-| WireGuard | Existing unverified CachyOS laptop candidate at `10.8.0.2` |
+| WireGuard | MSI migration target at `10.8.0.12/32`; live cutover pending |
 | Role | Personal Linux desktop and prospective laptop AI backend |
 
 ## Naming convention
@@ -68,7 +68,7 @@ hostname and handbook title can be updated in one reviewed change.
 | --- | --- |
 | [Configuration reference](/docs/laptop-msi/configuration-reference) | Ownership and exact paths for captured settings and excluded state |
 | [Desktop](/docs/laptop-msi/desktop) | Hyprland, Caelestia, monitors, keybinds, themes, and session environment |
-| [WireGuard](/docs/laptop-msi/wireguard) | The legacy `cachyos-laptop` peer, narrow routing, verification, and rollback |
+| [WireGuard](/docs/laptop-msi/wireguard) | MSI peer migration to `10.8.0.12`, narrow routing, verification, and rollback |
 | [Ollama](/docs/laptop-msi/ollama) | Native service, VPN binding, model inventory, and AI-stack relationship |
 | [LocalDrop](/docs/laptop-msi/localdrop) | Clipboard/file sync project, secret-bearing config, systemd, and recovery |
 | [Tools](/docs/laptop-msi/tools) | Packages, terminals, editors, and reproducible user tooling |

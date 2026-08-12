@@ -1,0 +1,119 @@
+---
+title: Raspberry Pi - Delta
+description: Plan for the always-on LAN control, DNS, and backup node.
+---
+
+The Raspberry Pi is planned as **Delta**, the always-on home control node. It
+will sit beside Alpha logically: Alpha remains the public WireGuard hub, while
+Delta owns LAN-facing services that must remain available when laptops are
+asleep.
+
+## Planned identity
+
+| Property | Planned value |
+| --- | --- |
+| Hostname | `delta` |
+| LAN role | Always-on home services and backup controller |
+| WireGuard address | `10.8.0.2/32` |
+| LAN address | Reserve in the infrastructure range when hardware is installed |
+| Private DNS zone | `home.zero-five.space` |
+| VPN DNS name | `delta.home.zero-five.space` |
+
+The Pi's WireGuard address is deliberately `.2`: it is infrastructure, not a
+personal client or VM. The private key stays on Delta; the Alpha peer contains
+only its public key and `/32` route.
+
+## Responsibilities
+
+### Private DNS
+
+Delta will answer private names for VPN and LAN clients, for example:
+
+```text
+delta.home.zero-five.space       10.8.0.2
+gamma.home.zero-five.space       10.8.0.3
+beta.home.zero-five.space        10.8.0.4
+blackarch.home.zero-five.space   10.8.0.100
+```
+
+The DNS service must listen only on the LAN and WireGuard interfaces. It must
+not become a public resolver. The first implementation should use one small,
+well-supported DNS service; do not add a DNS dashboard until the records need
+frequent owner editing.
+
+### Home control
+
+Delta is the control point for:
+
+- Wake-on-LAN for Gamma and Beta;
+- smart plugs and lamps;
+- later house sensors and automations.
+
+WOL commands must target the LAN broadcast domain, not the sleeping machines'
+WireGuard addresses. Smart-home devices remain on the LAN and are controlled
+from Delta; their credentials belong in a runtime-only secret store, never in
+the handbook or `zero-five-infra`.
+
+Do not expose the control API or smart-device protocols to the public internet.
+Remote control enters through WireGuard and is authorized separately from DNS.
+
+### Backups
+
+Delta will orchestrate backups, but the Pi's SD card is not a backup target.
+The first backup design must include an external disk or future NAS, with:
+
+- encrypted or access-controlled storage;
+- pull-based jobs where practical, so a compromised source cannot erase every
+  backup;
+- retention and pruning rules;
+- periodic restore tests;
+- monitoring for failed, stale, or full backups.
+
+The exact tool and storage layout remain open until the external disk/NAS is
+chosen. Do not install a backup stack speculatively.
+
+## VPN address convention
+
+The target layout is:
+
+| Range | Assignment |
+| --- | --- |
+| `10.8.0.1` | Alpha VPS / WireGuard hub |
+| `10.8.0.2` | Delta Raspberry Pi / infrastructure |
+| `10.8.0.3-10.8.0.9` | Trusted infrastructure and servers |
+| `10.8.0.11-10.8.0.19` | Personal computers |
+| `10.8.0.20-10.8.0.29` | Mobile devices |
+| `10.8.0.100-10.8.0.199` | VMs and future virtual guests |
+
+Reserved assignments:
+
+```text
+10.8.0.1    Alpha VPS
+10.8.0.2    Delta Raspberry Pi
+10.8.0.3    Gamma
+10.8.0.4    Beta Proxmox
+10.8.0.11   MacBook
+10.8.0.12   MSI
+10.8.0.20   iPhone
+10.8.0.100  BlackArch VM
+```
+
+## Migration gate
+
+No live address has been changed yet. Renumbering starts only after Delta is
+installed and reachable through a temporary, verified path.
+
+Migrate in this order:
+
+1. Install Delta on the LAN and reserve its LAN address.
+2. Add Delta as the Alpha peer at `10.8.0.2`.
+3. Deploy private DNS and verify records from Alpha and one VPN client.
+4. Move Gamma, Beta, MacBook, MSI, and iPhone one at a time, updating both
+   runtime and persistent Alpha state.
+5. Move BlackArch from `10.8.0.101` to `10.8.0.100`.
+6. Update SSH aliases, Ollama binding, firewall rules, QR templates, and all
+   handbook/infra references.
+7. Reboot-test every migrated peer before removing old routes.
+
+Keep the current working configuration and physical/LAN recovery paths until
+the final peer has passed handshake, DNS, SSH, and reboot checks.

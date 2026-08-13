@@ -37,7 +37,7 @@ strip the `proxmox/beta` prefix and `.example` suffix to obtain the Beta path.
 | `proxmox/beta/etc/apt/sources.list.d/ceph.sources.example` | Beta `/etc/apt/sources.list.d/ceph.sources` | Authored APT source; disabled in-file |
 | `proxmox/beta/etc/pve/datacenter.cfg.example` | Beta `/etc/pve/datacenter.cfg` | Proxmox-managed through `pmxcfs` |
 | `proxmox/beta/etc/pve/storage.cfg.example` | Beta `/etc/pve/storage.cfg` | Proxmox-managed through `pmxcfs` |
-| `ssh/macbook-zero-five.config.example` | Merge into MacBook `~/.ssh/config` | Focused fragment for `contabo`, `gamma`, and `beta` |
+| `ssh/macbook-zero-five.config.example` | Merge into MacBook `~/.ssh/config` | Focused fragment for `alpha`, `delta`, `gamma`, and `beta` |
 
 Run `make validate` inside `zero-five-infra` before using an example. The
 validator checks expected topology and repository policy only; it does not
@@ -151,14 +151,14 @@ identity and will trigger known-host warnings on clients.
 
 | Purpose | Exact MacBook path | Observed owner/mode | Rule |
 | --- | --- | --- | --- |
-| Active SSH client configuration | `~/.ssh/config` | `manuel:staff`, `0600` | Contains `Host contabo`, `Host gamma`, and the verified `Host beta` jump configuration |
+| Active SSH client configuration | `~/.ssh/config` | `manuel:staff`, `0600` | Contains `Host alpha`, `Host delta`, `Host gamma`, and the verified Delta-based `Host beta` jump configuration |
 | Tracked Zero Five SSH fragment | `zero-five-infra/ssh/macbook-zero-five.config.example` | Git working tree; secret-free | Merge into the active config; it is not read automatically by SSH |
 | Pre-Beta-jump rollback snapshot | `~/.ssh/config.pre-beta-proxy-20260722` | `manuel:staff`, `0600` | Exact config backup created immediately before adding `Host beta` |
 | Personal client private key | `~/.ssh/id_ed25519` | Sensitive | Stays on the Mac; never copy it to Alpha or Beta |
 | Trusted host identities | `~/.ssh/known_hosts` | `manuel:staff`, `0600` | Already contains Beta under `192.168.1.166`; `HostKeyAlias` reuses that pin for the VPN address |
 
 The `Host beta` block resolves to `root@10.8.0.5:22`, uses
-`ProxyJump contabo`, and sets `HostKeyAlias 192.168.1.166`. The alias prevents
+`ProxyJump delta`, and sets `HostKeyAlias 192.168.1.166`. The alias prevents
 the same physical Beta host from being treated as a new identity merely because
 the second hop uses its WireGuard address.
 

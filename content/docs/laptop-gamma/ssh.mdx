@@ -4,28 +4,32 @@ description: Administer Gamma through Alpha, understand every SSH file and hop, 
 ---
 
 Gamma stays behind the home router and needs no public SSH port or router
-port-forward. The MacBook reaches it through Alpha, the existing WireGuard hub
-and SSH jump host.
+port-forward. The MacBook reaches it through Alpha, while Delta can reach it
+directly through the reciprocal WireGuard peer.
 
 ## Verified current state
 
-On 2026-07-22, `ssh gamma` completed from the MacBook through Alpha and Gamma
-reported the SSH source as `10.8.0.1`. The resolved Mac client configuration
-was `10.8.0.4:22`, identity `~/.ssh/id_ed25519`, and `ProxyJump contabo`.
+On 2026-08-13, Delta→Gamma direct ping and SSH were verified. The client
+configuration now uses `ProxyJump delta`; Alpha remains an administrative and
+recovery path.
 
 Gamma uses systemd socket activation: `ssh.socket` is enabled and active, while
 `ssh.service` is active but not independently enabled. The socket accepts a
 connection and starts the service when needed.
 
-Direct LAN SSH to `manuel@192.168.1.164` still worked during the audit. The VPN
-path is verified, but the LAN firewall restriction remains a deliberate future
-hardening step.
+Direct LAN SSH to `manuel@192.168.1.107` is the recovery path. On 2026-08-13,
+Delta successfully pinged `10.8.0.4` and logged in as `manuel` over the direct
+Delta↔Gamma WireGuard path. Alpha's equivalent SSH check still needs a local
+host-key verification refresh; this is not a WireGuard failure.
 
 ## Access path
 
 ```text
-MacBook -> contabo:2020  (existing Alpha SSH alias)
+MacBook -> delta:22       (Delta over WireGuard)
         -> 10.8.0.4:22   (Gamma over WireGuard)
+
+Delta  -> 10.8.0.2:51821 (direct WireGuard peer)
+        -> 10.8.0.4:22   (Gamma SSH)
 ```
 
 The hub denies general client-to-client forwarding. `ProxyJump` avoids opening
@@ -53,7 +57,7 @@ files can be misleading when package or installer drop-ins override a setting.
 `~/.ssh/config` contains:
 
 ```text
-Host contabo
+Host alpha
   HostName 95.111.229.142
   User manuel
   Port 2020
@@ -66,12 +70,11 @@ Host gamma
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyJump contabo
+  ProxyJump delta
 ```
 
-`contabo` is the canonical alias name even though the VPS hostname is Alpha.
-Do not introduce a second `contabo-vpn` alias; Gamma must use
-`ProxyJump contabo`.
+`alpha` is the canonical alias name for the VPS. Gamma's normal client path
+uses `ProxyJump delta`; Alpha remains a direct recovery hop.
 
 ## Verify the resolved client path
 
@@ -90,13 +93,13 @@ user manuel
 port 22
 identitiesonly yes
 identityfile ~/.ssh/id_ed25519
-proxyjump contabo
+proxyjump delta
 ```
 
 Test each hop independently:
 
 ```bash
-ssh contabo
+ssh alpha
 ssh gamma
 ```
 
@@ -106,7 +109,8 @@ On Gamma, inspect the source of the current SSH connection:
 printf '%s\n' "$SSH_CONNECTION"
 ```
 
-The first field should be Alpha's VPN address, `10.8.0.1`.
+The first field should be Alpha's VPN address, `10.8.0.1`, for the primary
+path, or Delta's VPN address, `10.8.0.2`, for the direct fallback path.
 
 ## Verify host identity
 
@@ -175,7 +179,7 @@ scp -O path/to/local-file gamma:/home/manuel/
 ```
 
 `-O` selects the legacy SCP file-transfer protocol. It does not weaken SSH
-encryption or bypass `ProxyJump contabo`; it changes only the remote copy
+encryption or bypass `ProxyJump delta`; it changes only the remote copy
 subsystem. Verify a checksum before installing a privileged copy:
 
 ```bash
@@ -187,7 +191,7 @@ ssh gamma 'shasum -a 256 /home/manuel/local-file'
 
 Work in hop order:
 
-1. `ssh contabo` proves the public Alpha connection.
+1. `ssh alpha` proves the public Alpha connection.
 2. On Alpha, `ping -c 3 10.8.0.4` proves its WireGuard route to Gamma.
 3. On Gamma's console, `systemctl status ssh.socket --no-pager` proves the SSH
    listener.

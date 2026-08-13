@@ -34,7 +34,7 @@ appropriate place to make durable edits.
 | Machine | Path | Purpose |
 | --- | --- | --- |
 | Alpha | `/etc/wireguard/wg0.conf` | Persistent hub config containing Gamma's public key and `AllowedIPs = 10.8.0.4/32`; also contains Alpha's secret private key |
-| MacBook | `~/.ssh/config` | Defines `contabo`, `gamma`, `beta`, and both `ProxyJump contabo` paths |
+| MacBook | `~/.ssh/config` | Defines `alpha`, `delta`, `gamma`, `beta`, and the Delta `ProxyJump` paths |
 | MacBook | `~/.ssh/id_ed25519` | Private SSH identity; never copy it to Alpha or Gamma |
 | MacBook | `~/.ssh/known_hosts` | Pins the SSH host identities encountered for Alpha and Gamma |
 | MacBook | `/opt/homebrew/bin/wakeonlan` | Homebrew-installed magic-packet sender |

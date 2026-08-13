@@ -36,6 +36,12 @@ cat /sys/class/net/nic0/device/power/wakeup
 
 ## Send a magic packet
 
+From Delta, the always-on LAN relay:
+
+```bash
+delta-wake beta
+```
+
 From a trusted device on the same home LAN:
 
 ```bash
@@ -56,3 +62,47 @@ router capability, or another trusted device inside `192.168.1.0/24`.
 Do not send the packet directly to Beta's WireGuard address: the sleeping host
 has no active WireGuard endpoint, and WireGuard does not transport the LAN
 broadcast domain. Do not expose UDP port 9 publicly.
+
+## Suspend Beta cleanly
+
+The tracked `zero-five-infra/scripts/beta-suspend.sh` helper is installed on
+Beta as `/usr/local/sbin/beta-suspend`. It follows the same safe pattern as
+Gamma's helper: detach into a transient systemd worker, terminate remote login
+sessions, confirm they are gone, and only then suspend the host.
+
+Run it from an active Beta session:
+
+```bash
+sudo beta-suspend
+```
+
+The SSH session will close. Wake Beta from Delta:
+
+```bash
+ssh delta delta-wake beta
+```
+
+Then wait for Proxmox and SSH to return:
+
+```bash
+ping -c 3 192.168.1.166
+ssh beta
+```
+
+The helper suspends Beta; it does not power it off. Wake-on-LAN after full
+shutdown remains firmware-dependent and is not declared supported until tested.
+
+## Configuration and rollback
+
+| Source | Installed path | Mode |
+| --- | --- | --- |
+| `zero-five-infra/scripts/beta-suspend.sh` | `/usr/local/sbin/beta-suspend` | `root:root`, `0755` |
+
+If the helper must be removed, delete only the installed command:
+
+```bash
+sudo rm /usr/local/sbin/beta-suspend
+```
+
+This does not alter Proxmox guests, networking, SSH authorization, or
+Wake-on-LAN settings.

@@ -204,9 +204,18 @@ suspend timers, and `IdleAction` was already `ignore`; the drop-in makes every
 lid condition explicit. Do not mask `sleep.target` or `suspend.target`, because
 that would also break intentional suspension.
 
-## Wake Gamma from the MacBook
+## Wake Gamma from Delta or the MacBook
 
-The MacBook must be on the same `192.168.1.0/24` LAN. Install the sender once:
+Delta can wake Gamma while the MacBook is away because Delta is an always-on
+LAN relay. Install the tracked sender on Delta as `/usr/local/bin/delta-wake`,
+then run:
+
+```bash
+delta-wake gamma
+```
+
+The MacBook must otherwise be on the same `192.168.1.0/24` LAN. Install its
+sender once:
 
 ```bash
 brew install wakeonlan
@@ -230,11 +239,18 @@ From an active Gamma SSH session:
 sudo gamma-suspend
 ```
 
-The SSH clients should close. From the MacBook:
+The SSH clients should close. From Delta:
+
+```bash
+delta-wake gamma
+ping -c 3 192.168.1.107
+```
+
+From the MacBook instead:
 
 ```bash
 wakeonlan -i 192.168.1.255 -p 9 9c:5c:8e:29:1f:b0
-ping -c 3 192.168.1.164
+ping -c 3 192.168.1.107
 ssh gamma
 ```
 

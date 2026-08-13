@@ -90,6 +90,30 @@ activation.
 
 ## Responsibilities
 
+### Wake-on-LAN relay
+
+Delta can wake the LAN machines because a sleeping host cannot receive a
+WireGuard packet. The tracked source is
+`zero-five-infra/scripts/delta-wake`; install it on Delta as
+`/usr/local/bin/delta-wake`:
+
+```bash
+sudo install -o root -g root -m 0755 /home/manuel/delta-wake /usr/local/bin/delta-wake
+```
+
+Commands:
+
+```bash
+delta-wake gamma
+delta-wake beta
+```
+
+The command sends a UDP magic packet to `192.168.1.255:9` using the wired MAC
+addresses recorded in the [Gamma Wake-on-LAN runbook](/docs/laptop-gamma/wake-on-lan)
+and [Beta Wake-on-LAN runbook](/docs/laptop-beta/wake-on-lan). It requires Delta
+to be awake and connected to the home LAN. It cannot wake a machine whose
+firmware does not preserve Wake-on-LAN after full shutdown.
+
 ### Private DNS
 
 Delta will answer private names for VPN and LAN clients, for example:

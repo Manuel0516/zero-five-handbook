@@ -9,13 +9,14 @@ laptop reaches it through Alpha rather than depending on the home-LAN address.
 ## Verified access path
 
 ```text
-MacBook -> contabo:2020  (Alpha's public SSH alias)
-        -> 10.8.0.5:22   (Beta over Alpha-to-Beta WireGuard)
+MacBook -> delta:22      (Delta's direct WireGuard SSH hop)
+        -> 10.8.0.5:22   (Beta over Delta-to-Beta WireGuard)
 ```
 
-On 2026-08-12, `ssh beta` completed from the MSI laptop through Alpha. The
-resolved client state is `manuel@10.8.0.5:22`, identity
-`~/.ssh/id_ed25519`, and `ProxyJump contabo`. Beta reported:
+On 2026-08-13, Alpha's public key was added to Beta's `manuel` account and
+Alpha→Beta SSH was verified. The MSI client now uses Delta as the proxy jump
+for Beta. The resolved client state is `manuel@10.8.0.5:22`, identity
+`~/.ssh/id_ed25519`, and `ProxyJump delta`.
 
 ```text
 10.8.0.1 <ephemeral-port> 10.8.0.5 22
@@ -30,8 +31,8 @@ Beta's LAN address.
 The Mac does not have a route to `10.8.0.5`, and Alpha still denies general
 forwarding between WireGuard clients. `ProxyJump` uses SSH's stdio forwarding:
 
-1. The Mac authenticates to Alpha through the `contabo` alias.
-2. Alpha's SSH daemon opens a new TCP connection from `10.8.0.1` to
+1. The client authenticates to Delta through the `delta` alias.
+2. Delta's SSH daemon opens a new TCP connection from `10.8.0.2` to
    `10.8.0.5:22`.
 3. The client laptop authenticates end-to-end to Beta as `manuel` through that channel.
 
@@ -53,7 +54,7 @@ Host beta
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyJump contabo
+  ProxyJump delta
   HostKeyAlias 192.168.1.166
 ```
 
@@ -99,13 +100,13 @@ port 22
 identitiesonly yes
 hostkeyalias 192.168.1.166
 identityfile ~/.ssh/id_ed25519
-proxyjump contabo
+proxyjump delta
 ```
 
 Then test both hops:
 
 ```bash
-ssh contabo
+ssh delta
 ssh beta
 ```
 
@@ -115,14 +116,15 @@ On Beta, prove the source of the current connection:
 printf '%s\n' "$SSH_CONNECTION"
 ```
 
-The first field must be Alpha's WireGuard address, `10.8.0.1`.
+The first field should be Delta's WireGuard address, `10.8.0.2`, for normal
+client access. Alpha→Beta administrative verification may show `10.8.0.1`.
 
 ## Recovery paths
 
 If the public Alpha hop fails, test it independently:
 
 ```bash
-ssh contabo
+ssh delta
 ```
 
 If Alpha works but Beta does not, inspect in order:

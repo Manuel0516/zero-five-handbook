@@ -1,0 +1,146 @@
+---
+title: Infrastructure Roadmap
+description: Open work for Raspberry Pi Delta, Gamma service migration, backups, remote access, and homelab control.
+---
+
+This is the operational task list for the next infrastructure changes. A
+checkbox means the work is not complete; pages linked from a task remain the
+source of truth for implementation details.
+
+## Current priorities
+
+- [ ] Finish MSI reboot-persistence verification for the direct Delta peer.
+- [ ] Add Delta's reciprocal WireGuard peer to the remaining clients.
+  - [x] MSI direct handshake and ping.
+  - [x] Beta peer and direct route.
+  - [x] Gamma peer, direct ping, and Delta→Gamma SSH.
+  - [ ] MacBook, BlackArch, and iPhone.
+- [ ] Build and test the Delta backup target before migrating services away
+  from Alpha.
+- [ ] Define Gamma's storage, power, and recovery capacity before moving
+  stateful services.
+
+## Raspberry Pi — Delta
+
+Delta is the always-on LAN node at `192.168.1.106` / `10.8.0.2`. Its WireGuard
+and direct SSH setup is documented in the [Delta handbook](/docs/raspberry).
+
+### Storage and backups
+
+- [ ] Connect and identify the 4 TB external drive.
+  - Record its stable device identity and filesystem UUID.
+  - Choose a filesystem and mount point.
+  - Ensure the mount is not silently replaced by the SD card after reboot.
+- [ ] Build a NAS system backed by the 4 TB drive.
+  - Define LAN-only share access and VPN access separately.
+  - Create users, groups, permissions, and an ownership model.
+  - Keep the NAS administration interface off the public internet.
+  - Test reboot, mount failure, full-disk behavior, and recovery.
+- [ ] Build the Delta-controlled backup system on the 4 TB drive.
+  - Select pull-based jobs where possible.
+  - Back up Alpha databases, Docker volumes, service configuration, Minecraft,
+    and important host configuration.
+  - Encrypt backups independently of transport where the data requires it.
+  - Define retention, pruning, failure alerts, and disk-full alerts.
+  - Perform a real restore test before calling the backup system operational.
+- [ ] Keep a second backup destination or offline copy in the design.
+  - A single external drive is storage, not disaster recovery.
+  - Do not treat the Pi's SD card as the backup target.
+
+### Private DNS and remote access
+
+- [ ] Install a small VPN-aware private DNS service on Delta.
+  - Resolve Alpha, Delta, Beta/Proxmox, Gamma, MSI, MacBook, and BlackArch.
+  - Serve DNS only on the LAN and WireGuard interfaces.
+  - Verify Proxmox and device names from Alpha, MSI, and one mobile client.
+  - Do not expose an open recursive resolver.
+- [ ] Add private DNS records for Proxmox and home devices.
+  - Record which names are LAN-only and which are VPN-reachable.
+  - Keep public Cloudflare DNS records separate from private records.
+- [ ] Add an SSH fallback jump path through Delta.
+  - Keep Alpha as the primary `ProxyJump`.
+  - Add a documented Delta fallback for peers that remain reachable through
+    Delta when Alpha is unavailable.
+  - Test the fallback with Alpha intentionally unavailable.
+  - Do not assume two `ProxyJump` entries automatically provide failover;
+    OpenSSH needs an explicit wrapper, alternate alias, or operator-selected
+    fallback.
+
+### Optional and long-term Delta work
+
+- [ ] Evaluate Pi-hole as a Wi-Fi ad blocker.
+  - First confirm the router can use Delta as LAN DNS.
+  - Decide whether blocking applies to all LAN clients or an opt-in group.
+  - Preserve a router-DNS rollback path before changing DHCP/DNS settings.
+  - Keep Pi-hole separate from authoritative private naming unless the design
+    is intentionally combined and tested.
+- [ ] Build a control page for the home network.
+  - Show device online/offline state and last-seen time.
+  - Show WireGuard handshakes and service health.
+  - Add Wake-on-LAN and approved device controls.
+  - Add an event timeline for state changes and commands.
+  - Keep it LAN/VPN-only with authentication and an audit trail.
+  - Start only after DNS, backups, and device inventory are stable.
+
+## Gamma service migration
+
+Gamma is the target for compute-heavy and always-on services currently hosted
+by Alpha. The migration is deliberately staged: backup and restore must work
+before the source service is stopped.
+
+### Preparation
+
+- [ ] Inventory Gamma's CPU, RAM, disk, GPU, power, network, and cooling.
+- [ ] Confirm Gamma's WireGuard, SSH, storage, and reboot persistence.
+  - [x] Alpha path and SSH access.
+  - [x] Delta fallback peer, direct ping, and SSH access.
+  - [ ] Reboot-test both WireGuard paths.
+- [ ] Provide a durable service-data disk; do not use an untested temporary
+  directory for stateful services.
+- [ ] Ensure Delta's backup and restore tests cover every service being moved.
+- [ ] Define service DNS, ingress, firewall, monitoring, and rollback before
+  changing Alpha's live deployment.
+- [ ] Decide which services may run simultaneously during migration and which
+  require a maintenance window.
+
+### Personal AI
+
+- [ ] Move the complete `personal-ai` project to Gamma.
+  - Move source, Compose files, environment documentation, and deployment
+    procedure.
+  - Move model storage deliberately; models are large and must have capacity
+    and restore expectations.
+  - Preserve WireGuard-only service access and the existing security boundary.
+  - Verify all routers, Open WebUI integrations, model endpoints, and health
+    checks from Alpha and the approved clients.
+  - Run the project on Gamma in parallel before switching traffic.
+- [ ] Update DNS, Traefik, service URLs, monitoring, and handbook references
+  after the Gamma cutover.
+- [ ] Keep Alpha's last known-good deployment available until rollback is
+  tested.
+
+### Minecraft
+
+- [ ] Move the Minecraft server and its complete state to Gamma.
+  - Transfer world data, mods, configuration, Java/runtime requirements, and
+    systemd or container definitions.
+  - Preserve the existing world and RCON/admin behavior.
+  - Test a restored copy before the production cutover.
+  - Update the public DNS/SRV record only after Gamma is ready.
+  - Keep Alpha's final world backup and rollback copy.
+
+### Animated figures
+
+- [ ] Move the animated figures service to Gamma.
+  - Identify source, assets, generated output, runtime dependencies, and data.
+  - Confirm GPU/display/rendering requirements on Gamma.
+  - Define its private/public exposure and process supervision.
+  - Test a complete render and recovery after reboot.
+  - Cut over only after the backup and rollback paths are verified.
+
+## Migration completion standard
+
+A task is complete only when the service works after reboot, its data is
+covered by a tested restore, monitoring reports failure, access controls are
+documented, and the old path has either passed rollback or been deliberately
+retired. Update the relevant machine page and this roadmap in the same change.

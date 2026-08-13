@@ -55,14 +55,21 @@ An autonomous assistant lives **inside the API** — a ReAct loop that calls the
 ## Telegram bot (2026-08)
 
 The agent is also reachable as a Telegram bot (**@Zero_Five_bot**, "Hermes-Life") via a
-zero-dependency bridge in `apps/bot/` — a stdlib-only Python long-polling loop that logs
-into the API (cookie auth with the initial-user credentials), forwards chat messages to
-the SSE agent endpoint, streams the reply, and renders write confirmations as inline
-keyboards (✅ Apply / ✖ Reject; undo via callback). One long-lived conversation per chat;
-`/new` starts a fresh one. Chat-to-conversation mapping persists in the `bot-data` volume.
+zero-dependency bridge in `apps/bot/` — a stdlib-only Python long-polling loop that
+forwards chat messages to the SSE agent endpoint, streams the reply, and renders write
+confirmations as inline keyboards (✅ Apply / ✖ Reject; undo via callback). One
+long-lived conversation per chat; `/new` starts a fresh one. Chat-to-conversation
+mapping persists in the `bot-data` volume.
 
-Env: `TELEGRAM_BOT_TOKEN` (required), `TELEGRAM_ALLOWED_USERS` (default `1110963147`).
-The bot joins `internal` (API) + `egress` (Telegram) networks and waits for a healthy API.
+**Auth = device authorization, no shared password.** On first contact the bot creates a
+device grant (`POST /api/auth/device`), sends the user a verification link
+(`https://brain.zero-five.space/device?code=…`, VPN-only like the app), the user logs in
+and approves in the browser, and the bot receives a one-time long-lived bearer token
+(`device_grants` table; `get_current_user` accepts `Authorization: Bearer`).
+
+Env: `TELEGRAM_BOT_TOKEN` (required), `TELEGRAM_ALLOWED_USERS` (default `1110963147`),
+`SB_VERIFICATION_BASE` (default `https://brain.zero-five.space`). The bot joins
+`internal` (API) + `egress` (Telegram) networks and waits for a healthy API.
 
 ## CI/CD
 

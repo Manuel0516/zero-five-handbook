@@ -52,6 +52,18 @@ An autonomous assistant lives **inside the API** — a ReAct loop that calls the
 
 **Pre-existing bugs fixed along the way** (deployed code): `/api/pages/search` and `/api/fitness/stats/overview` were shadowed by parameterized routes (`{page_id}`, `exercise/{exercise_id}`) → moved static routes first.
 
+## Telegram bot (2026-08)
+
+The agent is also reachable as a Telegram bot (**@Zero_Five_bot**, "Hermes-Life") via a
+zero-dependency bridge in `apps/bot/` — a stdlib-only Python long-polling loop that logs
+into the API (cookie auth with the initial-user credentials), forwards chat messages to
+the SSE agent endpoint, streams the reply, and renders write confirmations as inline
+keyboards (✅ Apply / ✖ Reject; undo via callback). One long-lived conversation per chat;
+`/new` starts a fresh one. Chat-to-conversation mapping persists in the `bot-data` volume.
+
+Env: `TELEGRAM_BOT_TOKEN` (required), `TELEGRAM_ALLOWED_USERS` (default `1110963147`).
+The bot joins `internal` (API) + `egress` (Telegram) networks and waits for a healthy API.
+
 ## CI/CD
 
 Two GitHub Actions workflows:

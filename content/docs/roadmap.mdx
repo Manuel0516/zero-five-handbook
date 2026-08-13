@@ -27,25 +27,36 @@ and direct SSH setup is documented in the [Delta handbook](/docs/raspberry).
 
 ### Storage and backups
 
-- [ ] Connect and identify the 4 TB external drive.
-  - Record its stable device identity and filesystem UUID.
-  - Choose a filesystem and mount point.
-  - Ensure the mount is not silently replaced by the SD card after reboot.
+- [x] Connect and identify the 4 TB external drive.
+  - TOSHIBA MQ04UBB400 partition `/dev/sda2`, UUID
+    `5953cbb7-2af9-4f8c-a2aa-1536fc7246e5`.
+- [x] Format and mount the drive as a standalone NAS data service.
+  - ext4 filesystem, neutral label `nas`, mounted persistently at `/srv/nas`.
+  - The `/etc/fstab` entry uses the filesystem UUID and `nofail`.
 - [ ] Build a NAS system backed by the 4 TB drive.
+  - Use `/srv/nas/shares/` for private Samba shares and `/srv/nas/backups/`
+    for backup repositories.
   - Define LAN-only share access and VPN access separately.
   - Create users, groups, permissions, and an ownership model.
   - Keep the NAS administration interface off the public internet.
-  - Test reboot, mount failure, full-disk behavior, and recovery.
+  - Test reboot, mount failure, full-disk behavior, permissions, and recovery.
 - [ ] Build the Delta-controlled backup system on the 4 TB drive.
-  - Select pull-based jobs where possible.
+  - Use an encrypted, deduplicated repository; restic is the current candidate.
+  - Prefer pull-based jobs controlled by Delta, with a dedicated backup
+    account that normal NAS users cannot modify.
   - Back up Alpha databases, Docker volumes, service configuration, Minecraft,
-    and important host configuration.
-  - Encrypt backups independently of transport where the data requires it.
-  - Define retention, pruning, failure alerts, and disk-full alerts.
-  - Perform a real restore test before calling the backup system operational.
+    Gamma service data, Beta/Proxmox configuration, and Delta configuration.
+  - Define retention, pruning, stale/failure alerts, disk-full alerts, and
+    repository integrity checks.
+  - Restore a file, directory, database, and service configuration before
+    calling the backup system operational.
 - [ ] Keep a second backup destination or offline copy in the design.
   - A single external drive is storage, not disaster recovery.
   - Do not treat the Pi's SD card as the backup target.
+
+Samba and the backup tool are intentionally not installed yet. Implementation
+starts after users, source paths, retention, and restore requirements are
+confirmed.
 
 ### Private DNS and remote access
 

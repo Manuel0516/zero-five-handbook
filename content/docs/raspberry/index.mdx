@@ -35,6 +35,7 @@ only its public key and `/32` route.
 | WireGuard listen port | UDP `51821` |
 | Alpha peer and handshake | Verified: active handshake |
 | Delta SSH key on Alpha | Authorized for `manuel`; direct SSH verified over WireGuard |
+| NAS disk | `/dev/sda2`, ext4 label `nas`, persistently mounted at `/srv/nas` |
 
 Delta now also contains direct backup peer definitions for the registered
 WireGuard nodes. Their observed NAT endpoints are operational hints, not fixed
@@ -53,6 +54,37 @@ The tracked client model is
 `zero-five-infra/ssh/macbook-zero-five.config.example`. `delta` resolves to
 `192.168.1.106` and has no `ProxyJump`. The WireGuard address is used for
 private VPN services and routes, not for this direct LAN administration path.
+
+## NAS and backup plan
+
+Delta's external TOSHIBA MQ04UBB400 drive is now the standalone NAS data
+service. It is formatted as ext4, labeled `nas`, and mounted at `/srv/nas` by
+filesystem UUID `5953cbb7-2af9-4f8c-a2aa-1536fc7246e5`. The mount is independent
+of Delta's hostname and uses `nofail` in `/etc/fstab`.
+
+The planned layout is:
+
+```text
+/srv/nas/
+├── shares/     # private Samba shares
+└── backups/    # backup repositories, separate permissions
+```
+
+The NAS will use private Samba shares available only on the LAN and
+WireGuard-accessible interfaces. It will not expose SMB or an administration
+interface publicly. Before calling it operational, test users and groups,
+share permissions, reboot/mount behavior, full-disk behavior, and recovery.
+
+Delta will control encrypted, deduplicated backups, with restic as the current
+candidate. Jobs should pull from Alpha, Gamma, Beta/Proxmox, and Delta where
+practical, using a dedicated backup account that ordinary NAS users cannot
+alter. The design must include retention, pruning, failure and disk-full
+alerts, repository checks, and restore tests for files, directories, databases,
+and service configuration.
+
+The 4 TB disk is only one copy. A second disk or offline/off-site destination
+is required for disaster recovery. Samba and restic remain uninstalled until
+the source paths, users, retention, and restore requirements are confirmed.
 
 ## Delta WireGuard deployment
 

@@ -1,10 +1,10 @@
 ---
 title: SSH through Alpha
-description: Reach the manuel account on Beta from the client laptop through Alpha.
+description: Reach the root account on Beta from the client laptop through Delta.
 ---
 
-Beta uses the non-root `manuel` account for normal administration. The client
-laptop reaches it through Alpha rather than depending on the home-LAN address.
+The client laptop reaches Beta's `root` account through Delta rather than
+depending on the home-LAN address.
 
 ## Verified access path
 
@@ -13,10 +13,11 @@ MacBook -> delta:22      (Delta's direct WireGuard SSH hop)
         -> 10.8.0.5:22   (Beta over Delta-to-Beta WireGuard)
 ```
 
-On 2026-08-13, Alpha's public key was added to Beta's `manuel` account and
-Alpha→Beta SSH was verified. The MSI client now uses Delta as the proxy jump
-for Beta. The resolved client state is `manuel@10.8.0.5:22`, identity
-`~/.ssh/id_ed25519`, and `ProxyJump delta`.
+On 2026-08-13, the MacBook public key was added to Beta's `root` account and
+verified. The key fingerprint is
+`SHA256:kWxEKyBmG2cXL1jIV3ZP27ePR0ZFafiwaDYbpBIVKeU`. The MSI client also uses
+Delta as the proxy jump for Beta. The resolved client state is
+`root@10.8.0.5:22`, identity `~/.ssh/id_ed25519`, and `ProxyJump delta`.
 
 ```text
 10.8.0.1 <ephemeral-port> 10.8.0.5 22
@@ -34,7 +35,7 @@ forwarding between WireGuard clients. `ProxyJump` uses SSH's stdio forwarding:
 1. The client authenticates to Delta through the `delta` alias.
 2. Delta's SSH daemon opens a new TCP connection from `10.8.0.2` to
    `10.8.0.5:22`.
-3. The client laptop authenticates end-to-end to Beta as `manuel` through that channel.
+3. The client laptop authenticates end-to-end to Beta as `root` through that channel.
 
 The Mac private key remains on the Mac. It is not installed on or forwarded to
 Alpha.
@@ -50,7 +51,7 @@ The Beta block is:
 ```text
 Host beta
   HostName 10.8.0.5
-  User manuel
+  User root
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
@@ -174,5 +175,5 @@ client alias.
 | `ssh beta` fails before the second hop | `ssh contabo`; Alpha public SSH and the Mac's Alpha host-key pin |
 | Alpha works but Beta times out | Alpha route to `10.8.0.5`, Beta handshake, TCP `22`, and Beta SSH service |
 | Host-key mismatch names `192.168.1.166` | Compare Beta's current Ed25519 fingerprint through the LAN or physical console; never delete the pin blindly |
-| Authentication fails as `manuel` | Confirm the MSI public key is in `/home/manuel/.ssh/authorized_keys` |
+| Authentication fails as `root` | Confirm the MacBook public key is in `/root/.ssh/authorized_keys` |
 | Connection source is `192.168.1.x` | A direct LAN command was used; the verified jump path must show source `10.8.0.1` |

@@ -1,10 +1,10 @@
 ---
 title: SSH Configuration
-description: SSH keys, host aliases, and config on this MacBook — GitHub, Alpha, Gamma, and Beta through SSH jumps. Key material itself is never documented here.
+description: SSH keys, host aliases, and config on this MacBook — GitHub, Alpha, Delta, Gamma, Beta, MSI, and BlackArch. Key material itself is never documented here.
 ---
 
-SSH is used to authenticate to **GitHub**, connect to the **Contabo VPS**, and
-reach **Gamma** and **Beta** through the VPS as a jump host. Everything lives
+SSH is used to authenticate to **GitHub**, connect to the **Alpha VPS**, and
+reach **Gamma** and **Beta** through **Delta** as a jump host. Everything lives
 in `~/.ssh/`.
 
 > **Warning:** This page documents the *configuration only*. Private keys are never stored in this handbook — generate a new key on a new machine instead of copying the old one.
@@ -51,10 +51,17 @@ Host github.com
   UseKeychain yes
   IdentityFile ~/.ssh/id_ed25519
 
-Host contabo
+Host alpha
   HostName 95.111.229.142
   User manuel
   Port 2020
+
+Host delta
+  HostName 192.168.1.106
+  User manuel
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
 
 Host gamma
   HostName 10.8.0.4
@@ -62,7 +69,7 @@ Host gamma
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyJump contabo
+  ProxyJump delta
 
 Host beta
   HostName 10.8.0.5
@@ -70,8 +77,25 @@ Host beta
   Port 22
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
-  ProxyJump contabo
+  ProxyJump delta
   HostKeyAlias 192.168.1.166
+
+Host msi
+  HostName 10.8.0.12
+  User manuel
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump alpha
+
+Host blackarch
+  HostName 10.8.0.101
+  User zero
+  Port 22
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+  ProxyJump delta
+  HostKeyAlias 192.168.1.104
 ```
 
 ### Breakdown
@@ -80,9 +104,12 @@ Host beta
 |-------|--------------|
 | `Include ~/.colima/ssh_config` | Added automatically by [Colima](/docs/macbook/docker) so `ssh colima` reaches the container VM — don't remove it |
 | `Host github.com` | Uses the ed25519 key, loads it into the agent, and stores the passphrase in the macOS Keychain (`UseKeychain yes`) — no passphrase prompts after the first use |
-| `Host contabo` | Alias for the [Contabo VPS](/docs/vps-alpha): `ssh contabo` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps-alpha/security) for the server side |
-| `Host gamma` | Connects to Gamma's private `10.8.0.4` address through `ProxyJump contabo`; Gamma remains unreachable directly from outside WireGuard |
-| `Host beta` | Connects as `root` to Beta's `10.8.0.5` address through `ProxyJump contabo`; `HostKeyAlias 192.168.1.166` reuses the already-pinned identity of the same physical host |
+| `Host alpha` | Alias for the [Alpha VPS](/docs/vps-alpha): `ssh alpha` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps-alpha/security) for the server side |
+| `Host delta` | Direct LAN alias for Delta at `192.168.1.106`; it is the jump host for the private laptop paths |
+| `Host gamma` | Connects to Gamma's private `10.8.0.4` address through `ProxyJump delta`; Gamma remains unreachable directly from outside WireGuard |
+| `Host beta` | Connects as `root` to Beta's `10.8.0.5` address through `ProxyJump delta`; `HostKeyAlias 192.168.1.166` reuses the already-pinned identity of the same physical host |
+| `Host msi` | Connects to the MSI's WireGuard address through Alpha |
+| `Host blackarch` | Connects as `zero` to BlackArch through Delta and reuses its LAN host-key alias |
 | `IdentitiesOnly yes` | Restricts each host to the explicitly selected identity instead of trying every key loaded in the agent |
 
 ---
@@ -91,11 +118,12 @@ Host beta
 
 | Task | Command |
 |------|---------|
-| Connect to the VPS | `ssh contabo` |
-| Connect to Gamma through the VPS | `ssh gamma` |
-| Connect to Beta through the VPS | `ssh beta` |
+| Connect to the VPS | `ssh alpha` |
+| Connect to Delta | `ssh delta` |
+| Connect to Gamma through Delta | `ssh gamma` |
+| Connect to Beta through Delta | `ssh beta` |
 | Test GitHub authentication | `ssh -T git@github.com` |
-| Copy a file to the VPS | `scp file.txt contabo:~/` |
+| Copy a file to the VPS | `scp file.txt alpha:~/` |
 | List keys loaded in the agent | `ssh-add -l` |
 
 ---
@@ -110,18 +138,18 @@ Host beta
 
 ### VPS connection refused
 
-The VPS uses port `2020`, not 22 — connecting with a raw `ssh manuel@95.111.229.142` fails. Use the `contabo` alias, which sets the port.
+The VPS uses port `2020`, not 22 — connecting with a raw `ssh manuel@95.111.229.142` fails. Use the `alpha` alias, which sets the port.
 
 ### Gamma connection fails
 
-Test each hop independently. `ssh contabo` must work first. On the VPS,
+Test each hop independently. `ssh delta` must work first. On Delta,
 `ping -c 3 10.8.0.4` must reach Gamma over WireGuard. Then inspect the resolved
 Mac configuration with `ssh -G gamma | grep -E '^(hostname|user|port|proxyjump) '`;
-it should report `hostname 10.8.0.4` and `proxyjump contabo`.
+it should report `hostname 10.8.0.4` and `proxyjump delta`.
 
 ### Beta connection fails
 
-Use the same hop-first diagnosis: `ssh contabo` must work. On Alpha,
+Use the same hop-first diagnosis: `ssh delta` must work. On Delta,
 `ping -c 3 10.8.0.5` and `nc -zvw 3 10.8.0.5 22` must succeed. Then inspect:
 
 ```bash
@@ -129,7 +157,7 @@ ssh -G beta | grep -E \
   '^(hostname|user|port|proxyjump|hostkeyalias) '
 ```
 
-It must resolve to user `root`, hostname `10.8.0.5`, `proxyjump contabo`, and
+It must resolve to user `root`, hostname `10.8.0.5`, `proxyjump delta`, and
 `hostkeyalias 192.168.1.166`. The full runbook is on the
 [Beta SSH page](/docs/laptop-beta/ssh).
 

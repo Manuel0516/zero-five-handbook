@@ -35,6 +35,23 @@ The web container also carries `hub.*` labels, so it appears on the [Hub dashboa
 
 > **Note:** Unlike the rest of the AI stack, second-brain's AI features call **OpenRouter** (cloud), not the local Ollama.
 
+## Embedded AI agent (2026-08)
+
+An autonomous assistant lives **inside the API** — a ReAct loop that calls the app's own REST endpoints as tools (the "tools are 1:1 with existing endpoints" pattern). Live on `development`, planned in `docs/work/plans/embedded-agent/` (repo) with the product spec `docs/product/AI_ASSISTANT_MODULE.md`.
+
+**What it does**
+
+- Model: `deepseek/deepseek-v4-flash` via OpenRouter (raw httpx, zero new deps), configurable per-user via `AISettings` (provider/model/autonomy — v1 only `ask_before_write`).
+- Read tools: search/get pages, events, food logs/summary, fitness overview, exercises, `get_today`, `get_app_summary`.
+- Write tools (create/update/delete pages, events, links, food logs, workout sessions) are **proposed, never executed**: the loop pauses, the UI shows a preview card, the user confirms or rejects; the loop resumes only when all pending actions of that turn are resolved (`confirm`/`reject` endpoints; `undo` restores via a stored pre-image).
+- Hermes-style self-improvement: `remember(fact)` (durable memory injected into every system prompt) and `save_skill/load_skill/list_skills` (markdown procedures the agent writes and reuses).
+- Chat is SSE (`POST /api/ai/conversations/{id}/messages` → `text/event-stream`): `conversation`, `text_delta`, `tool_call`, `tool_result`, `confirm_required`, `message_done`, `error`, `done`. The frontend panel (floating button → slide-over, `apps/web/src/modules/assistant/`) renders streams, tool chips, and confirmation cards.
+- Tools execute by calling the API itself over localhost with a server-minted JWT (auth via the existing `access_token` cookie flow — `get_current_user` does not read bearer headers); base URL configurable via `AI_INTERNAL_API_URL`.
+
+**Data model** (one Alembic migration `ai_assistant_module`): `AIConversation`, `AIMessage`, `AISettings`, `AIMemory`, `AISkill`, `AIAction` — all `user_id`-scoped.
+
+**Pre-existing bugs fixed along the way** (deployed code): `/api/pages/search` and `/api/fitness/stats/overview` were shadowed by parameterized routes (`{page_id}`, `exercise/{exercise_id}`) → moved static routes first.
+
 ## CI/CD
 
 Two GitHub Actions workflows:
@@ -84,3 +101,5 @@ dump does not contain them.
 ## Development
 
 Local development happens on the MacBook/laptop, not the VPS — see the repo README: Vite dev server on `:5173` proxying to FastAPI on `:8000`, with only `db` and `minio` in Docker (`compose.dev.yaml`). The repo also defines the multi-agent workflow (`AGENTS.md`, Ponytail plugin for Claude Code/Codex).
+
+**VPS dev environment (used for the embedded-agent work, 2026-08):** the VPS can also run a full dev stack without touching prod — `docker compose -f compose.dev.yaml up -d` (project `secondbrain-dev`, Postgres on `127.0.0.1:5433`, MinIO on `127.0.0.1:9100`), then the API and web run directly on the host: `uvicorn app.main:app --reload --port 8000` (from `apps/api`, env from `.env.dev`) and `npm run dev -- --port 5173` (from `apps/web`). Everything binds to `127.0.0.1` only; prod containers are untouched. Dev login: `manuel@dev.zero-five.space` (credentials in the VPS-only `.env.dev`). Feature branches are developed in git worktrees (`~/worktrees/sb-*`) and merged into `development`; prod deploys from `main` only (see CI/CD).

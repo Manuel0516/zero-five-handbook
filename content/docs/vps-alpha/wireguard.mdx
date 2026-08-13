@@ -4,10 +4,14 @@ description: The VPS-centered private network, its routing and security model, o
 ---
 
 WireGuard creates Zero Five's private `10.8.0.0/24` network. The VPS is the
-stable public hub; the MSI laptop (tracked by the legacy `cachyos-laptop`
-template) and MacBook connect to it as clients.
+stable public hub and primary path. Delta is now a second infrastructure node
+with a public UDP endpoint and direct peer definitions for registered clients.
 Gamma and the iPhone also connect as deployed clients.
 Beta is registered as a deployed client.
+Delta is deployed as the infrastructure peer at `10.8.0.2/32` and listens on
+UDP `51821` through `delta-vpn.zero-five.space`. Its Alpha handshake is
+verified. MSI is the first client with a reciprocal Delta peer; the remaining
+client rollout is incomplete.
 The BlackArch VM on Beta is registered as a direct VM client at `10.8.0.101/32`.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
@@ -17,10 +21,11 @@ without exposing the Ollama API publicly.
 ```mermaid
 flowchart LR
     subgraph clients["Trusted clients"]
-        cachyos["MSI laptop<br/>10.8.0.12/32<br/>Migration target"]
+        cachyos["MSI laptop<br/>10.8.0.12/32<br/>Delta peer active"]
         macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
         gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
         beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
+        delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Direct backup node"]
         blackarch["BlackArch VM<br/>10.8.0.101/32<br/>SSH and runtime verified"]
         iphone["iPhone<br/>10.8.0.10/32<br/>Runtime restored 2026-07-24"]
     end
@@ -34,6 +39,7 @@ flowchart LR
     macbook -->|"Encrypted tunnel<br/>VPS-only route"| wg
     gamma -->|"Encrypted tunnel<br/>VPS-only route"| wg
     beta -->|"Encrypted tunnel<br/>VPS-only route"| wg
+    delta -->|"Encrypted tunnel<br/>VPS-only route"| wg
     blackarch -->|"Encrypted tunnel<br/>VPS-only route"| wg
     iphone -->|"Encrypted tunnel<br/>VPS-only route"| wg
     wg -->|"Private service traffic"| ollama
@@ -44,18 +50,60 @@ flowchart LR
 | Machine | Address | Verification |
 | --- | --- | --- |
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
-| MSI laptop | `10.8.0.12/32` | Migration target; live cutover and handshake verification pending |
+| MSI laptop | `10.8.0.12/32` | Alpha and Delta peers active; direct handshake and ping verified 2026-08-13; reboot persistence pending |
 | MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
 | Gamma | `10.8.0.4/32` | Interface and boot service active; bidirectional ping, resume persistence, and SSH path verified 2026-07-22 |
 | Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
 | iPhone | `10.8.0.10/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
 | BlackArch VM | `10.8.0.101/32` | Direct VM peer; SSH through Alpha, active WireGuard, and key-only access verified 2026-08-12 |
+| Delta Raspberry Pi | `10.8.0.2/32` | LAN SSH, active WireGuard, Alpha handshake, and direct peer definitions verified; reciprocal rollout pending |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
 policy remains `deny`. Kernel IPv4 forwarding is enabled, but UFW prevents the
 VPS from forwarding traffic between clients. The MacBook therefore cannot
 reach the laptop through WireGuard.
+
+## Two-node infrastructure topology
+
+Alpha remains the primary hub because it has the stable VPS address and hosts
+the private services. Delta is a secondary infrastructure node with the
+DNS-only name `delta-vpn.zero-five.space`, UDP `51821` forwarded to
+`192.168.1.106`, and direct `/32` peers for registered nodes.
+
+The redundancy model is:
+
+1. Clients connect to Alpha at `10.8.0.1` as the primary path.
+2. Clients with Delta's reciprocal peer block can connect directly to
+   `10.8.0.2` when Alpha is unavailable.
+3. Delta can administer peers after its dedicated SSH public key is authorized
+   on their target accounts.
+
+WireGuard does not automatically fail over between peers advertising the same
+route. The client must contain a separate Delta peer and the operator must
+select or activate the backup path. Delta's peer routes are narrow `/32`s, so
+they do not replace Alpha's service route.
+
+The endpoint list copied from Alpha is observed NAT state. Ports can change
+when a client reconnects or its NAT mapping expires. Direct backup is durable
+only after each client has a stable reachable endpoint or uses
+`PersistentKeepalive = 25`.
+
+### Open rollout task: reciprocal Delta peers
+
+Add this peer to MSI first, then Gamma, Beta, MacBook, BlackArch, and iPhone:
+
+```ini
+[Peer]
+# Peer: delta
+PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
+Endpoint = delta-vpn.zero-five.space:51821
+AllowedIPs = 10.8.0.2/32
+PersistentKeepalive = 25
+```
+
+After each client, verify `ping -c 3 10.8.0.2`, a recent `wg show` handshake,
+SSH where authorized, and reboot persistence. Never copy Delta's private key.
 
 > **Persistence incident — 2026-07-21:** Runtime WireGuard state worked before
 > reboot, but the root-only file contained an invalid iPhone route (`10.0.10`).
@@ -124,12 +172,13 @@ The tracked source is deliberately small:
 | File | Purpose |
 | --- | --- |
 | `wireguard/vps.conf.example` | VPS interface and all modeled client peers |
-| `wireguard/cachyos-laptop.conf.example` | Laptop interface and VPS peer |
-| `wireguard/macbook.conf.example` | Mac interface and VPS-only peer |
-| `wireguard/gamma.conf.example` | Gamma interface and VPS-only peer |
-| `wireguard/beta.conf.example` | Beta interface and VPS-only peer |
-| `wireguard/iphone.conf.example` | iPhone interface and VPS-only peer |
-| `wireguard/blackarch.conf.example` | BlackArch VM interface and VPS-only peer |
+| `wireguard/cachyos-laptop.conf.example` | MSI interface, Alpha peer, and Delta backup peer |
+| `wireguard/macbook.conf.example` | Mac interface, Alpha peer, and Delta backup peer |
+| `wireguard/gamma.conf.example` | Gamma interface, Alpha peer, and Delta backup peer |
+| `wireguard/beta.conf.example` | Beta interface, Alpha peer, and Delta backup peer |
+| `wireguard/iphone.conf.example` | iPhone interface, Alpha peer, and Delta backup peer |
+| `wireguard/blackarch.conf.example` | BlackArch interface, Alpha peer, and Delta backup peer |
+| `wireguard/delta.conf.example` | Delta interface and direct peer definitions |
 | `scripts/validate_wireguard.py` | Secret-safe structural and topology checks |
 
 These are native WireGuard examples, not generated output. Deployed peers
@@ -190,15 +239,16 @@ after reboot.
 | Handshake but no ping | `AllowedIPs`, interface addresses, routes, UFW |
 | VPS works but laptop Ollama fails | Laptop offline, stale tunnel, Ollama binding, laptop firewall |
 | Works until reboot | `wg-quick@wg0` enablement and persistent config |
+| Direct backup has no handshake | Delta port forward, DNS-only record, endpoint freshness, reciprocal peer block, and keepalive |
 | Unrelated internet uses VPN | An accidentally broad client `AllowedIPs`, such as `0.0.0.0/0` |
 | Clients can reach each other unexpectedly | Routed firewall policy or new forwarding rules |
 
 ## Security boundaries
 
 - Private keys never leave their owning machine.
-- Only WireGuard UDP `51820` is public for this tunnel.
+- Alpha exposes WireGuard UDP `51820`; Delta exposes UDP `51821` through a DNS-only Cloudflare record.
 - Ollama binds to WireGuard addresses and receives no public Traefik route.
-- New clients peer only with the VPS unless a later decision permits more.
+- New clients peer with Alpha first; direct Delta peers are an explicit backup path.
 - Beta routes only `10.8.0.1/32`; its normal LAN and internet traffic do not
   cross the tunnel.
 - The iPhone has only a `10.8.0.1/32` client route; the VPS's routed deny keeps

@@ -1,27 +1,92 @@
 ---
 title: Raspberry Pi - Delta
-description: Plan for the always-on LAN control, DNS, and backup node.
+description: Delta Raspberry Pi operations, dual-node WireGuard, direct SSH, and future LAN services.
 ---
 
-The Raspberry Pi is planned as **Delta**, the always-on home control node. It
+The Raspberry Pi is **Delta**, the always-on home control node. It
 will sit beside Alpha logically: Alpha remains the public WireGuard hub, while
 Delta owns LAN-facing services that must remain available when laptops are
 asleep.
 
-## Planned identity
+## Identity
 
 | Property | Planned value |
 | --- | --- |
 | Hostname | `delta` |
 | LAN role | Always-on home services and backup controller |
 | WireGuard address | `10.8.0.2/32` |
-| LAN address | Reserve in the infrastructure range when hardware is installed |
+| LAN address | `192.168.1.106` (static/reserved by owner) |
 | Private DNS zone | `home.zero-five.space` |
 | VPN DNS name | `delta.home.zero-five.space` |
 
 The Pi's WireGuard address is deliberately `.2`: it is infrastructure, not a
 personal client or VM. The private key stays on Delta; the Alpha peer contains
 only its public key and `/32` route.
+
+## Current rollout state
+
+| Check | State |
+| --- | --- |
+| Hostname and LAN SSH | Verified: `manuel@192.168.1.106` |
+| SSH authentication | Key-only; password authentication disabled |
+| Alpha SSH key | Authorized for `manuel` on Delta |
+| WireGuard package and interface | Installed; `wg0` enabled and active |
+| WireGuard address | `10.8.0.2/32` |
+| WireGuard listen port | UDP `51821` |
+| Alpha peer and handshake | Verified: active handshake |
+| Delta SSH key on Alpha | Authorized for `manuel`; direct SSH verified over WireGuard |
+
+Delta now also contains direct backup peer definitions for the registered
+WireGuard nodes. Their observed NAT endpoints are operational hints, not fixed
+addresses; a peer must receive Delta's public key before the direct handshake
+can succeed. Alpha remains the working path until those reciprocal peer blocks
+are applied.
+
+Use the fixed LAN address for direct SSH; this does not traverse Alpha:
+
+```bash
+ssh delta
+```
+
+The tracked client model is
+`zero-five-infra/wireguard/delta.conf.example`; the tracked SSH fragment is
+`zero-five-infra/ssh/macbook-zero-five.config.example`. `delta` resolves to
+`192.168.1.106` and has no `ProxyJump`. The WireGuard address is used for
+private VPN services and routes, not for this direct LAN administration path.
+
+## Delta WireGuard deployment
+
+On Delta, install WireGuard, generate its identity, and keep the private key
+only in `/etc/wireguard/wg0.conf`:
+
+```bash
+sudo apt update
+sudo apt install -y wireguard
+sudo install -d -m 700 /etc/wireguard
+umask 077
+wg genkey | sudo tee /etc/wireguard/delta.key >/dev/null
+sudo cat /etc/wireguard/delta.key | wg pubkey
+```
+
+Register the displayed public key as the Delta peer on Alpha, then create the
+client configuration from the tracked example with the generated private key.
+Delta's public SSH key is also authorized on Alpha's `manuel` account:
+
+```text
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDftmaFI4C+2JMVW52g+LW3oVxMymuz3I9QIy5LWofNK manuel@delta
+```
+Validate it before activation:
+
+```bash
+sudo wg-quick strip wg0
+sudo systemctl enable --now wg-quick@wg0
+sudo wg show
+ping -c 3 10.8.0.1
+```
+
+Do not restrict Delta's LAN SSH path until `ssh delta` succeeds from a second
+terminal. Keep the LAN session and physical console available during the first
+activation.
 
 ## Responsibilities
 
@@ -100,12 +165,12 @@ Reserved assignments:
 
 ## Migration gate
 
-No live address has been changed yet. Renumbering starts only after Delta is
-installed and reachable through a temporary, verified path.
+Delta's LAN address is now `192.168.1.106`; existing peers keep their current
+WireGuard addresses until each migration is separately verified.
 
 Migrate in this order:
 
-1. Install Delta on the LAN and reserve its LAN address.
+1. Install Delta on the LAN and reserve `192.168.1.106`.
 2. Add Delta as the Alpha peer at `10.8.0.2`.
 3. Deploy private DNS and verify records from Alpha and one VPN client.
 4. Move Gamma, Beta, MacBook, MSI, and iPhone one at a time, updating both

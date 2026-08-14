@@ -20,8 +20,9 @@ appropriate place to make durable edits.
 | SSH server base config | `/etc/ssh/sshd_config` | `root:root` | Package/server configuration; inspect effective state with `sshd -T` |
 | SSH server drop-ins | `/etc/ssh/sshd_config.d/*.conf` | `root:root` | Earlier lexical files may override later assumptions |
 | Authorized client keys | `/home/manuel/.ssh/authorized_keys` | `manuel:manuel`, `0600` | Public keys only; verified mode `0600` |
-| Netplan source | `/etc/netplan/00-installer-config.yaml` | `root:root`, `0600` | DHCP and persistent `wakeonlan: true` policy |
+| Netplan source | `/etc/netplan/00-installer-config.yaml` | `root:root`, `0600` | DHCP, persistent `wakeonlan: true`, and default route via Delta (`192.168.1.106`) with `dhcp4-overrides.use-routes: false` |
 | Generated networkd config | `/run/systemd/network/10-netplan-enp2s0.network` | Generated at runtime | Never edit; regenerate from Netplan |
+| Gateway failover watchdog | `/usr/local/sbin/gateway-watch` | `root:root`, `0755` | Installed reviewed helper (from `zero-five-infra/scripts/gateway-watch`); probes Delta every 10 s, falls back to router `192.168.1.1` when Delta is off |
 | Manual suspend command | `/usr/local/sbin/gamma-suspend` | `root:root`, `0755` | Installed reviewed helper; verified live |
 | Manual-only power policy | `/etc/systemd/logind.conf.d/10-gamma-manual-suspend-only.conf` | `root:root`, `0644` | Makes lid and idle actions `ignore`; verified live |
 | GRUB base defaults | `/etc/default/grub` | `root:root` | Ubuntu base configuration |
@@ -47,6 +48,9 @@ appropriate place to make durable edits.
 | `zero-five-infra/wireguard/vps.conf.example` | Reviewed against `/etc/wireguard/wg0.conf` on Alpha | Hub topology and Gamma public peer entry |
 | `zero-five-infra/scripts/gamma-suspend.sh` | `/usr/local/sbin/gamma-suspend` | Close remote sessions safely before suspend |
 | `zero-five-infra/systemd/logind.conf.d/10-gamma-manual-suspend-only.conf` | Same relative path under `/etc/systemd/` | Disable automatic lid and idle suspend |
+| `zero-five-infra/scripts/gateway-watch` | `/usr/local/sbin/gateway-watch` | Failover watchdog: default route via Delta, router fallback when Delta is off |
+| `zero-five-infra/systemd/gateway-watch.service` | `/etc/systemd/system/gateway-watch.service` | Runs the watchdog as a boot service |
+| `zero-five-infra/netplan/gamma/00-installer-config.yaml.example` | `/etc/netplan/00-installer-config.yaml` on Gamma | DHCP + wakeonlan + default route via Delta |
 
 The infrastructure repository contains no Gamma private key and performs no
 automatic deployment.
@@ -104,7 +108,7 @@ Do not run `cat /etc/wireguard/private.key`, `wg showconf`, or an unredirected
 | Connect through Alpha | `ssh gamma` |
 | Inspect the resolved SSH path | `ssh -G gamma \| grep -E '^(hostname\|user\|port\|proxyjump) '` |
 | Copy a file through Alpha | `scp -O local-file gamma:/home/manuel/` |
-| Test the LAN address | `ping -c 3 192.168.1.164` |
+| Test the LAN address | `ping -c 3 192.168.1.107` |
 
 ### On Gamma
 

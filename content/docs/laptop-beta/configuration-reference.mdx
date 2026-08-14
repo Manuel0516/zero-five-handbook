@@ -29,7 +29,7 @@ strip the `proxmox/beta` prefix and `.example` suffix to obtain the Beta path.
 | --- | --- | --- |
 | `proxmox/beta/etc/hostname.example` | Beta `/etc/hostname` | Authored |
 | `proxmox/beta/etc/hosts.example` | Beta `/etc/hosts` | Authored |
-| `proxmox/beta/etc/network/interfaces.example` | Beta `/etc/network/interfaces` | Authored; console-risking network source |
+| `zero-five-infra/proxmox/beta/etc/network/interfaces.example` | Beta `/etc/network/interfaces` | Authored; console-risking network source; gateway is Delta `192.168.1.106` |
 | `proxmox/beta/etc/resolv.conf.example` | Beta `/etc/resolv.conf` | Authored resolver source |
 | `proxmox/beta/etc/apt/sources.list.d/debian.sources.example` | Beta `/etc/apt/sources.list.d/debian.sources` | Authored APT source; enabled |
 | `proxmox/beta/etc/apt/sources.list.d/proxmox.sources.example` | Beta `/etc/apt/sources.list.d/proxmox.sources` | Authored APT source; enabled |
@@ -86,7 +86,7 @@ module/sysfs paths prove that the current boot detected and activated it.
 
 | Purpose | Exact Beta path | Observed owner/mode | Rule |
 | --- | --- | --- | --- |
-| Primary network source | `/etc/network/interfaces` | `root:root`, `0644` | Authored source for `nic0`, `vmbr0`, static `192.168.1.166/24`, gateway `192.168.1.1`, and persistent Wake-on-LAN commands |
+| Primary network source | `/etc/network/interfaces` | `root:root`, `0644` | Authored source for `nic0`, `vmbr0`, static `192.168.1.166/24`, gateway `192.168.1.106` (Delta VPN gateway), and persistent Wake-on-LAN commands |
 | Included network fragments | `/etc/network/interfaces.d/` | `root:root`, `0755`; empty | Included by the primary source; add only intentional reviewed fragments |
 | Resolver source | `/etc/resolv.conf` | `root:root`, `0644` | Current DNS server `192.168.1.1` and search domain `zero-five.space` |
 | Runtime bridge | Kernel interface `vmbr0` | Runtime state, not a file | Inspect with `ip -brief address show vmbr0` and `bridge link` |

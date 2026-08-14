@@ -44,7 +44,7 @@ usermod -aG sudo,docker manuel
 | `PasswordAuthentication` | `no` | Password exchange is disabled in `00-zero-five-authentication.conf` |
 | `KbdInteractiveAuthentication` | `no` | PAM-backed interactive challenges cannot become a password fallback |
 | `AuthenticationMethods` | `publickey` | A valid authorized key is explicitly required |
-| `PubkeyAuthentication` | `yes` | Six ed25519 public keys are installed in `~/.ssh/authorized_keys` |
+| `PubkeyAuthentication` | `yes` | Seven ed25519 public keys are installed in `~/.ssh/authorized_keys` (2026-08-14: orphaned `macbook` key removed; keys: `archcraft`, `manuellore05@gmail.com`, three GitHub Actions CI keys, `manuel@delta`, one key without a comment) |
 
 > **Precedence trap found on 2026-07-21:** The root-only
 > `50-cloud-init.conf` enabled passwords and sorted before

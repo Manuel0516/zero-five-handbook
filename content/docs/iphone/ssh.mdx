@@ -1,0 +1,47 @@
+---
+title: SSH — Phone to Alpha and Delta
+description: "Planned 2026-08-14, not yet configured. Steps to add the iPhone (10.8.0.10) as an SSH client for Alpha (port 2020) and Delta (port 22) over the WireGuard mesh."
+---
+
+> **Status: PLANNED — not yet configured (2026-08-14).** The iPhone already
+> exists in the mesh as `10.8.0.10/32` (see the
+> [WireGuard page](/docs/iphone/wireguard)); this page logs the SSH client
+> setup steps to run when the user configures the phone.
+
+## Goal
+
+From the iPhone, over the WireGuard mesh, SSH to:
+
+- **Alpha** (VPS): `manuel@10.8.0.1 -p 2020`
+- **Delta** (Raspberry Pi): `manuel@10.8.0.2`
+
+The phone's private key stays on the phone; only its public key is added to
+`~/.ssh/authorized_keys` on Alpha and Delta.
+
+## Steps (run by owner on the phone)
+
+1. **Install an SSH client** on the iPhone — e.g. Termius (App Store), or
+   another client that supports ed25519 keys.
+2. **Generate an ed25519 key pair in the app** (Termius: Settings → Keys →
+   Generate; choose `ed25519`, name it e.g. `iphone`).
+3. **Copy the public key** — it starts with `ssh-ed25519 AAAA…`.
+4. **Send the public key** to the assistant (Telegram) so it can be added to:
+   - Alpha: `/home/manuel/.ssh/authorized_keys`
+   - Delta: `/home/manuel/.ssh/authorized_keys`
+5. **Create hosts in the app**:
+   - Alpha: host `10.8.0.1`, port `2020`, user `manuel`, key `iphone`
+   - Delta: host `10.8.0.2`, port `22`, user `manuel`, key `iphone`
+6. **Test**: `ssh manuel@10.8.0.1 -p 2020` then `ssh manuel@10.8.0.2` from the
+   app, while the iPhone WireGuard tunnel is up.
+
+## Security notes
+
+- The private key never leaves the phone — never paste it into chat, Git,
+  or the handbook.
+- Both Alpha and Delta already enforce public-key-only SSH
+  (`PasswordAuthentication no`), so the key addition is the whole
+  authentication story.
+- The phone's WireGuard `AllowedIPs` remains `10.8.0.1/32` — SSH to Delta
+  (`10.8.0.2`) requires an explicit route addition on the phone peer, or a
+  second peer entry, or routing via Alpha. **Verify reachability of
+  `10.8.0.2` from the phone before relying on it.**

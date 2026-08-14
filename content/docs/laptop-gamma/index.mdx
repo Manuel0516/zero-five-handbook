@@ -15,7 +15,7 @@ assumed to exist on this installation.
 flowchart LR
     mac["MacBook<br/>192.168.1.157<br/>WireGuard 10.8.0.3"]
     alpha["Alpha VPS<br/>Public SSH :2020<br/>WireGuard 10.8.0.1"]
-    gamma["Gamma<br/>LAN 192.168.1.164<br/>WireGuard 10.8.0.4"]
+    gamma["Gamma<br/>LAN 192.168.1.107<br/>WireGuard 10.8.0.4"]
 
     mac -->|"SSH alias: delta"| delta["Delta Raspberry Pi<br/>WireGuard 10.8.0.2"]
     delta -->|"ProxyJump second hop<br/>10.8.0.4:22"| gamma
@@ -40,7 +40,7 @@ The following state was observed live on 2026-07-22:
 | Hardware | ASUS X555LJ; Realtek RTL8111/8168-family Ethernet |
 | OS | Ubuntu 26.04 LTS, kernel `7.0.0-28-generic` |
 | Hostname | `gamma` |
-| LAN | `enp2s0`, DHCP address `192.168.1.164/24` |
+| LAN | `enp2s0`, DHCP address `192.168.1.107/24` (DHCP-reserved; previously `.164`) |
 | WireGuard | `wg0` at `10.8.0.4/32`; `wg-quick@wg0` enabled and active |
 | VPN proof | Gamma pinged Alpha at `10.8.0.1`; Alpha pinged Gamma at `10.8.0.4` |
 | SSH | `ssh gamma` uses `ProxyJump delta`; direct Delta→Gamma SSH verified 2026-08-13 |
@@ -81,7 +81,7 @@ wakeonlan -i 192.168.1.255 -p 9 9c:5c:8e:29:1f:b0
 Then wait for WireGuard and SSH:
 
 ```bash
-ping -c 3 192.168.1.164
+ping -c 3 192.168.1.107
 ssh gamma
 ```
 

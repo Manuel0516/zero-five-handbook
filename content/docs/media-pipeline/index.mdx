@@ -49,7 +49,7 @@ design.
 | `media-dl-vm` | Dirty download VM on Beta. Hosts Gluetun+Mullvad, qBittorrent, Prowlarr, Radarr, Sonarr. |
 | `quarantine-vm` | Hermetic scan VM, **sibling of `media-dl-vm` on Beta** (not nested). No network interfaces at all; files in/out only via the host-owned transfer directory. Holds the signing key. |
 | Transfer directory | Host-owned shared dir on Beta (`/srv/media-transfer`): `inbox` (written by the download VM, read by the quarantine VM) and `outbox` (written by the quarantine VM, pulled by Gamma). |
-| Gamma | Clean box (192.168.1.164, wg0 10.8.0.4). Jellyfin + Jellyseerr + importer agent. See [WireGuard](/docs/laptop-gamma/wireguard). |
+| Gamma | Clean box (192.168.1.107, wg0 10.8.0.4). Jellyfin + Jellyseerr + importer agent. See [WireGuard](/docs/laptop-gamma/wireguard). |
 | Alpha | VPS WireGuard hub + Traefik (10.8.0.1). Provides VPN-only remote access to Jellyfin/Jellyseerr on Gamma. |
 
 ## Topology
@@ -79,7 +79,7 @@ flowchart LR
     end
 
     outbox -->|"LAN rsync pull — Gamma initiates, via Beta host"| agent["Importer agent<br/>(verify signature, move, ACK)"]
-    agent --> lib["Jellyfin library on Gamma<br/>(192.168.1.164 / 10.8.0.4)"]
+    agent --> lib["Jellyfin library on Gamma<br/>(192.168.1.107 / 10.8.0.4)"]
     jellyfin["Jellyfin + Jellyseerr"] --> lib
     alpha["Alpha VPS — Traefik 10.8.0.1"] -->|"VPN-only routes (ipWhiteList 10.8.0.0/24)"| jellyfin
     phone["Phone / remote — WireGuard"] --> alpha

@@ -1,0 +1,60 @@
+---
+title: Monero Mining
+description: Prepare Gamma's disabled XMRig systemd service with the same pool and wallet configuration used by MSI.
+---
+
+Gamma has a reviewed, **disabled-by-default** XMRig service source at
+`zero-five-infra/services/mining/monero-miner.service`. It is not installed,
+enabled, or started by this change.
+
+## Configuration
+
+The shared MSI/Gamma configuration is recorded in
+`zero-five-infra/services/mining/monero.env.example`. Create
+`/etc/xmrig/monero.env` from it:
+
+```dotenv
+XMRIG_POOL_URL=pool.hashvault.pro:443
+XMRIG_WALLET_ADDRESS=854CzD2cnFZRh6BgFJX1zPJ19Ajv8z8VX6aHhaubQwymckEszzqGqvhGca4tZgy7CcUem2ke4XTuxPD7zgdiMGXZ9TpaGM1.msi
+XMRIG_POOL_PASSWORD=cachyos
+XMRIG_CPU_MAX_THREADS_HINT=100
+XMRIG_DONATE_LEVEL=1
+```
+
+Keep that file root-owned with mode `0600`. The wallet address is public pool
+configuration, but the pool password and any account token are credentials.
+The service also enables pool keepalive and passes `--coin=monero`.
+
+## Install without starting
+
+On Gamma, after confirming the MSI values and installing XMRig at
+`/usr/bin/xmrig`:
+
+```bash
+sudo install -Dm644 monero-miner.service /etc/systemd/system/monero-miner.service
+sudo install -Dm600 monero.env /etc/xmrig/monero.env
+sudo systemctl daemon-reload
+sudo systemd-analyze verify /etc/systemd/system/monero-miner.service
+```
+
+These commands only install and validate the unit. Do **not** run
+`systemctl enable` or `systemctl start` until mining is approved.
+
+## Use later
+
+```bash
+sudo systemctl start monero-miner
+sudo systemctl status monero-miner
+journalctl -u monero-miner -f
+sudo systemctl stop monero-miner
+```
+
+Enabling it is a separate boot-persistence decision:
+
+```bash
+sudo systemctl enable monero-miner
+```
+
+To remove the prepared service, stop it if it was started, remove the unit and
+environment file, then run `sudo systemctl daemon-reload`. Removing the
+environment file also prevents accidental restarts with the pool credentials.

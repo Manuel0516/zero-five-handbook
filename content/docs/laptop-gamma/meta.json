@@ -6,6 +6,7 @@
     "wireguard",
     "ssh",
     "boot-and-firmware",
-    "wake-on-lan"
+    "wake-on-lan",
+    "monero-mining"
   ]
 }

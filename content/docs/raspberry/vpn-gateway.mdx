@@ -1,0 +1,189 @@
+---
+title: Delta VPN Gateway (Mullvad) — Design Proposal
+description: Proposed Delta role: route all internet traffic from Beta and Gamma through Mullvad via a single toggle on the Pi. Fail-open gateway, plain WireGuard. Design only — not deployed.
+---
+
+> **Status: DESIGN PROPOSAL — nothing in this page is deployed.**
+> Agreed 2026-08-13. Records the architecture and implementation plan for a
+> Delta-owned VPN gateway. This page will be updated as components are built;
+> verified runtime state belongs in runbook pages, not here.
+
+## Goal
+
+- **All internet traffic from Beta and Gamma is routed through Delta**
+  (`192.168.1.106`), their new default gateway.
+- Toggling Mullvad on Delta switches **both laptops at once** between tunnel
+  and direct egress.
+- **Fail-open** by design: VPN **on** → everything via Mullvad; VPN **off** →
+  normal internet via the home router (192.168.1.1). No kill switch.
+- **Pi-off fallback (owner requirement, 2026-08-13):** if Delta is
+  unreachable, Beta and Gamma automatically switch their default gateway back
+  to the router (192.168.1.1) — **no VPN, normal internet**. When Delta
+  returns, they switch back to it automatically.
+- Purpose: Monero mining traffic (MSI ~2.4 kH/s, Beta/Gamma laptops) egresses
+  via Mullvad from a single control point, so the laptops run no VPN software
+  and need no per-machine configuration changes when the tunnel is toggled.
+
+## Naming map
+
+| Name | What it is |
+| --- | --- |
+| Delta | Raspberry Pi 4 Model B, always-on home node (192.168.1.106, wg0 10.8.0.2). See [index](/docs/raspberry). |
+| Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.5). |
+| Gamma | Clean box, Ubuntu + netplan (192.168.1.164, wg0 10.8.0.4). Jellyfin host. |
+| Home router | 192.168.1.1 — normal egress and DHCP source on the LAN. |
+| `mullvad` | Delta's Mullvad WireGuard interface (config `/etc/wireguard/mullvad.conf`), **distinct from `wg0`** (Zero Five mesh). |
+
+## Topology
+
+```text
+Beta (.166) ─┐
+             ├──> Delta / Pi (.106) ── VPN up   ──> Mullvad WireGuard ──> internet
+Gamma (.164) ─┘        └────────────── VPN down ──> home router (.1) ──> internet
+     │  Delta unreachable (watchdog) ─────────────> home router (.1) ──> internet
+```
+
+Both laptops keep their LAN IPs and DHCP; only the **default gateway** changes
+to `192.168.1.106`. Delta NATs (masquerades) their traffic out whichever egress
+is active. A small watchdog on each laptop restores the router as gateway when
+Delta is off (see design decision 7).
+
+## Current verified state (2026-08-13)
+
+| Fact | Value |
+| --- | --- |
+| Delta model | Raspberry Pi 4 Model B Rev 1.4 |
+| Delta OS | Debian 13 (trixie), wired `eth0` at 192.168.1.106/24 (DHCP, default via .1) |
+| Delta mesh | `wg0` 10.8.0.2/32 active; direct `/32` peer routes for the mesh (10.8.0.x) |
+| Tools | `wg-quick` installed; **Mullvad app not installed**; `net.ipv4.ip_forward = 0` |
+| Beta | Proxmox VE host at 192.168.1.166 — gateway configured in `/etc/network/interfaces` |
+| Gamma | Ubuntu netplan (`/etc/netplan/00-installer-config.yaml`), wired `enp2s0` |
+
+## Design decisions
+
+1. **Plain WireGuard config, not the Mullvad app.** The app ships a kill
+   switch that fights the fail-open toggle model. A WireGuard configuration
+   downloaded from the Mullvad account (Linux template) with `wg-quick` gives a
+   transparent, scriptable on/off with no background daemon. `wg-quick` is
+   already on Delta.
+2. **Fail-open (no kill switch).** Matches the owner's model ("turn the VPN on
+   in the Pi → everything through VPN"). Trade-off: if the tunnel drops while
+   the interface is up, forwarded traffic silently falls back to the direct
+   path. A fail-closed variant (kill switch per laptop) is a later option if
+   mining must never leak the home IP — it changes the toggle semantics.
+3. **Zero Five mesh stays direct.** The `10.8.0.0/24` routes via `wg0` are
+   more specific than Mullvad's `0.0.0.0/0` default route, so Alpha, SSH and
+   mesh traffic never enter the tunnel. Re-verify after first `wg-quick up`.
+4. **DNS is not tunneled in v1.** Laptops keep the router as resolver; when
+   the tunnel is up their DNS queries still egress directly. Accepted for v1
+   (irrelevant for mining traffic). Later: dnsmasq/unbound on Delta using
+   Mullvad DNS (`10.64.0.1`) when the tunnel is up.
+5. **IPv6 not tunneled in v1.** Mullvad's config provides IPv6 over the
+   tunnel, but forwarded IPv6 would need `ip6tables` + forwarding on Delta.
+   Simplest v1: keep IPv6 disabled/unconfigured on Beta and Gamma egress so no
+   IPv6 path bypasses the VPN.
+6. **MSI joins later with the same change** (point its default route at
+   Delta) or runs Mullvad natively — independent of this gateway.
+7. **Gateway failover watchdog on Beta and Gamma.** A small systemd service
+   (`/usr/local/sbin/gateway-watch`) probes Delta every ~10 s; two consecutive
+   missed probes ⇒ default route switches to the router (no VPN, normal
+   internet); two consecutive successful probes ⇒ back to Delta. This is the
+   only piece that must run on the laptops — the same tracked-example
+   convention as `gamma-suspend`. No kernel mechanism can do this
+   automatically: Linux only fails over between default routes when the
+   *interface* goes down, not when a next hop is merely unreachable, so a
+   reachability loop is required. Accepted trade-off: if Delta dies while the
+   tunnel is up, mining traffic falls back to the home IP until Delta returns.
+
+## Implementation plan (deferred — owner approval required)
+
+### Delta — one-time (needs sudo)
+
+```bash
+# 1. Enable forwarding persistently
+echo 'net.ipv4.ip_forward=1' | sudo tee /etc/sysctl.d/99-gateway.conf
+sudo sysctl -p /etc/sysctl.d/99-gateway.conf
+
+# 2. NAT for forwarded traffic (direct path + tunnel path)
+sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING -o mullvad -j MASQUERADE
+# persist: sudo apt install iptables-persistent
+
+# 3. Mullvad WireGuard config from account.mullvad.net (Linux template)
+sudo install -m 600 mullvad-<server>.conf /etc/wireguard/mullvad.conf
+```
+
+### Delta — daily toggle
+
+```bash
+sudo wg-quick up mullvad    # everything via Mullvad
+sudo wg-quick down mullvad  # back to direct
+```
+
+A systemd unit wrapper (`mullvad-vpn.service`, `start`/`stop`) is the preferred
+toggle once the owner picks between manual commands and unit.
+
+### Gamma — netplan
+
+Add a route overriding the DHCP gateway in `/etc/netplan/00-installer-config.yaml`:
+
+```yaml
+routes:
+  - to: default
+    via: 192.168.1.106
+```
+
+### Beta — Proxmox
+
+In `/etc/network/interfaces`, set the management bridge/host gateway to
+`192.168.1.106`. This routes the Proxmox host and all its VMs through Delta.
+
+### Beta and Gamma — gateway failover watchdog (same script on both)
+
+Deploy the tracked example (`zero-five-infra/scripts/gateway-watch`, same
+convention as `gamma-suspend`) to `/usr/local/sbin/gateway-watch` and enable
+its systemd unit. Behavior:
+
+- Delta reachable ⇒ `default via 192.168.1.106` (VPN or direct per the toggle).
+- Two consecutive missed probes (10 s interval) ⇒ `default via 192.168.1.1` —
+  no VPN, normal internet, within ~20 s of Delta going off.
+- Two consecutive successful probes ⇒ automatically back to `192.168.1.106`.
+
+The MSI laptop gets the same watchdog if it later joins the gateway.
+
+## Verification
+
+1. On a laptop: `ip route` shows `default via 192.168.1.106`.
+2. `curl ifconfig.me` on a laptop → home public IP with VPN off, Mullvad IP
+   with VPN on.
+3. On Delta: `sudo wg show mullvad` → transfer counters increase while mining.
+4. Mesh unaffected: `ping -c 3 10.8.0.1` from Delta; SSH to Gamma/Beta via
+   their `10.8.0.x` addresses still works with the tunnel up.
+5. **Pi-off test:** power off Delta → within ~20 s a laptop's `ip route`
+   shows `default via 192.168.1.1` and `curl ifconfig.me` still works (home
+   IP, no VPN). Power Delta back on → within ~20 s the route returns to
+   `192.168.1.106`.
+
+## Rollback
+
+In order: `sudo wg-quick down mullvad` → remove the two NAT rules → restore
+the laptop gateways to `192.168.1.1` (and disable/remove `gateway-watch`) →
+remove `/etc/sysctl.d/99-gateway.conf`.
+Each step is reversible independently; no state is stored outside these files.
+
+## Pitfalls / failure modes
+
+- **The router fallback covers only Delta being off.** While Delta is up,
+  laptop egress goes through Delta (tunnel or direct per the toggle); if the
+  tunnel itself drops, Delta's fail-open forwarding keeps laptops online on
+  the direct path — the laptops do not switch to the router in that case (they
+  cannot distinguish it from "VPN off"). The watchdog exists for the Pi-off
+  case only, as requested.
+- **Pools may block VPN IPs.** Some mining pools reject datacenter/VPN
+  addresses — switch Mullvad server or pool, not a design fix.
+- **`wg-quick up mullvad` also routes Delta's own traffic** through the
+  tunnel (intended for the mining box); the mesh is excluded via the specific
+  `10.8.0.0/24` routes — confirm after every config change.
+- **`mullvad.conf` contains a private key** — `chmod 600`, never commit, never
+  paste. Mullvad accounts support multiple WireGuard devices; Delta gets its
+  own key, separate from the media-pipeline download VM's dedicated account.

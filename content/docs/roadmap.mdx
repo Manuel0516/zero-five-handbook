@@ -44,12 +44,15 @@ and direct SSH setup is documented in the [Delta handbook](/docs/raspberry).
   - Use an encrypted, deduplicated repository; restic is the current candidate.
   - Prefer pull-based jobs controlled by Delta, with a dedicated backup
     account that normal NAS users cannot modify.
-  - Back up Alpha databases, Docker volumes, service configuration, Minecraft,
-    Gamma service data, Beta/Proxmox configuration, and Delta configuration.
+  - Back up Alpha databases, Docker volumes, service configuration, Gamma
+    service data, Beta/Proxmox configuration, and Delta configuration.
+  - Treat Second Brain as the highest-priority Alpha workload: include its
+    PostgreSQL data, all MinIO objects, bot state, application version, and
+    runtime configuration.
   - Define retention, pruning, stale/failure alerts, disk-full alerts, and
     repository integrity checks.
-  - Restore a file, directory, database, and service configuration before
-    calling the backup system operational.
+  - Run autonomously from Delta at 21:00 every day.
+  - Restore testing and a second destination are intentionally deferred.
 - [ ] Keep a second backup destination or offline copy in the design.
   - A single external drive is storage, not disaster recovery.
   - Do not treat the Pi's SD card as the backup target.

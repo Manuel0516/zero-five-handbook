@@ -1,4 +1,4 @@
 {
   "title": "Raspberry Pi - Delta",
-  "pages": ["index", "vpn-gateway"]
+  "pages": ["index", "backup", "vpn-gateway"]
 }

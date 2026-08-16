@@ -1,0 +1,119 @@
+---
+title: Delta backup controller
+description: The single-destination, daily backup system controlled by Delta.
+---
+
+Delta is the backup controller for Alpha, Beta, Gamma, and itself. The
+operational source is:
+
+```text
+git@github.com:Manuel0516/zero-five-infra.git
+```
+
+Delta keeps this checkout at `/home/manuel/services/zero-five-infra`. Backup
+repositories, repository passwords, temporary exports, and runtime secrets
+are not stored in Git.
+
+## Current scope
+
+The first implementation is an emergency safety net, not a fully tested
+disaster-recovery system. It has one destination, Delta's external disk at
+`/srv/nas`, and does not yet include restore drills or a second copy.
+
+Minecraft is explicitly excluded.
+
+The daily job runs at 21:00 in Delta's local timezone. It backs up Delta,
+Alpha, Beta, and Gamma sequentially.
+
+## Second Brain priority
+
+Second Brain is the highest-priority Alpha workload. Its backup includes:
+
+- an application-consistent PostgreSQL custom-format dump;
+- every MinIO bucket and uploaded object, exported through the MinIO API;
+- the `bot-data` state where present in the production Compose project;
+- the exact deployed Git commit and working-tree status;
+- `compose.yaml` and the production environment file;
+- the application checkout, excluding reproducible dependencies and build output.
+
+The PostgreSQL volume is not copied blindly. The SQL dump is the structured-data
+export, while MinIO is exported separately because uploaded objects are not in
+PostgreSQL.
+
+## Installation outline
+
+These commands are deployment steps for Delta and the source machines; local
+validation does not run them.
+
+On Delta, clone the operational repository:
+
+```bash
+sudo install -d -m 0750 /home/manuel/services
+git clone git@github.com:Manuel0516/zero-five-infra.git \
+  /home/manuel/services/zero-five-infra
+sudo install -d -m 0700 /etc/zero-five-backup
+sudo cp /home/manuel/services/zero-five-infra/backup/backup.env.example \
+  /etc/zero-five-backup/backup.env
+sudo cp /home/manuel/services/zero-five-infra/backup/delta-paths.example \
+  /etc/zero-five-backup/delta-paths
+sudo cp /home/manuel/services/zero-five-infra/backup/beta-paths.example \
+  /etc/zero-five-backup/beta-paths
+sudo cp /home/manuel/services/zero-five-infra/backup/gamma-paths.example \
+  /etc/zero-five-backup/gamma-paths
+sudo chmod 600 /etc/zero-five-backup/backup.env
+```
+
+Create the repository password interactively in
+`/etc/zero-five-backup/restic-password`. Do not place it in Git or a command
+line. Install restic, rsync, and the SSH client before enabling the service.
+
+On Alpha, install `scripts/zero-five-alpha-export.sh` as
+`/usr/local/sbin/zero-five-alpha-export`, create the root-readable
+`/etc/zero-five-backup/second-brain.env` from its example, and configure the
+dedicated backup SSH identity to run the exporter and required transfer
+operations. Pin the MinIO client image tag before relying on it in production.
+
+Install the service and timer on Delta:
+
+```bash
+sudo install -Dm0755 \
+  /home/manuel/services/zero-five-infra/scripts/zero-five-backup.sh \
+  /usr/local/sbin/zero-five-backup
+sudo install -Dm0644 \
+  /home/manuel/services/zero-five-infra/systemd/zero-five-backup.service.example \
+  /etc/systemd/system/zero-five-backup.service
+sudo install -Dm0644 \
+  /home/manuel/services/zero-five-infra/systemd/zero-five-backup.timer.example \
+  /etc/systemd/system/zero-five-backup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable zero-five-backup.timer
+```
+
+Run each source manually before enabling the 21:00 timer:
+
+```bash
+sudo /usr/local/sbin/zero-five-backup delta
+sudo /usr/local/sbin/zero-five-backup alpha
+sudo /usr/local/sbin/zero-five-backup beta
+sudo /usr/local/sbin/zero-five-backup gamma
+```
+
+The current implementation intentionally does not restore data. Verification
+checks that snapshots exist, expected exports are present, repositories pass
+`restic check`, excluded content is absent, permissions are correct, and the
+disk has sufficient capacity.
+
+## Failure and rollback
+
+The job refuses to run when `/srv/nas` is not mounted, the repository password
+is missing, the disk is below its free-space threshold, or a source manifest is
+missing. A source failure stops the all-sources run and leaves existing
+snapshots untouched.
+
+To disable automation while preserving the repositories:
+
+```bash
+sudo systemctl disable --now zero-five-backup.timer
+```
+
+Removing the service, timer, and scripts does not delete `/srv/nas/backups/`.

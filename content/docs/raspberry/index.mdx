@@ -75,16 +75,17 @@ WireGuard-accessible interfaces. It will not expose SMB or an administration
 interface publicly. Before calling it operational, test users and groups,
 share permissions, reboot/mount behavior, full-disk behavior, and recovery.
 
-Delta will control encrypted, deduplicated backups, with restic as the current
-candidate. Jobs should pull from Alpha, Gamma, Beta/Proxmox, and Delta where
-practical, using a dedicated backup account that ordinary NAS users cannot
-alter. The design must include retention, pruning, failure and disk-full
-alerts, repository checks, and restore tests for files, directories, databases,
-and service configuration.
+Delta controls the initial encrypted, deduplicated backup system with restic.
+The operational implementation lives in `zero-five-infra`; Delta keeps a
+checkout at `/home/manuel/services/zero-five-infra`. The daily controller runs
+at 21:00 and covers Alpha, Beta, Gamma, and Delta. Second Brain is the highest-
+priority Alpha workload and includes both its PostgreSQL data and all MinIO
+objects. Minecraft is excluded for now.
 
-The 4 TB disk is only one copy. A second disk or offline/off-site destination
-is required for disaster recovery. Samba and restic remain uninstalled until
-the source paths, users, retention, and restore requirements are confirmed.
+The current phase deliberately uses only this one disk. A second destination
+and restore testing are deferred. Samba is not required by the backup jobs.
+See the [Delta backup controller](/docs/raspberry/backup) page for the
+implementation and installation procedure.
 
 ## Delta WireGuard deployment
 

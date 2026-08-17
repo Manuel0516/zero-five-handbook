@@ -25,6 +25,21 @@ Minecraft is explicitly excluded.
 The daily job runs at 21:00 in Delta's local timezone. It backs up Delta,
 Alpha, Beta, and Gamma sequentially.
 
+## Beta and Gamma power-state handling
+
+Beta and Gamma are laptops that normally sleep. The controller restores their
+prior power state around their backup:
+
+- if a source was **asleep**, it is woken with a Wake-on-LAN magic packet
+  (`delta-wake`), the backup runs, then it is suspended again;
+- if a source was already **awake**, the backup runs and it is left running.
+
+Alpha is the always-on VPS and is never woken or suspended. A source with no
+suspend command configured is simply left running after its backup. The wake
+timeout, WoL target names, and suspend commands are configuration in
+`backup.env` (`WAKE_SCRIPT`, `WAIT_UP_S`, `BETA/GAMMA_WAKE_NAME`,
+`BETA/GAMMA_SUSPEND_CMD`).
+
 ## Second Brain priority
 
 Second Brain is the highest-priority Alpha workload. Its backup includes:

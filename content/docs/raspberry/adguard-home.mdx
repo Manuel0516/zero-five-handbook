@@ -1,0 +1,128 @@
+---
+title: Private DNS on Delta
+description: "AdGuard Home on Delta as the home resolver for zero-five.space — VPN-aware naming, ad-blocking, flat records, encrypted upstream. Proposal — not yet deployed."
+---
+
+> **Status: PROPOSAL** (design-complete, pending green light). No machine
+> changes have been made. See [Infrastructure Roadmap](/docs/roadmap) "Private
+> DNS and remote access".
+
+Delta gets a private, VPN-aware DNS resolver so home hosts and future
+home-hosted apps resolve by stable names over the LAN + WireGuard mesh.
+AdGuard Home runs in Docker on Delta. It binds **only** to the LAN and
+WireGuard interfaces — it never answers on a public network — and forwards
+resolvable names on, so it is a forwarder, not an open recursive resolver.
+
+This is deliberately **independent of Alpha**. It is the home resolver,
+managed by Delta, used by every LAN/VPN client. Public Cloudflare DNS for
+`zero-five.space`, and Traefik on Alpha, are untouched.
+
+## Why
+
+The fleet currently reaches services by remembered IPs and scattered per-device
+`/etc/hosts`. As apps migrate off Alpha (personal-ai, minecraft, monitoring),
+their names must stay stable even as their host changes. A single private
+resolver gives:
+
+- stable **host** names for every mesh peer (`alpha`, `delta`, `gamma`,
+  `beta`, `macbook`, `msi`, `blackarch`) with `.zero-five.space`;
+- stable **app** names that follow the service wherever it is deployed;
+- **ad-blocking + per-client filtering** (the same motivation as the Pi-hole
+  option, with a lighter footprint on Delta);
+- a consistent resolver DNS that every VPN client already points at, so no
+  per-device hosts-file drift.
+
+## Decision log (from design conversation, 2026-08)
+
+- **Tool: AdGuard Home**, not Pi-hole — lighter on Delta (which already runs
+  the backup controller and the Mullvad gateway), cleaner per-client
+  filtering, and better upstream DoH/DoT support.
+- **Names: flat under `zero-five.space`, no `home.` sub-zone.** The user does
+  not want a sub-path distinction; almost nothing will be public anyway.
+  AdGuard is authoritative for records pinned to the mesh, and forwards
+  everything else (including the public/in-use `zero-five.space` records) so
+  VPN clients see the same public names as the wider internet.
+- **Delivery: Docker Compose** on Delta, matching the other services and
+  making it easy to back up and redeploy.
+
+## Zone / name model
+
+Two behaviors in one resolver:
+
+1. **Public names already in Cloudflare** (`hub`, `brain`, `ai`, `docs`,
+   `hermes`, wildcard-covering public services, `mc`) — AdGuard **forwards**
+   upstream, so VPN clients resolve the same records the internet does.
+2. **Private host/app names** — AdGuard answers from local (rewritten)
+   **authoritative** records that are visible **only** on the LAN/VPN and
+   never copied to a public authoritative server.
+
+This mirrors the "pick per name" model: only the private names are local; the
+rest are proxied so nothing mirrors stale.
+
+## Proposed record set (DNS rewrites in AdGuard)
+
+Host records, pinned to mesh IPs:
+
+| Name | Target |
+|---|---|
+| `alpha.zero-five.space` | 10.8.0.1 |
+| `delta.zero-five.space` | 10.8.0.2 |
+| `macbook.zero-five.space` | 10.8.0.3 |
+| `gamma.zero-five.space` | 10.8.0.4 |
+| `beta.zero-five.space` | 10.8.0.5 |
+| `blackarch.zero-five.space` | 10.8.0.101 |
+
+App records follow the service — when `personal-ai`, `minecraft`, or the
+monitor moves to Gamma/Delta, it keeps a stable flat name that points at
+whatever currently hosts it.
+
+## Binding / hardening
+
+- AdGuard listens only on `10.8.0.0/24` (WireGuard mesh) + `192.168.1.0/24`
+  (home LAN). It never binds a public interface.
+- Upstream is an **encrypted** resolver (DoH/DoT — `something.1.1.1.1` /
+  `8.8.8.8` on) so the box never does open recursion an attacker can use as a
+  DRDoS reflector.
+- UFW on Delta already has scoped container→host rules; the bind allowlist
+  lives inside AdGuard, so even a misconfig cannot open-recursive.
+
+## Deployment sketch (Docker Compose, Delta)
+
+```yaml
+# adguard-home compose project on Delta
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "3000:3000"        # admin UI — bind to LAN/VPN only, not public
+      - "3000:3000/udp"
+    volumes:
+      - /srv/nas/apps/adguard/conf:/opt/adguardhome/conf
+      - /srv/nas/apps/adguard/work:/opt/adguardhome/work
+    restart: unless-stopped
+```
+
+The admin UI (port 3000) is bound to the VPN/LAN path only. The compose job is
+a skele for now — final numbers come at deployment.
+
+## Mesh adoption and rollback
+
+- Each WireGuard client peer gains `DNS = 10.8.0.2`. Any device on the VPN
+  then resolves home names + ad-block automatically.
+- Rollback: remove the `DNS =` line from each peer (back to existing manual
+  resolvers) — nothing public changes and existing service names remain.
+
+## Backup integration
+
+AdGuard's config (DNS rewrites + filters) is small and static. Add its data
+dir under `/srv/nas/apps/adguard/` to Delta's [`delta-paths`
+manifest](/docs/) so the 21:00 Delta backup controller covers it.
+
+## Open / future
+
+- Decide the exact upstream resolver(s) and blocklist set at deployment.
+- Inventory service names for apps migrating off Alpha (part of the
+  [Gamma migration](/docs/roadmap)).
+- Confirm per-client (by subnet) ad-block on/off for known VPN clients.

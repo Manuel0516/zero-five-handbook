@@ -1,6 +1,6 @@
 ---
 title: Delta backup controller
-description: The single-destination, daily backup system controlled by Delta.
+description: "The single-destination, daily backup system controlled by Delta. Deployment status, topology, verification, and how to extend it to new applications."
 ---
 
 Delta is the backup controller for Alpha, Beta, Gamma, and itself. The
@@ -25,7 +25,24 @@ Minecraft is explicitly excluded.
 The daily job runs at 21:00 in Delta's local timezone. It backs up Delta,
 Alpha, Beta, and Gamma sequentially.
 
-## Beta and Gamma power-state handling
+## Deployment status (verified 2026-08-20)
+
+Fully deployed and smoke-tested end-to-end. All four sources back up cleanly
+(`restic backup` → `check` → `forget --prune` all pass with "no errors found").
+
+| Component | State |
+|---|---|
+| **Delta** controller | restic 0.18.0, `/etc/zero-five-backup/` config, `/srv/nas/backups`, `backup@delta` root key, `/usr/local/sbin/zero-five-backup`, systemd service + timer |
+| **Alpha** source | `/usr/local/sbin/zero-five-alpha-export` (with both fixes), `/etc/zero-five-backup/second-brain.env`, `backup@delta` key authorized, scoped NOPASSWD sudoers (exporter + rsync) |
+| **Beta** source | `/usr/local/sbin/beta-suspend`, `backup@delta` key (root), scoped NOPASSWD sudoers (rsync + beta-suspend) |
+| **Gamma** source | `/usr/local/sbin/gamma-suspend`, `backup@delta` key (manuel), scoped NOPASSWD sudoers (rsync + gamma-suspend) |
+
+**Not yet done:** `sudo systemctl enable zero-five-backup.timer` still needs a
+one-time root command on Delta (the unit is installed and `daemon-reload`ed
+but not enabled). The controller's own sudo was re-locked to require a
+password, so this is a manual step.
+
+## Wake/suspend — restore prior power state
 
 Beta and Gamma are laptops that normally sleep. The controller restores their
 prior power state around their backup:
@@ -35,25 +52,154 @@ prior power state around their backup:
 - if a source was already **awake**, the backup runs and it is left running.
 
 Alpha is the always-on VPS and is never woken or suspended. A source with no
-suspend command configured is simply left running after its backup. The wake
-timeout, WoL target names, and suspend commands are configuration in
-`backup.env` (`WAKE_SCRIPT`, `WAIT_UP_S`, `BETA/GAMMA_WAKE_NAME`,
-`BETA/GAMMA_SUSPEND_CMD`).
+suspend command configured is simply left running after its backup.
 
-## Second Brain priority
+The wake timeout, WoL target names, and suspend commands are configuration in
+`backup.env`:
 
-Second Brain is the highest-priority Alpha workload. Its backup includes:
+| Variable | Value on Delta |
+|---|---|
+| `WAKE_SCRIPT` | `/home/manuel/services/zero-five-infra/scripts/delta-wake` |
+| `WAIT_UP_S` | `180` |
+| `BETA_WAKE_NAME` / `GAMMA_WAKE_NAME` | `beta` / `gamma` |
+| `BETA_SUSPEND_CMD` | `root@beta /usr/local/sbin/beta-suspend` |
+| `GAMMA_SUSPEND_CMD` | `manuel@gamma sudo /usr/local/sbin/gamma-suspend` |
 
-- an application-consistent PostgreSQL custom-format dump;
-- every MinIO bucket and uploaded object, exported through the MinIO API;
-- the `bot-data` state where present in the production Compose project;
-- the exact deployed Git commit and working-tree status;
-- `compose.yaml` and the production environment file;
-- the application checkout, excluding reproducible dependencies and build output.
+### Pitfalls (both verified by troubleshooting on 2026-08-20)
 
-The PostgreSQL volume is not copied blindly. The SQL dump is the structured-data
-export, while MinIO is exported separately because uploaded objects are not in
-PostgreSQL.
+- **The suspend command must use the ssh **alias** (e.g. `beta`), not the raw
+  IP.** The `IdentityFile` for the `backup@delta` key lives in
+  `/root/.ssh/config` matched on the alias, so `root@10.8.0.5 …` gets
+  `Permission denied (publickey)` while `root@beta …` works.
+- **The controller unquotes `$suspend_cmd`** so ssh word-splits it into
+  `user@host` + the command. It must be an unquoted, untrusted-position-free
+  variable; do not re-quote it or ssh treats the whole string as one hostname
+  (`hostname contains invalid characters`).
+
+## SSH topology for the controller
+
+Delta reaches the sources as **root** (the systemd service runs as root,
+`User=root`), using a dedicated identity `backup@delta` at
+`/root/.ssh/id_ed25519_backup`. Verified reachability from Delta:
+
+| From → To | Command | Notes |
+|---|---|---|
+| Delta → Alpha | `ssh alpha` | **port 2020** (VPS SSH port), user `manuel`, then `sudo` |
+| Delta → Beta | `ssh beta` | user `root`, port 22 |
+| Delta → Gamma | `ssh gamma` | user `manuel`, port 22 |
+
+Delta's `/etc/hosts` aliases: `alpha`→10.8.0.1, `beta`→10.8.0.5, `gamma`→10.8.0.4.
+This is **required** — Delta has no other resolution, and Alpha's SSH is on
+2020 not 22.
+
+`/root/.ssh/config` on Delta maps each alias to its `User`, `Port` (alpha=2020),
+and `IdentityFile=/root/.ssh/id_ed25519_backup` with `IdentitiesOnly yes`.
+
+The `backup@delta` public key is authorized on each source in **that source's**
+account used by the controller:
+
+- Alpha → `manuel`'s `authorized_keys`
+- Beta → `root`'s `authorized_keys`
+- Gamma → `manuel`'s `authorized_keys`
+
+## Scoped NOPASSWD sudoers (keep these — they are the backup identity, not admin access)
+
+Each source grants the backup identity **only** the commands the controller
+needs, via `visudo` files under `/etc/sudoers.d/`:
+
+| Source | File | Grants |
+|---|---|---|
+| Alpha | `zero-five-backup` | `manuel NOPASSWD: /usr/local/sbin/zero-five-alpha-export, /usr/bin/rsync` |
+| Beta | `zero-five-backup` | `root NOPASSWD: /usr/bin/rsync, /usr/local/sbin/beta-suspend` |
+| Gamma | `zero-five-backup` | `manuel NOPASSWD: /usr/bin/rsync, /usr/local/sbin/gamma-suspend` |
+
+These are **not** blanket admin grants. Any interactive/human sudo (e.g.
+`manuel` on Delta, Alpha, or Gamma) still requires a password. Removing these
+files silently breaks the daily job.
+
+## Controller flow (`/usr/local/sbin/zero-five-backup`)
+
+Runs each source in sequence: `delta` (local restic of listed paths), `alpha`
+(SSH → run exporter → rsync export dir → restic), `beta`, `gamma` (`backup_host_paths`
+rsyncs the manifest paths into a temp dir → restic). Beta/Gamma are wrapped in
+the wake/suspend logic above.
+
+Preflight guards refuse to run when: `/srv/nas` is not mounted, the restic
+password file is missing/empty, the backup disk is below `MIN_FREE_KIB`, a
+required tool (`restic/ssh/rsync/mountpoint/flock/python3`) is absent, a source
+manifest is missing, or another run holds `/run/lock/zero-five-backup.lock`.
+
+A source failure stops the all-sources run and leaves existing snapshots
+untouched.
+
+## Alpha exporter (`/usr/local/sbin/zero-five-alpha-export`)
+
+Produces an application-consistent export at `/var/lib/zero-five-backup/alpha`:
+
+- PostgreSQL `pg_dump` custom-format dump (not a blind volume copy);
+- every MinIO bucket via `mc mirror` (API export, not a live-volume copy);
+- the `bot-data` named volume as a gzip tar;
+- the exact deployed git commit + `git status --short`;
+- `compose.yaml` + the production `.env` (mode 600);
+- the application checkout minus reproducible deps/build output.
+
+### Two fixes shipped 2026-08-20 (committed to infra `c802890`, `75aacc0`)
+
+1. **`mc mirror backup/ /export`, not `backup:/ /export`.** The newer
+   `minio/mc:latest` client rejects `backup:/` with `Requested path /backup:/
+   not found`; `backup/` works. The handbook's earlier "pin the mc image tag"
+   warning remains relevant — the exporter's example uses `minio/mc:latest`,
+   which is fine for now but could be pinned to a tested client tag.
+2. **Idempotent staging:** `rm -rf "$output"` before `mv staging output`. Without
+   it, pre-creating `/var/lib/zero-five-backup/alpha` (per the runbook) makes the
+   final `mv` fail with `Directory not empty` on reruns. The output dir is a
+   throwaway transfer area, so clearing it is safe.
+
+## Adding new applications (e.g. a crypto ledger on Alpha)
+
+**No — the backup does not auto-discover new apps.** It only backs up what is
+explicitly listed. Each source is scoped as follows:
+
+| Source | What is backed up | Driver |
+|---|---|---|
+| Alpha | **only Second Brain** | `/etc/zero-five-backup/second-brain.env` (tells the exporter which containers/volumes/paths to stage) |
+| Delta | only the paths in `delta-paths` | `/etc/zero-five-backup/delta-paths` |
+| Beta | only the paths in `beta-paths` | `/etc/zero-five-backup/beta-paths` |
+| Gamma | only the paths in `gamma-paths` | `/etc/zero-five-backup/gamma-paths` |
+
+A new app on any machine is **invisible** to the controller until its data is
+added to the relevant manifest — otherwise it is silently skipped.
+
+### To back up a new app
+
+**Filesystem-only app** (e.g. plain config/data directories): add its paths to
+the source's `*-paths` file. The controller rsyncs the listed directories as-is.
+
+**Containerized app with a database + object storage** (the Second Brain
+pattern — the correct choice for a crypto ledger): extend **the Alpha
+exporter** (`zero-five-alpha-export.sh`) to also stage that app:
+
+1. Add a `pg_dump` for the new app's database (mirror the existing
+   `SECOND_BRAIN_DB_*` step) — the SQL dump is the authoritative structured
+   export; never copy the live volume.
+2. `mc mirror` the new app's buckets, or `docker run … tar` a named volume if
+   it has non-DB state.
+3. Copy its `compose.yaml` + `.env` + git commit/status into the staging tree.
+4. Add the new app's variables to `second-brain.env` (rename to something
+   neutral or add a sibling config). Keep secrets out of Git — the populated
+   `/etc/zero-five-backup/second-brain.env` is root-readable and mode 600.
+5. Reinstall the exporter on Alpha (`sudo install -Dm0755 …`), then
+   `sudo /usr/local/sbin/zero-five-backup alpha` to smoke-test.
+
+Because repos use `tag <source>` and each new app just adds to Alpha's staging
+tree, **no repo or retention reconfiguration is needed** — only the exporter's
+inclusion logic. If you add whole new machines instead of apps, they need a new
+entry in the controller's `case` dispatch and a restic repo is auto-created by
+`init_repo`.
+
+> The planner step for this lives in the infra repo (`backup/` folder). Design
+> before touching machines: add the staging logic, validate with `make
+> validate`, then deploy.
 
 ## Installation outline
 
@@ -86,7 +232,7 @@ On Alpha, install `scripts/zero-five-alpha-export.sh` as
 `/usr/local/sbin/zero-five-alpha-export`, create the root-readable
 `/etc/zero-five-backup/second-brain.env` from its example, and configure the
 dedicated backup SSH identity to run the exporter and required transfer
-operations. Pin the MinIO client image tag before relying on it in production.
+operations.
 
 Install the service and timer on Delta:
 

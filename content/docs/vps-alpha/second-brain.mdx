@@ -107,15 +107,22 @@ The API creates the initial user from the `INITIAL_USER_*` variables on first bo
 | `secondbrain_postgres-data` | All structured data |
 | `secondbrain_minio-data` | Uploaded files/objects |
 
-```bash
-# Postgres dump without stopping the stack
-docker exec secondbrain-db-1 pg_dump -U secondbrain secondbrain | gzip > ~/backups/secondbrain-$(date +%F).sql.gz
-```
+Backing up Second Brain is part of the Delta backup controller (see
+[Delta backup controller](/docs/raspberry/backup)). The Alpha exporter
+(`/usr/local/sbin/zero-five-alpha-export`, checked out in `zero-five-infra`)
+stages an application-consistent export to `/var/lib/zero-five-backup/alpha`:
 
-This creates only a local staging dump. It becomes a backup after the planned
-Raspberry Pi retrieves an encrypted copy, retains versions, and a PostgreSQL
-restore is tested. MinIO objects require a separate consistent export; the SQL
-dump does not contain them.
+- a PostgreSQL `pg_dump` custom-format dump (application-consistent, not a
+  volume copy);
+- every MinIO bucket/object exported through `mc mirror` (API export — the SQL
+  dump does **not** contain them);
+- the `bot-data` conversation-mapping volume (gzipped tar);
+- the exact deployed git commit + `git status`, plus `compose.yaml` and `.env`.
+
+The controller collects this export daily at 21:00. If you deploy a new
+database-bearing app alongside Second Brain, extend the exporter's staging
+logic (documented on the backup page) so it is included too — the controller
+does **not** auto-discover new containers.
 
 ## Development
 

@@ -1,0 +1,48 @@
+---
+title: Crypto Ledger
+description: "Private evidence-first crypto portfolio and tax workspace at ledger.zero-five.space — React + FastAPI + SQLite, VPN-only."
+---
+
+[Crypto Ledger](https://github.com/Manuel0516/crypto-ledger) is a self-hosted, evidence-first crypto portfolio, activity, reporting, and tax workspace. Live at **[ledger.zero-five.space](https://ledger.zero-five.space)**, deployed at `~/services/crypto-ledger`. VPN-only, same pattern as docs and brain.
+
+## Stack
+
+Two containers, Compose project `crypto-ledger` (`compose.prod.yaml`):
+
+| Service | Image | Role | Network exposure |
+|---------|-------|------|------------------|
+| `web` | built — nginx + React (Vite), `web/Dockerfile.prod` | Frontend, proxies `/api` to the API | `traefik` network → HTTPS |
+| `api` | built — FastAPI (Python 3.12) | Backend, SQLite ledger, connectors | `internal` + `egress` only |
+
+Network design follows the Second Brain pattern: `internal` is a Docker **internal** network (no outbound), `api` also joins `egress` (it needs outbound HTTPS for exchange/price/blockchain connectors), and only `web` joins the external `traefik` network. Traefik routes `Host(ledger.zero-five.space)` to the web container; nginx serves the built SPA and proxies `/api/`, `/docs`, `/openapi.json` to `api:8000` over the internal network.
+
+The web container carries `hub.*` labels, so it appears on the [Hub dashboard](/docs/vps-alpha/hub) as an admin-only card (🪙).
+
+## Configuration
+
+`.env` on the server (documented by the committed `.env.example`). Key variables:
+
+| Variable | Purpose | Value on alpha |
+|----------|---------|----------------|
+| `DATABASE_URL` | SQLAlchemy URL | `sqlite:///./data/ledger.db` |
+| `DEMO_MODE` | Seeds synthetic demo history on API startup | `false` (clean workspace; was `true` at first deploy, DB reset 2026-08-21) |
+| `BACKUP_ENCRYPTION_KEY` | Fernet key encrypting backup archives and encrypted attachments | generated, in `.env` only |
+
+`VITE_API_URL` is a build arg baked into the web image as `https://ledger.zero-five.space` (same origin as the app — the browser calls `/api/*` and nginx proxies).
+
+## Data
+
+SQLite lives in `~/services/crypto-ledger/data/ledger.db` (host volume `./data:/app/data`), gitignored. The API Dockerfile runs `alembic upgrade head` before starting uvicorn, so schema migrations apply automatically on deploy. Encrypted backup archives are stored under `data/backups`; the hourly backup loop runs inside the API process.
+
+## Deployment
+
+```bash
+cd ~/services/crypto-ledger
+docker compose -f compose.prod.yaml up -d --build
+```
+
+The compose project is `crypto-ledger` (dev compose is the repo's default `docker-compose.yml`, untouched).
+
+## DNS
+
+`ledger.zero-five.space` → A `10.8.0.1`, **proxied=false** (grey cloud), TTL auto — required for Traefik's `ledger-vpn-only` ipWhiteList (`10.8.0.0/24`) to see real client IPs. Public-IP requests with the right Host header are rejected with 403.

@@ -1,0 +1,280 @@
+---
+title: Delta Rebuild & Recovery
+description: "Complete from-scratch rebuild of Delta's home services (Docker, AdGuard DNS, Traefik gateway, internal CA) and the disaster-recovery path when Delta dies or the CA is lost."
+---
+
+Delta is the always-on home node: **private DNS (AdGuard)**, **home app
+gateway (Traefik)**, **internal CA**, plus the backup controller and Mullvad
+gateway documented elsewhere. This page is the complete rebuild runbook —
+follow it in order to restore Delta's home services on a fresh machine, and
+use the recovery section when the old machine is gone.
+
+> **Golden rule: the CA private key (`ca.key`) is the single point of
+> failure.** Losing it means every trusted device (MacBook, iPhone) must
+> re-trust a brand-new CA. It is backup-covered via `delta-paths`
+> (`/home/manuel/services/proxy`), but verify that backup actually runs.
+
+## What gets rebuilt (this page's scope)
+
+1. Docker (apt)
+2. AdGuard Home (private DNS + rewrites)
+3. Traefik (home app gateway)
+4. Internal CA + wildcard cert (fullchain)
+5. Device trust (MacBook / iPhone)
+
+Out of scope (see their own pages): backup controller (`/docs/raspberry/backup`),
+Mullvad gateway (`/docs/raspberry/vpn-gateway`), WireGuard mesh itself.
+
+---
+
+## Part 0 — Prerequisites on the fresh machine
+
+```bash
+# Debian 13 (trixie) on the Pi. Check:
+cat /etc/os-release          # PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+dpkg --print-architecture    # arm64
+ip -4 addr show eth0         # expect 192.168.1.106 (reserve it in the router)
+```
+
+Restore `/etc/wireguard/wg0.conf` + `/etc/nftables.conf` from the backup
+first — the mesh and the gateway forward rules must be up before the Docker
+services (see [vpn-gateway](/docs/raspberry/vpn-gateway) for the nftables
+ruleset including the `br-*` / `docker0` accepts).
+
+**If restoring from backup**, the directories you need are already on disk:
+`/home/manuel/services/adguard`, `/home/manuel/services/proxy`
+(`ca/`, `certs/`, `dynamic/`, `traefik.yml`, `compose.yaml`). Skip straight
+to Part 4 (recreate containers). Otherwise, build fresh:
+
+---
+
+## Part 1 — Docker
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose
+sudo systemctl enable --now docker
+docker --version && docker-compose --version
+```
+
+Debian trixie ships `docker.io` 26.x + standalone `docker-compose` 2.26
+(v2 binary). There is **no** `docker-compose-v2` package in trixie — use the
+standalone. `manuel` is intentionally NOT in the docker group (sudo-gated).
+
+## Part 2 — AdGuard Home (private DNS)
+
+```bash
+sudo mkdir -p /home/manuel/services/adguard/{conf,work}
+# compose.yaml: see infra repo adguard/compose.yaml.example (ports below)
+```
+
+Live ports (published ONLY on mesh + LAN, never public):
+- `10.8.0.2:53` + `192.168.1.106:53` (tcp+udp) — DNS
+- `10.8.0.2:3000` + `192.168.1.106:3000` — web UI backend for Traefik
+  (port 80/443 belong to Traefik now; AdGuard does NOT publish them)
+
+```bash
+cd /home/manuel/services/adguard && sudo docker-compose up -d
+```
+
+**First-run setup (v0.107.79 API — the docs online are stale):**
+`POST /control/install/configure` with a FLAT body:
+```json
+{"language":"en","username":"admin","password":"...",
+ "web":{"ip":"0.0.0.0","port":3000},"dns":{"ip":"0.0.0.0","port":53}}
+```
+Old `/control/setup_install` is gone (302s). Then:
+- upstreams: `GET /control/dns_info` → patch `upstream_dns` (`https://1.1.1.1/dns-query`, `https://dns.google/dns-query`, `tls://8.8.8.8`) + `bootstrap_dns` (`1.1.1.1`, `8.8.8.8`) → `POST /control/dns_config`
+- rewrites: `POST /control/rewrite/add` `{"domain":..., "answer":...}` for each record
+- filter refresh: `POST /control/filtering/refresh {"whitelist":false}` (fresh installs have rules_count 0 until refreshed)
+
+**DNS rewrites (the record set):**
+
+| Name | Answer |
+|---|---|
+| `alpha.zero-five.space` | 10.8.0.1 |
+| `delta.zero-five.space` | 10.8.0.2 |
+| `macbook.zero-five.space` | 10.8.0.3 |
+| `gamma.zero-five.space` | 10.8.0.4 |
+| `beta.zero-five.space` | 10.8.0.5 |
+| `blackarch.zero-five.space` | 10.8.0.101 |
+| `dns.zero-five.space` | 10.8.0.2 (admin UI via Traefik) |
+| `proxmox.zero-five.space` | 10.8.0.2 (admin UI via Traefik) |
+
+**Admin credentials:** only settable during first-run. After that there is NO
+UI/API — edit `conf/AdGuardHome.yaml` `users:` (bcrypt hash) while the
+container is **stopped** (AdGuard rewrites config on shutdown — stop, edit,
+start). Generate hash with `python3 -c "import bcrypt;
+print(bcrypt.hashpw(b'PW', bcrypt.gensalt(rounds=10, prefix=b'2a')).decode())"`
+(bcrypt is installed on Delta).
+
+## Part 3 — Internal CA + certs
+
+```bash
+sudo mkdir -p /home/manuel/services/proxy/{ca,certs,dynamic}
+cd /home/manuel/services/proxy
+
+# 3a. Create the CA (do this ONCE, keep ca.key forever)
+openssl req -x509 -newkey rsa:4096 -nodes -days 3650 -sha256 \
+  -keyout ca/ca.key -out ca/ca.pem \
+  -subj "/CN=Zero Five Internal CA/O=Zero Five" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign"
+sudo chmod 600 ca/ca.key
+
+# 3b. Sign the wildcard leaf
+cd certs
+openssl req -newkey rsa:2048 -nodes \
+  -keyout zero-five-key.pem -out /tmp/wildcard.csr \
+  -subj "/CN=*.zero-five.space"
+openssl x509 -req -in /tmp/wildcard.csr \
+  -CA ../ca/ca.pem -CAkey ../ca/ca.key -CAcreateserial \
+  -days 3650 -sha256 \
+  -extfile <(printf "subjectAltName=DNS:*.zero-five.space,DNS:zero-five.space\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth") \
+  -out zero-five.pem
+chmod 600 zero-five-key.pem
+
+# 3c. FULLCHAIN — critical! Traefik must serve leaf+CA, not just the leaf
+cat zero-five.pem ../ca/ca.pem > zero-five-fullchain.pem
+chmod 600 zero-five-fullchain.pem
+```
+
+**PITFALL:** referencing only the leaf in Traefik gives
+`SEC_ERROR_UNKNOWN_ISSUER` even after the CA is trusted. The routes MUST
+point at the fullchain. Verify:
+```bash
+echo | openssl s_client -connect 10.8.0.2:443 -servername dns.zero-five.space -showcerts 2>/dev/null | grep -c BEGIN
+# → 2 (leaf + CA)
+```
+
+## Part 4 — Traefik (home app gateway)
+
+Files under `/home/manuel/services/proxy/` (see infra repo
+`proxy/compose.yaml.example` + `proxy/dynamic-route.yml.example`):
+
+```yaml
+# compose.yaml (project name: proxy)
+name: proxy
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "10.8.0.2:80:80/tcp"
+      - "10.8.0.2:443:443/tcp"
+      - "192.168.1.106:80:80/tcp"
+      - "192.168.1.106:443:443/tcp"
+    volumes:
+      - /home/manuel/services/proxy/traefik.yml:/etc/traefik/traefik.yml:ro
+      - /home/manuel/services/proxy/dynamic:/etc/traefik/dynamic:ro
+      - /home/manuel/services/proxy/certs:/certs:ro
+```
+
+`traefik.yml`: entrypoints `web :80` (redirect→websecure) + `websecure :443`,
+file provider watching `/etc/traefik/dynamic`, NO ACME resolver (internal CA
+only — Delta must not depend on Cloudflare or any public CA).
+
+Each app route (`dynamic/<app>.yml`) carries the shared cert + its own
+router/service:
+```yaml
+tls:
+  certificates:
+    - certFile: /certs/zero-five-fullchain.pem
+      keyFile: /certs/zero-five-key.pem
+
+http:
+  serversTransports:
+    lan-selfsigned: { insecureSkipVerify: true }
+  routers:
+    <app>:
+      rule: "Host(`<app>.zero-five.space`)"
+      entryPoints: [websecure]
+      service: <app>
+      tls: {}
+  services:
+    <app>:
+      loadBalancer:
+        serversTransport: lan-selfsigned
+        servers: [ { url: "https://192.168.1.XXX:PORT" } ]
+```
+
+```bash
+cd /home/manuel/services/proxy && sudo docker-compose up -d
+```
+
+Routes as of 2026-08-22: `dns.zero-five.space` → `http://10.8.0.2:3000`
+(AdGuard UI, no serversTransport — plain HTTP backend), `proxmox.zero-five.space`
+→ `https://192.168.1.166:8006` (lan-selfsigned).
+
+## Part 5 — Device trust (one-time per device)
+
+The CA cert (`proxy/ca/ca.pem`, also copied to `/home/manuel/zero-five-ca.pem`
+on Delta and in the infra repo as `proxy/zero-five-ca.pem`) must be trusted on
+each device ONCE. This is the deliberate trade for Cloudflare independence:
+
+- **macOS**: `sudo security add-trusted-cert -d -r trustRoot -k
+  /Library/Keychains/System.keychain zero-five-ca.pem` (or Keychain Access →
+  Always Trust)
+- **iOS**: send the `.pem` (AirDrop/Mail) → Install Profile → Settings →
+  General → About → Certificate Trust Settings → enable full trust for
+  "Zero Five Internal CA"
+- **Linux**: `/usr/local/share/ca-certificates/zero-five-ca.crt` →
+  `sudo update-ca-certificates`
+
+## Part 6 — Client DNS (automatic, with fallback)
+
+- **WG clients (roaming)**: `DNS = 10.8.0.2, 1.1.1.1` in `[Interface]` —
+  AdGuard first, Cloudflare fallback so internet survives a Delta outage
+  (private names only resolve while Delta is up — unavoidable).
+  Applied: MacBook (`/opt/homebrew/etc/wireguard/zero-five.conf`) + iPhone
+  (WG app tunnel config).
+- **LAN devices**: router DHCP DNS → primary `192.168.1.106`, secondary
+  `192.168.1.1` — automatic for everything on the LAN, no per-device config.
+
+---
+
+## Disaster recovery
+
+### Delta dead / SD card gone
+
+1. Restore from the backup controller's restic repo (see
+   `/docs/raspberry/backup`): at minimum `/home/manuel/services/adguard`,
+   `/home/manuel/services/proxy` (CA key!), `/etc/wireguard`,
+   `/etc/nftables.conf`, `/etc/zero-five-backup`.
+2. Fresh Debian 13 install → Parts 0–4 above (configs come from the backup,
+   no re-signing needed — CA key is restored).
+3. Containers come up; DNS + gateway work; devices still trust the same CA.
+
+### CA key lost (no backup)
+
+1. Rebuild the CA (Part 3a) — it will have a **new** identity.
+2. Re-sign the leaf + fullchain (3b–3c), restart Traefik.
+3. **Every trusted device must re-trust the new CA** (Part 5) — this is why
+   the CA key is in `delta-paths`; verify the 21:00 backup covers it.
+
+### Certificate expired / names added
+
+- Fullchain is valid 10 years; renew by re-running 3b–3c (no device change
+  needed — same CA).
+- New app name: AdGuard rewrite + a `dynamic/<app>.yml` route (Part 4).
+  No new cert, no client changes — the wildcard covers it.
+
+## Verification checklist (after any rebuild)
+
+```bash
+# DNS resolves private names (from a mesh client)
+dig @10.8.0.2 dns.zero-five.space        # → 10.8.0.2
+dig @10.8.0.2 proxmox.zero-five.space    # → 10.8.0.2
+dig @10.8.0.2 github.com                 # → public IP (forwarding works)
+dig @10.8.0.2 doubleclick.net            # → 0.0.0.0 (ad-block works)
+
+# HTTPS via Traefik
+curl -sk --resolve dns.zero-five.space:443:10.8.0.2 https://dns.zero-five.space/ -o /dev/null -w '%{http_code}'   # 302
+curl -sk --resolve proxmox.zero-five.space:443:10.8.0.2 https://proxmox.zero-five.space/ -o /dev/null -w '%{http_code}'  # 200
+echo | openssl s_client -connect 10.8.0.2:443 -servername dns.zero-five.space 2>/dev/null | grep -c BEGIN   # 2
+
+# Chain issuer
+echo | openssl s_client -connect 10.8.0.2:443 -servername dns.zero-five.space 2>/dev/null | grep issuer
+# → CN = Zero Five Internal CA, O = Zero Five
+```

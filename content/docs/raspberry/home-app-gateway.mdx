@@ -39,12 +39,21 @@ Why this design (user decisions, 2026-08-22):
 ## Live layout
 
 - Compose project: `/home/manuel/services/proxy/compose.yaml`, project `proxy`
-- Static config: `/home/manuel/services/proxy/traefik.yml` (entrypoint
-  `websecure :443`, file provider watching `/etc/traefik/dynamic`)
+- Static config: `/home/manuel/services/proxy/traefik.yml` (entrypoints
+  `web :80` → HTTPS redirect + `websecure :443`, file provider watching
+  `/etc/traefik/dynamic`)
 - Dynamic routes: `/home/manuel/services/proxy/dynamic/*.yml` (hot-reloaded)
+- **Internal CA**: `/home/manuel/services/proxy/ca/ca.{key,pem}` —
+  "Zero Five Internal CA" (created 2026-08-22, 10 years). Public cert also
+  at `/home/manuel/zero-five-ca.pem` on Delta and in the infra repo
+  (`proxy/zero-five-ca.pem`) for device trust distribution. **The CA private
+  key never leaves Delta.**
 - TLS cert: `/home/manuel/services/proxy/certs/zero-five.{pem,key-pem}` —
-  self-signed `*.zero-five.space`, 10 years, private zone (no Let's Encrypt)
-- Ports published ONLY on `10.8.0.2:443` + `192.168.1.106:443` (mesh + LAN)
+  wildcard `*.zero-five.space` **signed by the internal CA** (not
+  self-signed), 10 years. Trust the CA once per device → every subdomain
+  shows a clean lock, no warnings.
+- Ports published ONLY on `10.8.0.2` + `192.168.1.106` (mesh + LAN):
+  `:80` (→ HTTPS redirect) and `:443` (TLS)
 - Image `traefik:v2.11`, `restart: unless-stopped`
 
 ```yaml
@@ -57,13 +66,68 @@ services:
     container_name: traefik
     restart: unless-stopped
     ports:
+      - "10.8.0.2:80:80/tcp"
       - "10.8.0.2:443:443/tcp"
+      - "192.168.1.106:80:80/tcp"
       - "192.168.1.106:443:443/tcp"
     volumes:
       - /home/manuel/services/proxy/traefik.yml:/etc/traefik/traefik.yml:ro
       - /home/manuel/services/proxy/dynamic:/etc/traefik/dynamic:ro
       - /home/manuel/services/proxy/certs:/certs:ro
 ```
+
+## Internal CA — the deliberate independence choice
+
+Delta's certs are signed by its **own internal CA** — never a public CA
+(Let's Encrypt / Cloudflare). This is a **user-mandated design decision
+(2026-08-22)**: private services must not depend on Cloudflare or any public
+infrastructure. A Let's Encrypt wildcard via Cloudflare DNS-01 was considered
+and **rejected** — it would re-introduce the external dependency the private
+DNS exists to remove. The price is a one-time CA trust per device (~1 min);
+after that everything works offline, forever, with no renewal.
+
+**CA files (Delta, root-owned):**
+- Private key: `/home/manuel/services/proxy/ca/ca.key` (mode 600, never leaves Delta)
+- Public cert: `/home/manuel/services/proxy/ca/ca.pem` (copies: `/home/manuel/zero-five-ca.pem` on Delta, `proxy/zero-five-ca.pem` in the infra repo)
+- Wildcard leaf: `/home/manuel/services/proxy/certs/zero-five.pem` (signed by CA)
+- **Fullchain** (what Traefik serves): `/home/manuel/services/proxy/certs/zero-five-fullchain.pem`
+
+**Backup is critical:** the CA key is the single point of failure — losing it
+forces every device to re-trust a new CA. `/home/manuel/services/proxy` is in
+`delta-paths` (added 2026-08-22); verify the 21:00 backup actually covers it.
+Full rebuild runbook: [Delta Rebuild & Recovery](/docs/raspberry/delta-rebuild).
+
+### How to trust a device (one-time)
+
+- **macOS (MacBook)**: `sudo security add-trusted-cert -d -r trustRoot -k
+  /Library/Keychains/System.keychain zero-five-ca.pem` (or double-click →
+  Keychain Access → Always Trust)
+- **iOS (iPhone)**: send `zero-five-ca.pem` to the phone (AirDrop/Mail) →
+  install profile → Settings → General → About → Certificate Trust Settings
+  → enable full trust for "Zero Five Internal CA"
+- **Linux**: copy to `/usr/local/share/ca-certificates/zero-five-ca.crt` →
+  `sudo update-ca-certificates`
+
+Fetch the cert: `scp manuel@10.8.0.2:/home/manuel/zero-five-ca.pem .` (or from
+the infra repo `proxy/zero-five-ca.pem`).
+
+**PITFALL — serve the full chain.** Traefik's dynamic TLS must point at a
+**fullchain** file (leaf + CA concatenated), not just the leaf. With only the
+leaf, browsers report `SEC_ERROR_UNKNOWN_ISSUER` even after the CA is
+installed ("the site isn't sending intermediate certificates we trust").
+Build it once: `cat certs/zero-five.pem ca/ca.pem >
+certs/zero-five-fullchain.pem` and reference `/certs/zero-five-fullchain.pem`
+in the routes' `tls.certificates`. Verified 2026-08-22: fullchain serves 2
+certs, subjects leaf + CA.
+
+## Current routes (2026-08-22)
+
+| Name | Backend | Verified |
+|---|---|---|
+| `dns.zero-five.space` | AdGuard Home UI (`http://10.8.0.2:3000`) | ✅ 302 → login.html, `<title>Login</title>` |
+| `proxmox.zero-five.space` | `https://192.168.1.166:8006` (Beta) | ✅ 200, Proxmox UI title |
+
+`http://<name>.zero-five.space` redirects to HTTPS automatically (301).
 
 ## Adding an app (the pattern)
 
@@ -122,6 +186,32 @@ No nftables change was needed: the forward-chain accepts added for AdGuard
 LAN traffic. Container → LAN egress is Docker-masqueraded out eth0, return
 traffic matches `ct state established,related`.
 
+## Automatic DNS adoption (router DHCP — the "no per-device config" path)
+
+The user wants AdGuard DNS **without touching each device**. The clean way on
+the LAN is the **router's DHCP server**: point it at Delta's LAN address as
+the DNS server, and every device that joins the network (phone, laptop, TV,
+NAS…) receives AdGuard automatically — no per-device settings.
+
+On the home router (192.168.1.1 admin UI), set:
+
+- **DHCP / DNS server → `192.168.1.106`** (Delta's LAN IP; static/reserved)
+
+Then all LAN clients resolve private names (`proxmox.zero-five.space`, …) and
+get ad-blocking out of the box.
+
+**Resilience — always pair with a fallback.** A single DNS server is a SPOF:
+if Delta is down, clients lose resolution (looks like losing internet).
+Configure a **secondary DNS** on every path:
+
+- WG configs: `DNS = 10.8.0.2, 1.1.1.1` (try AdGuard, fall back to Cloudflare)
+- Router DHCP: primary `192.168.1.106`, secondary `192.168.1.1` (or `1.1.1.1`)
+
+Applied 2026-08-22: MacBook + iPhone WG configs use
+`DNS = 10.8.0.2, 1.1.1.1`. Private names only resolve when Delta is up
+(unavoidable — only AdGuard knows them); public internet keeps working during
+an outage via the fallback (after a short resolution delay).
+
 ## Rollback
 
 ```bash
@@ -131,9 +221,12 @@ Remove the AdGuard rewrite(s). Nothing public changes; clients unaffected.
 
 ## Open / future
 
-- Client `DNS = 10.8.0.2` adoption (mesh adoption step) — names only resolve
-  for devices using AdGuard as resolver; until then `https://10.8.0.2:443`
-  works by IP with a cert warning.
-- More routes as apps land on Beta/Gamma (Jellyfin on Gamma, etc.).
-- Optionally install the `*.zero-five.space` CA cert on trusted devices to
-  kill the self-signed warning.
+- ~~Install the CA on the user's devices~~ — CA file handed over 2026-08-22;
+  device trust install is user-side, one-time (steps above).
+- Set the router DHCP DNS to 192.168.1.106 (automatic LAN adoption) —
+  user-side router config.
+- ~~WireGuard `DNS = 10.8.0.2` per roaming client~~ — **DONE 2026-08-22**:
+  MacBook + iPhone use `DNS = 10.8.0.2, 1.1.1.1` (fallback for resilience).
+- More routes as apps land on Beta/Gamma (Jellyfin on Gamma, etc.) — add an
+  AdGuard rewrite + `dynamic/<app>.yml` route; the existing wildcard cert
+  covers every new name (no re-signing, no client changes).

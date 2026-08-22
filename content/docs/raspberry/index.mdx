@@ -13,11 +13,12 @@ asleep.
 | Property | Planned value |
 | --- | --- |
 | Hostname | `delta` |
-| LAN role | Always-on home services and backup controller |
+| LAN role | Always-on home services, private DNS, app gateway, backup controller |
 | WireGuard address | `10.8.0.2/32` |
 | LAN address | `192.168.1.106` (static/reserved by owner) |
-| Private DNS zone | `home.zero-five.space` |
-| VPN DNS name | `delta.home.zero-five.space` |
+| Private DNS zone | flat `zero-five.space` names (no `home.` sub-zone) |
+| Docker services | `adguard` (DNS) + `proxy` (Traefik app gateway) |
+| Internal CA | `Zero Five Internal CA` — signs `*.zero-five.space` certs (independent of Cloudflare) |
 
 The Pi's WireGuard address is deliberately `.2`: it is infrastructure, not a
 personal client or VM. The private key stays on Delta; the Alpha peer contains

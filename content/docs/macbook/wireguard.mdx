@@ -19,6 +19,7 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
 | Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:51821`) |
 | Delta endpoint | Public A record `delta-vpn.zero-five.space` → home WAN IP (grey cloud, NOT proxied) |
+| DNS | `DNS = 10.8.0.2, 1.1.1.1` in `[Interface]` (AdGuard first, Cloudflare fallback) |
 | Runtime | VPS reachable; Delta handshake + AdGuard UI verified 2026-08-22 |
 | Mac startup | Activation after reboot or login remains unverified |
 
@@ -155,6 +156,7 @@ sudo wg show
 route -n get 10.8.0.1
 route -n get 10.8.0.2
 route -n get default
+scutil --dns | grep -A2 "resolver #1" | head -5   # confirm DNS = 10.8.0.2, 1.1.1.1 applied
 ping -c 3 10.8.0.1
 ping -c 3 10.8.0.2
 # AdGuard UI via Delta (mesh):
@@ -167,6 +169,8 @@ Expected results:
 - `10.8.0.2` handshakes with Delta through the home router (hairpin NAT at
   home) or the public WAN IP (roaming) — `sudo wg show` reports a recent
   handshake for both peers;
+- `scutil --dns` shows the tunnel resolver with `10.8.0.2` + `1.1.1.1`
+  (AdGuard first, Cloudflare fallback);
 - the default route remains on the normal network interface;
 - the VPS responds to ping and the private Ollama API; Delta responds to
   ping and `http://10.8.0.2:80/` returns 302 (AdGuard login redirect).

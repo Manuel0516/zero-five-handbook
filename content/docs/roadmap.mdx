@@ -63,10 +63,11 @@ confirmed.
 
 ### Private DNS and remote access
 
-- [ ] Install a small VPN-aware private DNS service on Delta.
-  - [AdGuard Home proposal](/docs/raspberry/adguard-home) is design-complete
-    (Docker Compose, flat `zero-five.space` names, bind-only LAN/mesh,
-    encrypted upstream). Awaiting green light.
+- [x] Install a small VPN-aware private DNS service on Delta.
+  - [AdGuard Home](/docs/raspberry/adguard-home) **DEPLOYED 2026-08-22**
+    (Docker Compose at `/home/manuel/services/adguard`, flat
+    `zero-five.space` names, bind-only LAN/mesh, encrypted DoH/DoT upstream,
+    ad-blocking live).
   - Resolve Alpha, Delta, Beta/Proxmox, Gamma, MSI, MacBook, and BlackArch.
   - Serve DNS only on the LAN and WireGuard interfaces.
   - Verify Proxmox and device names from Alpha, MSI, and one mobile client.

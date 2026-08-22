@@ -1,11 +1,13 @@
 ---
 title: WireGuard — Private Network
-description: The MacBook WireGuard CLI, VPS-only route, source configuration, verification, deployment procedure, and rollback.
+description: "The MacBook WireGuard CLI, mesh peers (VPS + Delta), roaming endpoint via delta-vpn.zero-five.space, verification, and rollback."
 ---
 
-The MacBook joins the [VPS-centered WireGuard network](/docs/vps-alpha/wireguard) as
-`10.8.0.3/32`. It can reach services on `10.8.0.1`, while ordinary internet
-traffic and the CachyOS laptop remain outside its WireGuard route.
+The MacBook joins the [WireGuard mesh](/docs/raspberry/vpn-gateway) as
+`10.8.0.3/32` with two peers: the **VPS** (`10.8.0.1`) for Alpha-hosted
+services, and **Delta** (`10.8.0.2`) for the home resolver and future
+home-hosted apps. The Delta peer uses a public DNS endpoint so it works both
+at home and roaming; ordinary internet traffic stays outside the tunnel.
 
 ## Current state
 
@@ -15,15 +17,34 @@ traffic and the CachyOS laptop remain outside its WireGuard route.
 | Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
 | VPN address | `10.8.0.3/32` |
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
-| Runtime | VPS ping and VPN-bound Ollama verified |
-| VPS peer | Runtime and `/etc/wireguard/wg0.conf` persistence verified |
+| Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:51821`) |
+| Delta endpoint | Public A record `delta-vpn.zero-five.space` → home WAN IP (grey cloud, NOT proxied) |
+| Runtime | VPS reachable; Delta handshake + AdGuard UI verified 2026-08-22 |
 | Mac startup | Activation after reboot or login remains unverified |
 
 The App Store WireGuard application was installed initially but is not used for
 this setup. The command-line workflow makes the configuration and inspection
 steps explicit.
 
-## Install and inspect the CLI
+## The Delta roaming endpoint (`delta-vpn.zero-five.space`)
+
+Delta's mesh port (`51821/udp`) is port-forwarded on the home router. The
+MacBook's Delta peer points at a **Cloudflare A record** instead of a raw IP:
+
+| Property | Value |
+| --- | --- |
+| Name | `delta-vpn.zero-five.space` |
+| Type / content | A → home WAN IP (46.162.95.145 as of 2026-08) |
+| Proxy | **grey cloud (`proxied=false`)** — Cloudflare proxying would terminate WireGuard (it only speaks HTTP); this is a DNS-only record |
+| Port | 51821 (Delta's `ListenPort` on `wg0`) |
+
+Because the endpoint is a DNS name, the same config works at home (hairpin NAT
+via the router) and roaming (direct to the home WAN IP). WireGuard re-resolves
+the endpoint and learns Delta's current address from the handshake; Delta's own
+config may show a stale endpoint for the MacBook until the first handshake
+updates it — that is expected and harmless.
+
+## Install the CLI
 
 ```bash
 brew install wireguard-tools
@@ -40,16 +61,17 @@ interface. The number may change and must never be hard-coded.
 ## Routing policy
 
 ```text
-MacBook                              VPS
-10.8.0.3/32  -------------------->  10.8.0.1/24
-AllowedIPs: 10.8.0.1/32             UDP endpoint :51820
+MacBook                              VPS / Delta
+10.8.0.3/32  -------------------->  10.8.0.1/32   (VPS,   95.111.229.142:51820)
+             -------------------->  10.8.0.2/32   (Delta, delta-vpn.zero-five.space:51821)
 
-              no WireGuard route to 10.8.0.12
+              no WireGuard route for 10.8.0.12+ or internet (default route untouched)
 ```
 
-Because the peer's `AllowedIPs` contains only `10.8.0.1/32`, macOS installs one
-host route to the VPS. It does not replace the default route. The VPS firewall
-also denies routed traffic between WireGuard clients.
+`AllowedIPs` covers only `10.8.0.1/32` and `10.8.0.2/32` — macOS installs two
+host routes; the default route stays on the normal interface. Other mesh nodes
+(MSI `10.8.0.12`, etc.) are not routed through this tunnel, matching the
+gateway design where only Beta/Gamma use Delta as egress.
 
 ## Files and ownership
 
@@ -131,21 +153,25 @@ removed without disrupting the established laptop peer.
 sudo wg-quick up zero-five
 sudo wg show
 route -n get 10.8.0.1
-route -n get 10.8.0.12
+route -n get 10.8.0.2
 route -n get default
 ping -c 3 10.8.0.1
-curl --fail --show-error http://10.8.0.1:11434/api/tags
+ping -c 3 10.8.0.2
+# AdGuard UI via Delta (mesh):
+curl --fail --show-error --max-time 5 http://10.8.0.2:80/ -o /dev/null -w '%{http_code}\n'
 ```
 
 Expected results:
 
-- `10.8.0.1` uses a dynamic `utunN` interface;
-- `10.8.0.12` does not use the WireGuard tunnel;
+- `10.8.0.1` and `10.8.0.2` use the dynamic `utunN` interface;
+- `10.8.0.2` handshakes with Delta through the home router (hairpin NAT at
+  home) or the public WAN IP (roaming) — `sudo wg show` reports a recent
+  handshake for both peers;
 - the default route remains on the normal network interface;
-- the VPS responds to ping and the private Ollama API;
-- `sudo wg show` reports a recent handshake.
+- the VPS responds to ping and the private Ollama API; Delta responds to
+  ping and `http://10.8.0.2:80/` returns 302 (AdGuard login redirect).
 
-On the VPS, also confirm the laptop peer, UFW, and `wg-quick@wg0` remain in their
+On Delta, also confirm the mesh peer, nftables, and `wg0` remain in their
 previous state. A handshake alone does not prove route or application policy.
 
 ## Common failures
@@ -153,9 +179,11 @@ previous state. A handshake alone does not prove route or application policy.
 | Symptom | Check |
 | --- | --- |
 | `wg-quick` rejects the config | Private-key placeholder was not replaced, syntax, or permissions |
-| No handshake | VPS endpoint, UDP firewall, public-key match, internet access |
+| No handshake with VPS | VPS endpoint, UDP firewall, public-key match, internet access |
+| No handshake with Delta | `delta-vpn.zero-five.space` resolves to the current home WAN IP; record must be **grey cloud** (proxied=false); router port-forward UDP 51821 → 192.168.1.106; Delta's public key matches |
 | Handshake but no VPS access | `AllowedIPs`, macOS route, VPS UFW, service binding |
-| Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` |
+| Handshake but no Delta access | `AllowedIPs` must include `10.8.0.2/32`; Delta's `sport 51821 lookup main` rule (else the Mullvad tunnel swallows replies) |
+| Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` + `10.8.0.2/32` |
 | Works manually but not after reboot | No verified startup service yet |
 
 ## Rollback

@@ -1,11 +1,12 @@
 ---
 title: Private DNS on Delta
-description: "AdGuard Home on Delta as the home resolver for zero-five.space — VPN-aware naming, ad-blocking, flat records, encrypted upstream. Proposal — not yet deployed."
+description: "AdGuard Home on Delta as the home resolver for zero-five.space — VPN-aware naming, ad-blocking, flat records, encrypted upstream. DEPLOYED 2026-08-22."
 ---
 
-> **Status: PROPOSAL** (design-complete, pending green light). No machine
-> changes have been made. See [Infrastructure Roadmap](/docs/roadmap) "Private
-> DNS and remote access".
+> **Status: DEPLOYED 2026-08-22.** AdGuard Home runs in Docker on Delta,
+> resolving private `zero-five.space` names over the LAN + WireGuard mesh,
+> with ad-blocking and encrypted DoH/DoT upstreams. Roadmap item "Private DNS
+> and remote access" — see [Infrastructure Roadmap](/docs/roadmap).
 
 Delta gets a private, VPN-aware DNS resolver so home hosts and future
 home-hosted apps resolve by stable names over the LAN + WireGuard mesh.
@@ -44,6 +45,10 @@ resolver gives:
   VPN clients see the same public names as the wider internet.
 - **Delivery: Docker Compose** on Delta, matching the other services and
   making it easy to back up and redeploy.
+- **Storage: on the Pi's own disk**, `/home/manuel/services/adguard/` — NOT
+  under `/srv/nas/` (external drive). User correction 2026-08-22: a resolver
+  must work even if the NAS is unplugged. The initial deploy used
+  `/srv/nas/apps/adguard/` (from the original proposal) and was moved.
 
 ## Zone / name model
 
@@ -59,7 +64,7 @@ Two behaviors in one resolver:
 This mirrors the "pick per name" model: only the private names are local; the
 rest are proxied so nothing mirrors stale.
 
-## Proposed record set (DNS rewrites in AdGuard)
+## Record set (DNS rewrites, loaded)
 
 Host records, pinned to mesh IPs:
 
@@ -71,58 +76,122 @@ Host records, pinned to mesh IPs:
 | `gamma.zero-five.space` | 10.8.0.4 |
 | `beta.zero-five.space` | 10.8.0.5 |
 | `blackarch.zero-five.space` | 10.8.0.101 |
+| `dns.zero-five.space` | 10.8.0.2 — admin UI (`http://dns.zero-five.space`, port 80 → container 3000) |
 
 App records follow the service — when `personal-ai`, `minecraft`, or the
 monitor moves to Gamma/Delta, it keeps a stable flat name that points at
-whatever currently hosts it.
+whatever currently hosts it. Adding one is a single AdGuard rewrite
+(`Settings → DNS rewrites`, or `POST /control/rewrite/add`).
 
 ## Binding / hardening
 
-- AdGuard listens only on `10.8.0.0/24` (WireGuard mesh) + `192.168.1.0/24`
-  (home LAN). It never binds a public interface.
-- Upstream is an **encrypted** resolver (DoH/DoT — `something.1.1.1.1` /
-  `8.8.8.8` on) so the box never does open recursion an attacker can use as a
-  DRDoS reflector.
-- UFW on Delta already has scoped container→host rules; the bind allowlist
-  lives inside AdGuard, so even a misconfig cannot open-recursive.
+- Docker publishes **only** on `10.8.0.2:53` (mesh) + `192.168.1.106:53`
+  (LAN), TCP and UDP; admin UI on `3000` on both. No public interface.
+- Upstream is **encrypted** DoH/DoT: `https://1.1.1.1/dns-query`,
+  `https://dns.google/dns-query`, `tls://8.8.8.8` (bootstrap `1.1.1.1`,
+  `8.8.8.8`) — a forwarder, not an open recursive resolver, so it cannot be
+  used as a DRDoS reflector.
+- **AdGuard DNS filter** blocklist enabled (ad-blocking live, verified
+  `doubleclick.net` → `0.0.0.0`).
 
-## Deployment sketch (Docker Compose, Delta)
+## Deployment (Docker Compose on Delta)
+
+Live compose project at `/home/manuel/services/adguard/compose.yaml`:
 
 ```yaml
-# adguard-home compose project on Delta
+name: adguard
+
 services:
-  adguard:
+  adguardhome:
     image: adguard/adguardhome:latest
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "3000:3000"        # admin UI — bind to LAN/VPN only, not public
-      - "3000:3000/udp"
-    volumes:
-      - /srv/nas/apps/adguard/conf:/opt/adguardhome/conf
-      - /srv/nas/apps/adguard/work:/opt/adguardhome/work
+    container_name: adguardhome
     restart: unless-stopped
+    volumes:
+      - /home/manuel/services/adguard/work:/opt/adguardhome/work
+      - /home/manuel/services/adguard/conf:/opt/adguardhome/conf
+    ports:
+      - "10.8.0.2:53:53/tcp"
+      - "10.8.0.2:53:53/udp"
+      - "192.168.1.106:53:53/tcp"
+      - "192.168.1.106:53:53/udp"
+      - "10.8.0.2:80:3000/tcp"
+      - "192.168.1.106:80:3000/tcp"
+      - "10.8.0.2:3000:3000/tcp"
+      - "192.168.1.106:3000:3000/tcp"
+    cap_add:
+      - NET_ADMIN
 ```
 
-The admin UI (port 3000) is bound to the VPN/LAN path only. The compose job is
-a skele for now — final numbers come at deployment.
+(`dns.zero-five.space` rewrite → 10.8.0.2; port 80 is published → container
+3000 so `http://dns.zero-five.space` opens the admin UI without a port
+suffix. AdGuard only binds LAN/mesh IPs at the host level.)
 
-## Mesh adoption and rollback
+Docker itself was installed via Debian apt (`docker.io` + `docker-compose`,
+both in trixie) — no third-party Docker repo needed on Delta.
 
-- Each WireGuard client peer gains `DNS = 10.8.0.2`. Any device on the VPN
-  then resolves home names + ad-block automatically.
-- Rollback: remove the `DNS =` line from each peer (back to existing manual
-  resolvers) — nothing public changes and existing service names remain.
+## Mesh adoption (in progress)
+
+Each WireGuard client peer gains `DNS = 10.8.0.2` so every VPN-connected
+device resolves home names + ad-block automatically.
+
+Status 2026-08-22:
+
+- **MacBook (10.8.0.3)** — on the mesh via `delta-vpn.zero-five.space:51821`
+  roaming endpoint (grey-cloud A record → home WAN IP, router forwards UDP
+  51821 → Delta); its `AllowedIPs` includes `10.8.0.2/32` so AdGuard is
+  reachable. Handshake + AdGuard UI verified 2026-08-22. See
+  [MacBook WireGuard](/docs/macbook/wireguard). `DNS = 10.8.0.2` per-peer
+  line not yet applied.
+- **Beta/Gamma/MSI/phone** — not yet adopted; each client edit needs its own
+  sudo/confirmation.
+
+Rollback is removing the `DNS =` line (or `AllowedIPs` entry) from each peer;
+nothing public changes.
 
 ## Backup integration
 
-AdGuard's config (DNS rewrites + filters) is small and static. Add its data
-dir under `/srv/nas/apps/adguard/` to Delta's [`delta-paths`
-manifest](/docs/) so the 21:00 Delta backup controller covers it.
+`/home/manuel/services/adguard` is in Delta's
+[`delta-paths`](/docs/backup) manifest — the 21:00 Delta backup controller
+covers the (small, static) resolver config.
+
+## Pitfalls (hit during deployment 2026-08-22)
+
+- **The Mullvad gateway's nftables forward chain blocked container traffic.**
+  `/etc/nftables.conf` on Delta has a `gateway` table with
+  `policy drop` on the forward chain, originally accepting only Beta/Gamma
+  sources. That silently killed *all* forwarded traffic to/from Docker
+  containers: mesh/LAN clients → AdGuard DNS timed out (DNAT counters showed
+  packets arriving, forward chain dropped them), and AdGuard → upstream DoH
+  also died. Fix: accept local subnets + docker bridge interfaces in the
+  forward chain:
+  ```
+  ip saddr 10.8.0.0/24 accept
+  ip saddr 192.168.1.0/24 accept
+  iifname "br-*" accept
+  iifname "docker0" accept
+  ```
+  Applied live (`nft add rule`) and persisted in `/etc/nftables.conf`
+  (backup: `/etc/nftables.conf.bak-adguard`). Any new container service on
+  Delta needs this already-covered (local subnets + bridge), but re-verify
+  after editing the ruleset.
+- **AdGuard v0.107.x first-run API changed.** The old `/control/setup_install`
+  endpoint is gone; it is `POST /control/install/configure` with a flat body
+  (`username`, `password`, `web: {ip, port}`, `dns: {ip, port}`,
+  `language`). The web UI redirects everything to `/install.html` until setup
+  completes, which confused early API attempts.
+- **Admin credentials cannot be changed from the UI/API in v0.107.79.** The
+  Settings page has no password option and `/control/profile/update` only
+  handles language/theme. To rotate: stop the container (AdGuard rewrites its
+  config on shutdown — edit **after** stop), edit
+  `conf/AdGuardHome.yaml` `users:` block with a bcrypt hash (`python3 -c
+  "import bcrypt; print(bcrypt.hashpw(b'PW', bcrypt.gensalt(rounds=10,
+  prefix=b'2a')).decode())"`), then start again.
+- **Filter needed a refresh after the nftables fix**: rules_count was 0 until
+  `POST /control/filtering/refresh` (container outbound had been blocked).
 
 ## Open / future
 
-- Decide the exact upstream resolver(s) and blocklist set at deployment.
+- Apply `DNS = 10.8.0.2` to WireGuard peers (mesh adoption).
 - Inventory service names for apps migrating off Alpha (part of the
   [Gamma migration](/docs/roadmap)).
 - Confirm per-client (by subnet) ad-block on/off for known VPN clients.

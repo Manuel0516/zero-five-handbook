@@ -172,16 +172,19 @@ services:
 ```
 
 `traefik.yml`: entrypoints `web :80` (redirect→websecure) + `websecure :443`,
-file provider watching `/etc/traefik/dynamic`, NO ACME resolver (internal CA
-only — Delta must not depend on Cloudflare or any public CA).
+file provider watching `/etc/traefik/dynamic`. **No ACME resolver** — certs are
+managed externally by certbot (LE primary) + the internal CA as default cert
+(fallback); see the dual-cert section on the
+[home-app-gateway](/docs/raspberry/home-app-gateway) page for why.
 
-Each app route (`dynamic/<app>.yml`) carries the shared cert + its own
-router/service:
+Each app route (`dynamic/<app>.yml`) references its **per-name LE cert** and
+the shared internal-CA **default cert** lives in `dynamic/default-cert.yml`:
 ```yaml
+# dynamic/<app>.yml — LE cert (exact SNI match wins)
 tls:
   certificates:
-    - certFile: /certs/zero-five-fullchain.pem
-      keyFile: /certs/zero-five-key.pem
+    - certFile: /certs/le/<app>.zero-five.space.pem
+      keyFile: /certs/le/<app>.zero-five.space-key.pem
 
 http:
   serversTransports:
@@ -198,6 +201,15 @@ http:
         serversTransport: lan-selfsigned
         servers: [ { url: "https://192.168.1.XXX:PORT" } ]
 ```
+```yaml
+# dynamic/default-cert.yml — internal-CA fallback (served when no LE cert)
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/zero-five-fullchain.pem
+        keyFile: /certs/zero-five-key.pem
+```
 
 ```bash
 cd /home/manuel/services/proxy && sudo docker-compose up -d
@@ -206,6 +218,25 @@ cd /home/manuel/services/proxy && sudo docker-compose up -d
 Routes as of 2026-08-22: `dns.zero-five.space` → `http://10.8.0.2:3000`
 (AdGuard UI, no serversTransport — plain HTTP backend), `proxmox.zero-five.space`
 → `https://192.168.1.166:8006` (lan-selfsigned).
+
+**Issue the per-name LE certs (Part 4b):**
+```bash
+sudo apt-get install -y python3-certbot python3-certbot-dns-cloudflare
+# /etc/letsencrypt/cloudflare.ini (mode 600):
+#   dns_cloudflare_api_token = <token>
+for name in dns.zero-five.space proxmox.zero-five.space; do
+  sudo certbot certonly --dns-cloudflare \
+    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+    -d "$name" --cert-name "$name" \
+    --non-interactive --agree-tos --email manuellore05@gmail.com \
+    --preferred-challenges dns-01 --key-type ecdsa
+done
+```
+The deploy hook (`/etc/letsencrypt/renewal-hooks/deploy/zero-five.sh`) copies
+renewed certs to `certs/le/` and touches `dynamic/reload-trigger.yml`; it runs
+automatically on renewal (certbot.timer, twice daily) and once manually right
+after issuance. The internal-CA default cert covers any name without an LE
+cert — the fallback is automatic, nothing to configure per app.
 
 ## Part 5 — Device trust (one-time per device)
 
@@ -249,16 +280,23 @@ each device ONCE. This is the deliberate trade for Cloudflare independence:
 ### CA key lost (no backup)
 
 1. Rebuild the CA (Part 3a) — it will have a **new** identity.
-2. Re-sign the leaf + fullchain (3b–3c), restart Traefik.
+2. Re-sign the leaf + fullchain (3b–3c), rebuild `dynamic/default-cert.yml`.
 3. **Every trusted device must re-trust the new CA** (Part 5) — this is why
    the CA key is in `delta-paths`; verify the 21:00 backup covers it.
+4. LE certs are unaffected (issued by Let's Encrypt, not this CA) — public
+   trust keeps working; only the offline fallback identity changes.
 
 ### Certificate expired / names added
 
-- Fullchain is valid 10 years; renew by re-running 3b–3c (no device change
-  needed — same CA).
-- New app name: AdGuard rewrite + a `dynamic/<app>.yml` route (Part 4).
-  No new cert, no client changes — the wildcard covers it.
+- **LE certs (90-day)**: `certbot.timer` renews automatically ~30 days before
+  expiry. Check: `sudo certbot renew --dry-run`. If a renewal failed, the old
+  cert keeps serving; a *prolonged* Cloudflare outage (past expiry) falls back
+  to the internal-CA default cert automatically — no manual action.
+- **Internal CA fullchain (10 years)**: renew by re-running 3b–3c (no device
+  change needed — same CA).
+- **New app name**: AdGuard rewrite + a `dynamic/<app>.yml` route + a
+  per-name LE cert via certbot (Part 4b). The internal-CA default cert covers
+  the name meanwhile — no outage window.
 
 ## Verification checklist (after any rebuild)
 

@@ -76,21 +76,40 @@ services:
       - /home/manuel/services/proxy/certs:/certs:ro
 ```
 
-## Internal CA — the deliberate independence choice
+## Dual-cert: Let's Encrypt primary + internal-CA fallback
 
-Delta's certs are signed by its **own internal CA** — never a public CA
-(Let's Encrypt / Cloudflare). This is a **user-mandated design decision
-(2026-08-22)**: private services must not depend on Cloudflare or any public
-infrastructure. A Let's Encrypt wildcard via Cloudflare DNS-01 was considered
-and **rejected** — it would re-introduce the external dependency the private
-DNS exists to remove. The price is a one-time CA trust per device (~1 min);
-after that everything works offline, forever, with no renewal.
+Delta serves **two certificate layers** (deployed 2026-08-22):
+
+1. **Let's Encrypt (primary)** — per-name certs issued by **certbot** on Delta
+   via Cloudflare DNS-01 (TXT record, never exposes app names in A records).
+   Trusted by every browser/OS — zero device setup for public trust.
+2. **Internal CA (fallback)** — `Zero Five Internal CA` wildcard as
+   Traefik's **default certificate**. Served automatically only when the LE
+   cert for a name is missing/expired (e.g. Cloudflare unreachable at
+   renewal). Devices that installed the CA stay green during outages.
+
+**Why certbot and not Traefik's ACME?** Traefik v2.11's ACME provider skips
+issuance for any domain covered by a store cert — and a wildcard internal-CA
+cert covers *every* subdomain, so Traefik ACME **never fires** alongside a
+fallback cert (verified in source: `certificate_store.go` GetAllDomains
+includes the default cert's domains). Running certbot externally sidesteps
+that: LE certs land as static files in `tls.certificates` (exact SNI match
+wins), the internal CA lives in `tls.stores.default.defaultCertificate`
+(served only when no dynamic cert matches — `tlsmanager.go` line ~220).
+
+**Renewal:** `certbot.timer` runs twice daily; renews ~30 days before expiry.
+Deploy hook `/etc/letsencrypt/renewal-hooks/deploy/zero-five.sh` copies
+renewed certs to `/home/manuel/services/proxy/certs/le/` and touches
+`dynamic/reload-trigger.yml` to reload Traefik. On renewal failure the old LE
+cert keeps serving; only a *prolonged* Cloudflare outage (past expiry)
+triggers the internal-CA fallback.
 
 **CA files (Delta, root-owned):**
 - Private key: `/home/manuel/services/proxy/ca/ca.key` (mode 600, never leaves Delta)
 - Public cert: `/home/manuel/services/proxy/ca/ca.pem` (copies: `/home/manuel/zero-five-ca.pem` on Delta, `proxy/zero-five-ca.pem` in the infra repo)
 - Wildcard leaf: `/home/manuel/services/proxy/certs/zero-five.pem` (signed by CA)
-- **Fullchain** (what Traefik serves): `/home/manuel/services/proxy/certs/zero-five-fullchain.pem`
+- **Fullchain** (default cert): `/home/manuel/services/proxy/certs/zero-five-fullchain.pem`
+- LE certs: `/etc/letsencrypt/live/<name>/` + copies in `/home/manuel/services/proxy/certs/le/`
 
 **Backup is critical:** the CA key is the single point of failure — losing it
 forces every device to re-trust a new CA. `/home/manuel/services/proxy` is in
@@ -158,15 +177,19 @@ http:
           - url: "https://192.168.1.XXX:PORT"
 ```
 
-3. `sudo docker compose -f /home/manuel/services/proxy/compose.yaml restart`
+3. **Issue a per-name LE cert** (certbot, Cloudflare DNS-01):
+   ```bash
+   sudo certbot certonly --dns-cloudflare \
+     --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+     -d app.zero-five.space --cert-name app.zero-five.space \
+     --non-interactive --agree-tos --email manuellore05@gmail.com \
+     --preferred-challenges dns-01 --key-type ecdsa
+   ```
+   The deploy hook copies it to `certs/le/` automatically. If LE/Cloudflare is
+   down, the internal-CA default cert covers the name — no manual fallback.
+4. `sudo docker compose -f /home/manuel/services/proxy/compose.yaml restart`
    (dynamic files hot-reload, but a restart guarantees pickup) — actually
    only needed if the static config changed; `dynamic/` files are watched.
-
-## Current routes (2026-08-22)
-
-| Name | Backend | Verified |
-|---|---|---|
-| `proxmox.zero-five.space` | `https://192.168.1.166:8006` (Beta) | ✅ 200, Proxmox UI title |
 
 ## Verification (from alpha, no dig needed)
 
@@ -177,6 +200,9 @@ python3 <raw-socket query for proxmox.zero-five.space via 10.8.0.2> → 10.8.0.2
 curl -sk --resolve proxmox.zero-five.space:443:10.8.0.2 https://proxmox.zero-five.space/ -o /dev/null -w '%{http_code}'   # 200
 # title check:
 curl -sk https://10.8.0.2:443/ -H "Host: proxmox.zero-five.space" | grep -o '<title>[^<]*</title>'
+# which cert layer is serving (LE vs internal CA):
+echo | openssl s_client -connect 10.8.0.2:443 -servername proxmox.zero-five.space 2>/dev/null | grep issuer
+#   → O=Let's Encrypt (primary) or CN=Zero Five Internal CA (fallback)
 ```
 
 ## Firewall note
@@ -228,5 +254,7 @@ Remove the AdGuard rewrite(s). Nothing public changes; clients unaffected.
 - ~~WireGuard `DNS = 10.8.0.2` per roaming client~~ — **DONE 2026-08-22**:
   MacBook + iPhone use `DNS = 10.8.0.2, 1.1.1.1` (fallback for resilience).
 - More routes as apps land on Beta/Gamma (Jellyfin on Gamma, etc.) — add an
-  AdGuard rewrite + `dynamic/<app>.yml` route; the existing wildcard cert
-  covers every new name (no re-signing, no client changes).
+  AdGuard rewrite + `dynamic/<app>.yml` route + a per-name LE cert (Part 4b
+  pattern); the internal-CA default cert covers the name during issuance.
+- ~~Dual-cert (LE primary + internal-CA fallback)~~ — **DONE 2026-08-22**:
+  certbot + Cloudflare DNS-01, fallback verified by removing LE certs.

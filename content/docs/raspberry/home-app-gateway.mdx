@@ -1,0 +1,139 @@
+---
+title: Home App Gateway (Traefik on Delta)
+description: "Traefik v2.11 reverse proxy on Delta routes private app names (proxmox.zero-five.space etc.) to LAN backends on Beta/Gamma — DNS-only names via AdGuard, no client peer changes."
+---
+
+Delta runs a private reverse proxy (**Traefik v2.11**) that routes home app
+names to LAN/mesh backends. Names are private AdGuard rewrites → Delta's mesh
+IP; Traefik terminates TLS and forwards by `Host` header to the machine that
+actually runs the app (Beta, Gamma, …). Clients only ever need Delta
+(`10.8.0.2`) in their WireGuard `AllowedIPs` — **no new peers per app**.
+
+Deployed 2026-08-22, following the AdGuard Home deploy on Delta.
+
+## The model
+
+```
+name.zero-five.space ──► AdGuard rewrite → 10.8.0.2 (Delta)
+                              │
+                              ▼
+                     Traefik :443 on Delta (terminates TLS, *.zero-five.space cert)
+                              │  Host: name.zero-five.space
+                              ▼
+                     LAN backend (e.g. https://192.168.1.166:8006 Proxmox)
+```
+
+Why this design (user decisions, 2026-08-22):
+
+- **Names stay private — NOT in Cloudflare.** The user explicitly does not
+  want every home app name enumerated in public DNS. AdGuard rewrites keep
+  them Zone-2 only. (An alternative — grey-cloud Cloudflare A records like
+  the Alpha VPN-only pattern — was offered and rejected for home names.)
+- **No new peers on clients.** Every client already reaches `10.8.0.2`
+  (Delta). Traefik does the LAN hop, so adding an app never touches client
+  WireGuard configs.
+- **Traefik v2.11** — matches the Alpha hub conventions (do NOT bump to v3;
+  the Docker provider API mismatch and the file-provider patterns are proven).
+  Caddy was considered (lighter, auto internal CA) but consistency won.
+
+## Live layout
+
+- Compose project: `/home/manuel/services/proxy/compose.yaml`, project `proxy`
+- Static config: `/home/manuel/services/proxy/traefik.yml` (entrypoint
+  `websecure :443`, file provider watching `/etc/traefik/dynamic`)
+- Dynamic routes: `/home/manuel/services/proxy/dynamic/*.yml` (hot-reloaded)
+- TLS cert: `/home/manuel/services/proxy/certs/zero-five.{pem,key-pem}` —
+  self-signed `*.zero-five.space`, 10 years, private zone (no Let's Encrypt)
+- Ports published ONLY on `10.8.0.2:443` + `192.168.1.106:443` (mesh + LAN)
+- Image `traefik:v2.11`, `restart: unless-stopped`
+
+```yaml
+# /home/manuel/services/proxy/compose.yaml
+name: proxy
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "10.8.0.2:443:443/tcp"
+      - "192.168.1.106:443:443/tcp"
+    volumes:
+      - /home/manuel/services/proxy/traefik.yml:/etc/traefik/traefik.yml:ro
+      - /home/manuel/services/proxy/dynamic:/etc/traefik/dynamic:ro
+      - /home/manuel/services/proxy/certs:/certs:ro
+```
+
+## Adding an app (the pattern)
+
+1. **AdGuard rewrite** (Settings → DNS rewrites, or yaml): `app.zero-five.space
+   → 10.8.0.2`
+2. **Traefik route** in `dynamic/<app>.yml` — for an HTTPS LAN backend with a
+   self-signed cert (Proxmox, Jellyfin, …) use the `lan-selfsigned`
+   transport:
+
+```yaml
+http:
+  serversTransports:
+    lan-selfsigned:          # define once, reuse per app
+      insecureSkipVerify: true
+
+  routers:
+    <app>:
+      rule: "Host(`app.zero-five.space`)"
+      entryPoints: [websecure]
+      service: <app>
+      tls: {}
+
+  services:
+    <app>:
+      loadBalancer:
+        serversTransport: lan-selfsigned
+        servers:
+          - url: "https://192.168.1.XXX:PORT"
+```
+
+3. `sudo docker compose -f /home/manuel/services/proxy/compose.yaml restart`
+   (dynamic files hot-reload, but a restart guarantees pickup) — actually
+   only needed if the static config changed; `dynamic/` files are watched.
+
+## Current routes (2026-08-22)
+
+| Name | Backend | Verified |
+|---|---|---|
+| `proxmox.zero-five.space` | `https://192.168.1.166:8006` (Beta) | ✅ 200, Proxmox UI title |
+
+## Verification (from alpha, no dig needed)
+
+```bash
+# DNS rewrite:
+python3 <raw-socket query for proxmox.zero-five.space via 10.8.0.2> → 10.8.0.2
+# TLS + route:
+curl -sk --resolve proxmox.zero-five.space:443:10.8.0.2 https://proxmox.zero-five.space/ -o /dev/null -w '%{http_code}'   # 200
+# title check:
+curl -sk https://10.8.0.2:443/ -H "Host: proxmox.zero-five.space" | grep -o '<title>[^<]*</title>'
+```
+
+## Firewall note
+
+No nftables change was needed: the forward-chain accepts added for AdGuard
+(`iifname "br-*"`, `iifname "docker0"`) already cover Traefik's container →
+LAN traffic. Container → LAN egress is Docker-masqueraded out eth0, return
+traffic matches `ct state established,related`.
+
+## Rollback
+
+```bash
+sudo docker compose -f /home/manuel/services/proxy/compose.yaml down
+```
+Remove the AdGuard rewrite(s). Nothing public changes; clients unaffected.
+
+## Open / future
+
+- Client `DNS = 10.8.0.2` adoption (mesh adoption step) — names only resolve
+  for devices using AdGuard as resolver; until then `https://10.8.0.2:443`
+  works by IP with a cert warning.
+- More routes as apps land on Beta/Gamma (Jellyfin on Gamma, etc.).
+- Optionally install the `*.zero-five.space` CA cert on trusted devices to
+  kill the self-signed warning.

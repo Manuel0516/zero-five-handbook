@@ -1,4 +1,4 @@
 {
   "title": "Raspberry Pi - Delta",
-  "pages": ["index", "backup", "adguard-home", "vpn-gateway"]
+  "pages": ["index", "backup", "adguard-home", "home-app-gateway", "vpn-gateway"]
 }

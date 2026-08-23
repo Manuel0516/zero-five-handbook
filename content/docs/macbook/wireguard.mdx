@@ -225,6 +225,22 @@ directly on the LAN without needing the tunnel at all:
 and no longer works roaming; the WireGuard app (Option A) is the long-term fix and is
 the chosen path.
 
+**The working recovery when the tunnel breaks on the MacBook (verified 2026-08-23):**
+
+When you toggle the tunnel off/on (or macOS clobbers the resolver after wg-quick), private
+names stop resolving and stay broken across retries. **Before bringing the tunnel back up**,
+reset the Wi-Fi resolver to default (Empty) and flush the caches:
+
+```bash
+sudo networksetup -setdnsservers Wi-Fi Empty
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
+Then start the tunnel. This clears the stale resolver that wg-quick left attached to en0 so
+the fresh tunnel attach takes cleanly. If you're using the CLI, this is the reliable reset
+before every tunnel up — the WireGuard app (Option A) avoids needing it.
+
 **Verify after switching:** `curl https://<name>.zero-five.space` must resolve; if it
 still says server-not-found, `scutil --dns` shows whether `10.8.0.2` ended up on a
 tunnel-scoped resolver or got dropped to en0.

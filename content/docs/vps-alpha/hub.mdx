@@ -53,10 +53,14 @@ Beta and Gamma power actions use the same reviewed backup topology:
 
 ```text
 Hub → authenticated Delta relay
-  wake   → /usr/local/sbin/delta-wake beta|gamma
+  wake   → /usr/local/bin/delta-wake beta|gamma
   suspend → root@beta /usr/local/sbin/beta-suspend
            manuel@gamma sudo /usr/local/sbin/gamma-suspend
 ```
+
+The Alpha VPS is also queried through its authenticated host-agent for RAM,
+storage, uptime, CPU load average, and CPU count, so it remains a first-class
+telemetry node rather than a state-only placeholder.
 
 The source templates intentionally contain no credentials. The relay must reuse
 scoped source-side NOPASSWD rules and the existing SSH aliases; it must not add a

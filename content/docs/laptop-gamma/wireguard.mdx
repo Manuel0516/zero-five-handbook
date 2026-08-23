@@ -3,8 +3,8 @@ title: WireGuard
 description: Gamma's primary Alpha WireGuard path, direct Delta fallback, routing, and verification.
 ---
 
-Gamma is a distinct peer at `10.8.0.4/32`. It does not replace the CachyOS
-laptop at `10.8.0.12` or the MacBook at `10.8.0.3`.
+Gamma is a distinct peer at `10.8.0.3/32`. It does not replace the CachyOS
+laptop at `10.8.0.12` or the MacBook at `10.8.0.11`.
 
 Gamma now has two narrow WireGuard peers: Alpha at `10.8.0.1/32` and Delta at
 `10.8.0.2/32`. Gamma's ordinary internet and package downloads continue to use
@@ -13,10 +13,10 @@ Gamma is quiet.
 
 ## Verified current state
 
-On 2026-07-22, Gamma's `wg0` interface was present at `10.8.0.4/32`, its route
+On 2026-07-22, Gamma's `wg0` interface was present at `10.8.0.3/32`, its route
 to `10.8.0.1` used `wg0`, and `wg-quick@wg0` was both enabled and active after
 a Wake-on-LAN resume. Gamma reached Alpha at `10.8.0.1`, Alpha reached Gamma at
-`10.8.0.4`, and the MacBook completed `ssh gamma` through Alpha.
+`10.8.0.3`, and the MacBook completed `ssh gamma` through Alpha.
 
 On 2026-08-13, the reciprocal Delta peer was added to Gamma's persistent and
 live configuration. Gamma's route to `10.8.0.2` uses `wg0`; Delta pinged
@@ -80,7 +80,7 @@ an erased or untrusted installation.
 
 ## Activate runtime state first
 
-Before adding Gamma, verify that `10.8.0.4/32` is absent from the live VPS:
+Before adding Gamma, verify that `10.8.0.3/32` is absent from the live VPS:
 
 ```bash
 sudo wg show wg0 allowed-ips
@@ -94,7 +94,7 @@ then verify both directions:
 # On Alpha
 sudo wg set wg0 \
   peer '4+S25E4bN2naE00/N44R78RqvUxCzINGlCn4C2rMllg=' \
-  allowed-ips 10.8.0.4/32
+  allowed-ips 10.8.0.3/32
 
 # On Gamma
 sudo wg-quick up wg0
@@ -113,7 +113,7 @@ AllowedIPs = 10.8.0.2/32
 PersistentKeepalive = 25
 ```
 
-On the VPS, verify a recent Gamma handshake and ping `10.8.0.4`. Only after
+On the VPS, verify a recent Gamma handshake and ping `10.8.0.3`. Only after
 runtime success should the same peer block be saved in the VPS's root-owned
 `/etc/wireguard/wg0.conf`, and Gamma enabled at boot:
 
@@ -146,17 +146,17 @@ On Alpha:
 
 ```bash
 ip -brief address show wg0
-ip route show 10.8.0.4
-ping -c 3 10.8.0.4
+ip route show 10.8.0.3
+ping -c 3 10.8.0.3
 sudo wg show wg0
 ```
 
 On Delta, verify Gamma's reciprocal peer and direct path:
 
 ```bash
-ip route get 10.8.0.4
-ping -c 3 10.8.0.4
-ssh manuel@10.8.0.4
+ip route get 10.8.0.3
+ping -c 3 10.8.0.3
+ssh manuel@10.8.0.3
 ```
 
 `wg show` exposes public peer metadata, handshake times, endpoints, and byte

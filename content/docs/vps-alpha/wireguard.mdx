@@ -22,12 +22,12 @@ without exposing the Ollama API publicly.
 flowchart LR
     subgraph clients["Trusted clients"]
         cachyos["MSI laptop<br/>10.8.0.12/32<br/>Delta peer active"]
-        macbook["MacBook<br/>10.8.0.3/32<br/>Runtime verified"]
-        gamma["Gamma<br/>10.8.0.4/32<br/>Runtime and persistence verified"]
-        beta["Beta laptop / Proxmox<br/>10.8.0.5/32<br/>Runtime verified"]
+        macbook["MacBook<br/>10.8.0.11/32<br/>Runtime verified"]
+        gamma["Gamma<br/>10.8.0.3/32<br/>Runtime and persistence verified"]
+        beta["Beta laptop / Proxmox<br/>10.8.0.4/32<br/>Runtime verified"]
         delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Direct backup node"]
         blackarch["BlackArch VM<br/>10.8.0.101/32<br/>SSH and runtime verified"]
-        iphone["iPhone<br/>10.8.0.10/32<br/>Runtime restored 2026-07-24"]
+        iphone["iPhone<br/>10.8.0.21/32<br/>Runtime restored 2026-07-24"]
     end
 
     subgraph vps["VPS hub"]
@@ -51,10 +51,10 @@ flowchart LR
 | --- | --- | --- |
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
 | MSI laptop | `10.8.0.12/32` | Alpha and Delta peers active; direct handshake and ping verified 2026-08-13; reboot persistence pending |
-| MacBook | `10.8.0.3/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
-| Gamma | `10.8.0.4/32` | Alpha path verified; Delta peer, direct ping, and Delta→Gamma SSH verified 2026-08-13; Gamma reboot persistence pending |
-| Beta | `10.8.0.5/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
-| iPhone | `10.8.0.10/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
+| MacBook | `10.8.0.11/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
+| Gamma | `10.8.0.3/32` | Alpha path verified; Delta peer, direct ping, and Delta→Gamma SSH verified 2026-08-13; Gamma reboot persistence pending |
+| Beta | `10.8.0.4/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
+| iPhone | `10.8.0.21/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
 | BlackArch VM | `10.8.0.101/32` | Direct VM peer; SSH through Alpha, active WireGuard, and key-only access verified 2026-08-12 |
 | Delta Raspberry Pi | `10.8.0.2/32` | LAN SSH, active WireGuard, Alpha handshake, and direct peer definitions verified; reciprocal rollout pending |
 
@@ -110,7 +110,7 @@ passed on 2026-08-13. Its reboot persistence remains open.
 > **Persistence incident — 2026-07-21:** Runtime WireGuard state worked before
 > reboot, but the root-only file contained an invalid iPhone route (`10.0.10`).
 > Boot activation therefore failed, and Ollama could not bind to `10.8.0.1`.
-> The route was corrected to the modeled `10.8.0.10/32`, the complete file was
+> The route was corrected to the modeled `10.8.0.21/32`, the complete file was
 > validated with `wg-quick strip`, and WireGuard, Ollama, and the private
 > Handbook route recovered. This is why every persistent network edit needs a
 > syntax check and an eventual reboot test: a live interface alone does not

@@ -17,8 +17,8 @@ flowchart LR
     alpha["Alpha VPS<br/>WireGuard hub<br/>10.8.0.1"]
 
     mac -->|"SSH alias delta<br/>WireGuard 10.8.0.2"| delta["Delta Raspberry Pi"]
-    delta -->|"ProxyJump second hop<br/>10.8.0.5:22"| beta
-    beta -->|"WireGuard client<br/>10.8.0.5/32"| alpha
+    delta -->|"ProxyJump second hop<br/>10.8.0.4:22"| beta
+    beta -->|"WireGuard client<br/>10.8.0.4/32"| alpha
     mac -. "Direct LAN recovery<br/>192.168.1.166" .-> beta
 ```
 
@@ -40,7 +40,7 @@ This state was observed live on 2026-07-22:
 | Platform | Proxmox VE `9.2.0`, manager `9.2.5`, Debian 13 `trixie` |
 | LAN | Static `192.168.1.166/24` on bridge `vmbr0`; gateway and DNS `192.168.1.1`; `nic0` MAC `d0:bf:9c:16:24:b8` |
 | Wake-on-LAN | Ethernet magic packets enabled on `nic0`; PCI wake state verified `enabled`; suspend helper installed; functional suspend/wake test pending |
-| WireGuard | Beta `wg0` at `10.8.0.5/32`; boot persistence, recent handshake, bidirectional ping, and private Handbook access verified after reboot |
+| WireGuard | Beta `wg0` at `10.8.0.4/32`; boot persistence, recent handshake, bidirectional ping, and private Handbook access verified after reboot |
 | Mac SSH | `ssh beta` uses `ProxyJump delta`; Beta `root` authentication verified 2026-08-13 |
 | Storage | `local` directory storage plus an empty `local-lvm` thin pool of about 795 GiB |
 | Workloads | No QEMU virtual machines or LXC containers |

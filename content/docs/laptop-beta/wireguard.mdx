@@ -10,14 +10,14 @@ Beta is a client of Alpha, the stable public WireGuard hub:
 | Machine | WireGuard address | Role |
 | --- | --- | --- |
 | Alpha | `10.8.0.1/24` | Public hub listening on UDP `51820` |
-| Beta | `10.8.0.5/32` | Proxmox client with a narrow Alpha-only route |
+| Beta | `10.8.0.4/32` | Proxmox client with a narrow Alpha-only route |
 
 Beta uses `AllowedIPs = 10.8.0.1/32`. Only traffic addressed to Alpha's VPN IP
 enters `wg0`. The default route, Proxmox LAN management at `192.168.1.166`, and
 ordinary internet traffic remain on `vmbr0`.
 
 The MacBook still has no direct route to Beta's Proxmox UI through WireGuard.
-Existing clients lack a route to `10.8.0.5`, and Alpha's routed UFW policy
+Existing clients lack a route to `10.8.0.4`, and Alpha's routed UFW policy
 denies client-to-client forwarding. `ssh beta` works without changing that
 boundary: Alpha originates the second SSH connection as a jump host.
 
@@ -29,12 +29,12 @@ Beta was configured and inspected live on 2026-07-22:
 - Beta generated its private key locally; the private key never left Beta.
 - `/etc/wireguard/wg0.conf` is root-owned with mode `0600`.
 - `wg-quick@wg0` is enabled and active.
-- `wg0` owns `10.8.0.5/32`.
-- `ip route get 10.8.0.1` selects `wg0` with source `10.8.0.5`.
+- `wg0` owns `10.8.0.4/32`.
+- `ip route get 10.8.0.1` selects `wg0` with source `10.8.0.4`.
 - Beta has a recent handshake with Alpha at `95.111.229.142:51820`.
-- Bidirectional ping between `10.8.0.1` and `10.8.0.5` succeeds.
+- Bidirectional ping between `10.8.0.1` and `10.8.0.4` succeeds.
 - Beta receives HTTP `200` from `https://docs.zero-five.space` over the tunnel.
-- Alpha receives HTTP `200` from Beta's Proxmox UI at `10.8.0.5:8006`.
+- Alpha receives HTTP `200` from Beta's Proxmox UI at `10.8.0.4:8006`.
 - After the 2026-07-22 Beta reboot, `wg-quick@wg0` started automatically from
   the mode-`0600` file, established a new handshake, and restored all checks.
 
@@ -66,15 +66,15 @@ sudo cp --preserve=all /etc/wireguard/wg0.conf \
 sudo chmod 600 /etc/wireguard/wg0.conf.pre-beta
 sudo wg set wg0 \
   peer 5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI= \
-  allowed-ips 10.8.0.5/32
+  allowed-ips 10.8.0.4/32
 ```
 
 Verify runtime reachability from Alpha:
 
 ```bash
 sudo wg show wg0
-ping -c 3 10.8.0.5
-curl -k --connect-timeout 5 https://10.8.0.5:8006/
+ping -c 3 10.8.0.4
+curl -k --connect-timeout 5 https://10.8.0.4:8006/
 ```
 
 If that succeeds, add this reviewed block to Alpha's
@@ -84,7 +84,7 @@ If that succeeds, add this reviewed block to Alpha's
 [Peer]
 # Peer: beta
 PublicKey = 5y4n0bz4qhmHEKSAsaMv6TJZf3kPsHa3iMDs6aUerHI=
-AllowedIPs = 10.8.0.5/32
+AllowedIPs = 10.8.0.4/32
 ```
 
 Validate without printing the secret-bearing stripped configuration:
@@ -115,8 +115,8 @@ On Alpha:
 
 ```bash
 sudo wg show wg0
-ip route show 10.8.0.5
-ping -c 3 10.8.0.5
+ip route show 10.8.0.4
+ping -c 3 10.8.0.4
 ```
 
 A handshake proves key agreement. Bidirectional ping proves the two narrow

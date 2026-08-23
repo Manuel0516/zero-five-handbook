@@ -208,7 +208,7 @@ services, and rebooted with the provider console retained as recovery access.
 The reboot exposed a pre-existing typo in persistent WireGuard state:
 `10.0.10` could not be parsed as a peer address. Runtime state before reboot had
 masked the invalid file. The single malformed occurrence was corrected to the
-modeled iPhone route `10.8.0.10/32`; `wg-quick strip` validated the full
+modeled iPhone route `10.8.0.21/32`; `wg-quick strip` validated the full
 root-only file before activation. WireGuard, Ollama, and the VPN-only Handbook
 then recovered. Final checks found kernel `6.8.0-136-generic`, no reboot-required
 marker, active SSH/Docker/fail2ban/WireGuard/Ollama/hub-agent services, a clean

@@ -64,7 +64,7 @@ Host delta
   IdentitiesOnly yes
 
 Host gamma
-  HostName 10.8.0.4
+  HostName 10.8.0.3
   User manuel
   Port 22
   IdentityFile ~/.ssh/id_ed25519
@@ -72,7 +72,7 @@ Host gamma
   ProxyJump delta
 
 Host beta
-  HostName 10.8.0.5
+  HostName 10.8.0.4
   User root
   Port 22
   IdentityFile ~/.ssh/id_ed25519
@@ -106,8 +106,8 @@ Host blackarch
 | `Host github.com` | Uses the ed25519 key, loads it into the agent, and stores the passphrase in the macOS Keychain (`UseKeychain yes`) — no passphrase prompts after the first use |
 | `Host alpha` | Alias for the [Alpha VPS](/docs/vps-alpha): `ssh alpha` instead of `ssh -p 2020 manuel@95.111.229.142`. Note the non-default port `2020` — see [VPS Security](/docs/vps-alpha/security) for the server side |
 | `Host delta` | Direct LAN alias for Delta at `192.168.1.106`; it is the jump host for the private laptop paths |
-| `Host gamma` | Connects to Gamma's private `10.8.0.4` address through `ProxyJump delta`; Gamma remains unreachable directly from outside WireGuard |
-| `Host beta` | Connects as `root` to Beta's `10.8.0.5` address through `ProxyJump delta`; `HostKeyAlias 192.168.1.166` reuses the already-pinned identity of the same physical host |
+| `Host gamma` | Connects to Gamma's private `10.8.0.3` address through `ProxyJump delta`; Gamma remains unreachable directly from outside WireGuard |
+| `Host beta` | Connects as `root` to Beta's `10.8.0.4` address through `ProxyJump delta`; `HostKeyAlias 192.168.1.166` reuses the already-pinned identity of the same physical host |
 | `Host msi` | Connects to the MSI's WireGuard address through Alpha |
 | `Host blackarch` | Connects as `zero` to BlackArch through Delta and reuses its LAN host-key alias |
 | `IdentitiesOnly yes` | Restricts each host to the explicitly selected identity instead of trying every key loaded in the agent |
@@ -143,21 +143,21 @@ The VPS uses port `2020`, not 22 — connecting with a raw `ssh manuel@95.111.22
 ### Gamma connection fails
 
 Test each hop independently. `ssh delta` must work first. On Delta,
-`ping -c 3 10.8.0.4` must reach Gamma over WireGuard. Then inspect the resolved
+`ping -c 3 10.8.0.3` must reach Gamma over WireGuard. Then inspect the resolved
 Mac configuration with `ssh -G gamma | grep -E '^(hostname|user|port|proxyjump) '`;
-it should report `hostname 10.8.0.4` and `proxyjump delta`.
+it should report `hostname 10.8.0.3` and `proxyjump delta`.
 
 ### Beta connection fails
 
 Use the same hop-first diagnosis: `ssh delta` must work. On Delta,
-`ping -c 3 10.8.0.5` and `nc -zvw 3 10.8.0.5 22` must succeed. Then inspect:
+`ping -c 3 10.8.0.4` and `nc -zvw 3 10.8.0.4 22` must succeed. Then inspect:
 
 ```bash
 ssh -G beta | grep -E \
   '^(hostname|user|port|proxyjump|hostkeyalias) '
 ```
 
-It must resolve to user `root`, hostname `10.8.0.5`, `proxyjump delta`, and
+It must resolve to user `root`, hostname `10.8.0.4`, `proxyjump delta`, and
 `hostkeyalias 192.168.1.166`. The full runbook is on the
 [Beta SSH page](/docs/laptop-beta/ssh).
 

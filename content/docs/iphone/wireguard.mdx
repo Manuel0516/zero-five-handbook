@@ -1,9 +1,9 @@
 ---
 title: WireGuard — VPS-only access
-description: Configure the iPhone as 10.8.0.10 with a narrow route to only the VPS, then deploy and verify the peer safely.
+description: Configure the iPhone as 10.8.0.21 with a narrow route to only the VPS, then deploy and verify the peer safely.
 ---
 
-The iPhone is deployed as `10.8.0.10/32`. Its WireGuard peer advertises only
+The iPhone is deployed as `10.8.0.21/32`. Its WireGuard peer advertises only
 `10.8.0.1/32`, so the phone sends traffic to the VPS through the tunnel without
 turning WireGuard into its default internet route. It receives no WireGuard
 route to the CachyOS laptop or MacBook.
@@ -18,10 +18,10 @@ working runtime interface alone does not prove persistence.
 
 ```mermaid
 flowchart LR
-    phone["iPhone<br/>10.8.0.10/32"]
+    phone["iPhone<br/>10.8.0.21/32"]
     vps["VPS wg0<br/>10.8.0.1/24"]
     laptop["CachyOS laptop<br/>10.8.0.12"]
-    mac["MacBook<br/>10.8.0.3"]
+    mac["MacBook<br/>10.8.0.11"]
 
     phone -->|"AllowedIPs: 10.8.0.1/32"| vps
     phone -. "No WireGuard route" .-> laptop
@@ -37,7 +37,7 @@ Two layers provide client isolation:
 
 This grants access to services reachable on the VPS's VPN address. It does not
 restrict the phone to a particular VPS port or application. If that narrower
-policy is needed later, add explicit UFW rules for `10.8.0.10` in a separate,
+policy is needed later, add explicit UFW rules for `10.8.0.21` in a separate,
 recovery-protected firewall change.
 
 ## Operational source
@@ -45,7 +45,7 @@ recovery-protected firewall change.
 | File | Purpose |
 | --- | --- |
 | `zero-five-infra/wireguard/iphone.conf.example` | Exact iPhone address, VPS identity, endpoint, route, and keepalive |
-| `zero-five-infra/wireguard/vps.conf.example` | Reserved iPhone peer and `10.8.0.10/32` route on the hub |
+| `zero-five-infra/wireguard/vps.conf.example` | Reserved iPhone peer and `10.8.0.21/32` route on the hub |
 | `zero-five-infra/scripts/validate_wireguard.py` | Checks the fixed address, hub-and-spoke topology, routes, and key placeholders |
 | `zero-five-infra/scripts/generate_iphone_wireguard_qr.sh` | Creates a temporary keypair and terminal-only import QR |
 
@@ -83,7 +83,7 @@ The helper first validates the tracked WireGuard source and lists the addresses
 already assigned in `vps.conf.example`. It prompts for a device name and client
 IP, refusing the VPS address, invalid host addresses, and addresses modeled for
 another peer. Press Enter at both prompts to use the existing `iphone` and
-`10.8.0.10` reservation. It creates a fresh private key in shell memory and a
+`10.8.0.21` reservation. It creates a fresh private key in shell memory and a
 mode-`0600` temporary configuration, then shows the configuration as a terminal
 QR code. It never creates a persistent PNG.
 
@@ -140,7 +140,7 @@ Enter these interface settings:
 
 | Field | Value |
 | --- | --- |
-| Addresses | `10.8.0.10/32` |
+| Addresses | `10.8.0.21/32` |
 | Listen port | Automatic / empty |
 | DNS servers | Empty |
 
@@ -183,7 +183,7 @@ sudo chmod 600 /etc/wireguard/wg0.conf.pre-iphone
    the app:
 
 ```bash
-sudo wg set wg0 peer IPHONE_PUBLIC_KEY allowed-ips 10.8.0.10/32
+sudo wg set wg0 peer IPHONE_PUBLIC_KEY allowed-ips 10.8.0.21/32
 ```
 
 4. Activate the tunnel on the iPhone. On the VPS, inspect the peer without
@@ -191,7 +191,7 @@ sudo wg set wg0 peer IPHONE_PUBLIC_KEY allowed-ips 10.8.0.10/32
 
 ```bash
 sudo wg show wg0
-ip route get 10.8.0.10
+ip route get 10.8.0.21
 sudo ufw status verbose
 ```
 
@@ -221,7 +221,7 @@ the cryptographic exchange was not completing.
 Read-only Alpha checks established that:
 
 - Alpha remained reachable over SSH at the configured public endpoint;
-- `wg0` was up at `10.8.0.1/24`, with the route to `10.8.0.10`;
+- `wg0` was up at `10.8.0.1/24`, with the route to `10.8.0.21`;
 - `wg-quick@wg0` and UFW were active, and UDP `51820` was listening;
 - IPv4 forwarding remained enabled; and
 - the VPN-bound Ollama tags endpoint returned HTTP `200` locally.
@@ -236,7 +236,7 @@ without rotating the corresponding VPS peer; the exact origin of the drift was
 not independently verified.
 
 The current phone identity was added to runtime first with only
-`10.8.0.10/32`. Toggling the tunnel restored connectivity, and the owner
+`10.8.0.21/32`. Toggling the tunnel restored connectivity, and the owner
 verified that the private VPS service worked. No firewall, routing, DNS, SSH,
 or other peer was changed. The source entry in
 `wireguard/vps.conf.example` was then reconciled and passed `make validate`.

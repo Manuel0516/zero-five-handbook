@@ -4,7 +4,7 @@ description: "The MacBook WireGuard CLI, mesh peers (VPS + Delta), roaming endpo
 ---
 
 The MacBook joins the [WireGuard mesh](/docs/raspberry/vpn-gateway) as
-`10.8.0.3/32` with two peers: the **VPS** (`10.8.0.1`) for Alpha-hosted
+`10.8.0.11/32` with two peers: the **VPS** (`10.8.0.1`) for Alpha-hosted
 services, and **Delta** (`10.8.0.2`) for the home resolver and future
 home-hosted apps. The Delta peer uses a public DNS endpoint so it works both
 at home and roaming; ordinary internet traffic stays outside the tunnel.
@@ -15,7 +15,7 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 | --- | --- |
 | Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` |
 | Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
-| VPN address | `10.8.0.3/32` |
+| VPN address | `10.8.0.11/32` |
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
 | Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:51821`) |
 | Delta endpoint | Public A record `delta-vpn.zero-five.space` → home WAN IP (grey cloud, NOT proxied) |
@@ -63,7 +63,7 @@ interface. The number may change and must never be hard-coded.
 
 ```text
 MacBook                              VPS / Delta
-10.8.0.3/32  -------------------->  10.8.0.1/32   (VPS,   95.111.229.142:51820)
+10.8.0.11/32  -------------------->  10.8.0.1/32   (VPS,   95.111.229.142:51820)
              -------------------->  10.8.0.2/32   (Delta, delta-vpn.zero-five.space:51821)
 
               no WireGuard route for 10.8.0.12+ or internet (default route untouched)
@@ -137,7 +137,7 @@ for recovery or an intentional identity replacement.
 4. Add the Mac public key to the running interface first:
 
 ```bash
-sudo wg set wg0 peer MACBOOK_PUBLIC_KEY allowed-ips 10.8.0.3/32
+sudo wg set wg0 peer MACBOOK_PUBLIC_KEY allowed-ips 10.8.0.11/32
 ```
 
 5. Start the Mac tunnel and validate both machines.

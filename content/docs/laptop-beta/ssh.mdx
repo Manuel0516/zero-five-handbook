@@ -10,17 +10,17 @@ depending on the home-LAN address.
 
 ```text
 MacBook -> delta:22      (Delta's direct WireGuard SSH hop)
-        -> 10.8.0.5:22   (Beta over Delta-to-Beta WireGuard)
+        -> 10.8.0.4:22   (Beta over Delta-to-Beta WireGuard)
 ```
 
 On 2026-08-13, the MacBook public key was added to Beta's `root` account and
 verified. The key fingerprint is
 `SHA256:kWxEKyBmG2cXL1jIV3ZP27ePR0ZFafiwaDYbpBIVKeU`. The MSI client also uses
 Delta as the proxy jump for Beta. The resolved client state is
-`root@10.8.0.5:22`, identity `~/.ssh/id_ed25519`, and `ProxyJump delta`.
+`root@10.8.0.4:22`, identity `~/.ssh/id_ed25519`, and `ProxyJump delta`.
 
 ```text
-10.8.0.1 <ephemeral-port> 10.8.0.5 22
+10.8.0.1 <ephemeral-port> 10.8.0.4 22
 ```
 
 The first address is the connection source. This proves Alpha opened the
@@ -29,12 +29,12 @@ Beta's LAN address.
 
 ## Why ProxyJump works without client forwarding
 
-The Mac does not have a route to `10.8.0.5`, and Alpha still denies general
+The Mac does not have a route to `10.8.0.4`, and Alpha still denies general
 forwarding between WireGuard clients. `ProxyJump` uses SSH's stdio forwarding:
 
 1. The client authenticates to Delta through the `delta` alias.
 2. Delta's SSH daemon opens a new TCP connection from `10.8.0.2` to
-   `10.8.0.5:22`.
+   `10.8.0.4:22`.
 3. The client laptop authenticates end-to-end to Beta as `root` through that channel.
 
 The Mac private key remains on the Mac. It is not installed on or forwarded to
@@ -50,7 +50,7 @@ The Beta block is:
 
 ```text
 Host beta
-  HostName 10.8.0.5
+  HostName 10.8.0.4
   User root
   Port 22
   IdentityFile ~/.ssh/id_ed25519
@@ -64,7 +64,7 @@ The pre-change snapshot is
 
 `HostKeyAlias 192.168.1.166` is intentional. The Mac already trusted Beta's
 SSH host identity through its LAN address. The VPN hop is the same SSH server
-and the same host keys, so the alias checks `10.8.0.5` against the existing
+and the same host keys, so the alias checks `10.8.0.4` against the existing
 `192.168.1.166` entries in `~/.ssh/known_hosts` instead of asking the user to
 trust a duplicate identity.
 
@@ -96,7 +96,7 @@ Expected values:
 
 ```text
 user root
-hostname 10.8.0.5
+hostname 10.8.0.4
 port 22
 identitiesonly yes
 hostkeyalias 192.168.1.166
@@ -132,9 +132,9 @@ If Alpha works but Beta does not, inspect in order:
 
 ```bash
 # On Alpha
-ip route get 10.8.0.5
-ping -c 3 10.8.0.5
-nc -zvw 3 10.8.0.5 22
+ip route get 10.8.0.4
+ping -c 3 10.8.0.4
+nc -zvw 3 10.8.0.4 22
 ```
 
 On the home LAN, bypass Alpha explicitly:
@@ -173,7 +173,7 @@ client alias.
 | Symptom | Check |
 | --- | --- |
 | `ssh beta` fails before the second hop | `ssh contabo`; Alpha public SSH and the Mac's Alpha host-key pin |
-| Alpha works but Beta times out | Alpha route to `10.8.0.5`, Beta handshake, TCP `22`, and Beta SSH service |
+| Alpha works but Beta times out | Alpha route to `10.8.0.4`, Beta handshake, TCP `22`, and Beta SSH service |
 | Host-key mismatch names `192.168.1.166` | Compare Beta's current Ed25519 fingerprint through the LAN or physical console; never delete the pin blindly |
 | Authentication fails as `root` | Confirm the MacBook public key is in `/root/.ssh/authorized_keys` |
 | Connection source is `192.168.1.x` | A direct LAN command was used; the verified jump path must show source `10.8.0.1` |

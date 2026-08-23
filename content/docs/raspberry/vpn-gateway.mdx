@@ -28,10 +28,10 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
 | Name | What it is |
 | --- | --- |
 | Delta | Raspberry Pi 4 Model B, always-on home node (192.168.1.106, wg0 10.8.0.2). See [index](/docs/raspberry). |
-| Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.5). **Gateway client.** |
-| Gamma | Clean box, Ubuntu + netplan (192.168.1.107, wg0 10.8.0.4). Jellyfin host. **Gateway client.** |
+| Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.4). **Gateway client.** |
+| Gamma | Clean box, Ubuntu + netplan (192.168.1.107, wg0 10.8.0.3). Jellyfin host. **Gateway client.** |
 | MSI | MSI laptop (10.8.0.12). Not a gateway client; own Mullvad toggle. |
-| MacBook | Admin + dev box (10.8.0.3). Not a gateway client; own Mullvad toggle. |
+| MacBook | Admin + dev box (10.8.0.11). Not a gateway client; own Mullvad toggle. |
 | Home router | 192.168.1.1 — normal egress for all non-gateway devices. |
 | `mullvad` | Delta's Mullvad WireGuard interface (config `/etc/wireguard/mullvad.conf`), distinct from `wg0` (Zero Five mesh). |
 

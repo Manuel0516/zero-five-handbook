@@ -52,9 +52,9 @@ Why this design (user decisions, 2026-08-22):
   wildcard `*.zero-five.space` **signed by the internal CA** (not
   self-signed), 10 years. Trust the CA once per device → every subdomain
   shows a clean lock, no warnings.
-- Ports published ONLY on `10.8.0.2` + `192.168.1.106` (mesh + LAN):
-  `:80` (→ HTTPS redirect) and `:443` (TLS)
 - Image `traefik:v2.11`, `restart: unless-stopped`
+- **Networking: `network_mode: host`** (2026-08-23) — reaches LAN/host
+  backends directly; binds `:80`/`:443` on all host IPs.
 
 ```yaml
 # /home/manuel/services/proxy/compose.yaml
@@ -65,16 +65,21 @@ services:
     image: traefik:v2.11
     container_name: traefik
     restart: unless-stopped
-    ports:
-      - "10.8.0.2:80:80/tcp"
-      - "10.8.0.2:443:443/tcp"
-      - "192.168.1.106:80:80/tcp"
-      - "192.168.1.106:443:443/tcp"
+    network_mode: host          # 2026-08-23: host netmode so Traefik reaches the LAN
+                                # router + host services directly (no container bridge)
     volumes:
       - /home/manuel/services/proxy/traefik.yml:/etc/traefik/traefik.yml:ro
       - /home/manuel/services/proxy/dynamic:/etc/traefik/dynamic:ro
       - /home/manuel/services/proxy/certs:/certs:ro
 ```
+
+**PITFALL — port binding vs host mode.** The original layout published `ports:`
+only on `10.8.0.2` + `192.168.1.106`. That changed 2026-08-23: **host `network_mode`
+drops the `ports:` block entirely** (it binds `:80`/`:443` on all host IPs), which is what
+lets Traefik reach the LAN router at `192.168.1.1:80` and host services directly —
+the container→host/→LAN bridge isolation made LAN backends unreachable otherwise. VPN-only
+enforcement is done by the **route middleware** (`ipWhitelist 10.8.0.0/24`), not by the
+bind address. See `references/router-access-and-container-egress.md`.
 
 ## Dual-cert: Let's Encrypt primary + internal-CA fallback
 
@@ -139,14 +144,45 @@ certs/zero-five-fullchain.pem` and reference `/certs/zero-five-fullchain.pem`
 in the routes' `tls.certificates`. Verified 2026-08-22: fullchain serves 2
 certs, subjects leaf + CA.
 
-## Current routes (2026-08-22)
+## Current routes (2026-08-23)
 
 | Name | Backend | Verified |
 |---|---|---|
 | `dns.zero-five.space` | AdGuard Home UI (`http://10.8.0.2:3000`) | ✅ 302 → login.html, `<title>Login</title>` |
 | `proxmox.zero-five.space` | `https://192.168.1.166:8006` (Beta) | ✅ 200, Proxmox UI title |
+| `router.zero-five.space` | Home router admin UI (`http://192.168.1.1:80`, GoAhead) | ✅ 200 on `/main.asp` over VPN (2026-08-23), **LE cert** |
 
 `http://<name>.zero-five.space` redirects to HTTPS automatically (301).
+
+### The router route (`dynamic/router.yml`) — the one that needs its LE cert
+
+The `router` route exists to reach the home router's admin UI from behind the VPN. Two
+details make it special and both were resolved 2026-08-23:
+
+1. **Backend is the host-mode direct router**, `http://192.168.1.1:80` — reachable
+   directly since Traefik runs in host `network_mode`. (The older `router-forwarder.py`
+   host-side forwarder on `:2080` was the pre-host-mode workaround and is still
+   installed as a fallback, but the route no longer points at it.)
+2. **It needs its own per-name LE cert in the route's `tls.certificates`.** Without the
+   `tls.certificates:` block, Traefik serves the **internal-CA wildcard** for this SNI.
+   On a phone/roaming device that never installed the Zero Five CA, the browser hard-
+   blocks the untrusted cert → presents as "address not being served / can't reach over
+   VPN," identical to the `dns` route's earlier symptom. The fix is exactly the dual-cert
+   pattern: add a per-name LE cert and reload. Current routed `router.yml` has it:
+
+```yaml
+tls:
+  certificates:
+    - certFile: /certs/le/router.zero-five.space.pem
+      keyFile: /certs/le/router.zero-five.space-key.pem
+```
+
+   Re-verify the **issuer** is Let's Encrypt, not `Zero Five Internal CA`, with:
+   `openssl s_client -connect 10.8.0.2:443 -servername router.zero-five.space` → issuer
+   `O=Let's Encrypt`. Diagnosis ordering for any "can't reach <name> over VPN" report:
+   (a) AdGuard rewrite → `10.8.0.2`, (b) Traefik serves the route from alpha (`curl
+   --resolve`, 200/302), (c) **the cert issuer for that SNI** — before touching
+   redirects or proxying.
 
 ## Adding an app (the pattern)
 
@@ -177,19 +213,27 @@ http:
           - url: "https://192.168.1.XXX:PORT"
 ```
 
-3. **Issue a per-name LE cert** (certbot, Cloudflare DNS-01):
-   ```bash
-   sudo certbot certonly --dns-cloudflare \
-     --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
-     -d app.zero-five.space --cert-name app.zero-five.space \
-     --non-interactive --agree-tos --email manuellore05@gmail.com \
-     --preferred-challenges dns-01 --key-type ecdsa
-   ```
-   The deploy hook copies it to `certs/le/` automatically. If LE/Cloudflare is
-   down, the internal-CA default cert covers the name — no manual fallback.
+3. **Wire the per-name LE cert into the route** — **required**, not optional, or roaming
+   devices without the internal CA can't load it. Two parts:
+   - Issue the LE cert (certbot, Cloudflare DNS-01):
+     ```bash
+     sudo certbot certonly --dns-cloudflare \
+       --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+       -d app.zero-five.space --cert-name app.zero-five.space \
+       --non-interactive --agree-tos --email manuellore05@gmail.com \
+       --preferred-challenges dns-01 --key-type ecdsa
+     ```
+     The deploy hook copies it to `certs/le/` automatically (fix the hook's
+     `for name in ...` list to include the new name or the copy never happens — the
+     classic "exact-SNI fallback" bug).
+   - Add the `tls.certificates:` block to `dynamic/<app>.yml` referencing those files
+     (matches `dns.yml` / `proxmox.yml` / `router.yml`). Only the internal-CA wildcard
+     covers the name *while the LE cert is being issued*, and only devices that trust
+     the Zero Five CA will load it.
 4. `sudo docker compose -f /home/manuel/services/proxy/compose.yaml restart`
    (dynamic files hot-reload, but a restart guarantees pickup) — actually
    only needed if the static config changed; `dynamic/` files are watched.
+   A `touch dynamic/reload-trigger.yml` is enough for file changes.
 
 ## Verification (from alpha, no dig needed)
 
@@ -207,10 +251,12 @@ echo | openssl s_client -connect 10.8.0.2:443 -servername proxmox.zero-five.spac
 
 ## Firewall note
 
-No nftables change was needed: the forward-chain accepts added for AdGuard
-(`iifname "br-*"`, `iifname "docker0"`) already cover Traefik's container →
-LAN traffic. Container → LAN egress is Docker-masqueraded out eth0, return
-traffic matches `ct state established,related`.
+**2026-08-23:** Traefik is now in host `network_mode` (see [Live layout](#live-layout)),
+so it shares Delta's network namespace and reaches the LAN router / host services
+directly — no container→LAN egress needed for `router` or any host-backed route. The
+container-bridge isolation that motivated the old nftables accepts no longer applies to
+Traefik. (The earlier `router-forwarder.py` host-side forwarder on `:2080` remains
+installed as a fallback but is not on the current route path.)
 
 ## Automatic DNS adoption (router DHCP — the "no per-device config" path)
 
@@ -253,8 +299,12 @@ Remove the AdGuard rewrite(s). Nothing public changes; clients unaffected.
   user-side router config.
 - ~~WireGuard `DNS = 10.8.0.2` per roaming client~~ — **DONE 2026-08-22**:
   MacBook + iPhone use `DNS = 10.8.0.2, 1.1.1.1` (fallback for resilience).
+  **Note (2026-08-23):** on macOS, Homebrew `wg-quick` leaks those queries to Wi-Fi
+  while roaming (see the MacBook WireGuard page) — the WireGuard app's Network
+  Extension is the recommended way to bring the tunnel up on the Mac.
 - More routes as apps land on Beta/Gamma (Jellyfin on Gamma, etc.) — add an
   AdGuard rewrite + `dynamic/<app>.yml` route + a per-name LE cert (Part 4b
-  pattern); the internal-CA default cert covers the name during issuance.
+  pattern) **wired into the route's `tls.certificates`**; the internal-CA default
+  cert covers the name only during issuance.
 - ~~Dual-cert (LE primary + internal-CA fallback)~~ — **DONE 2026-08-22**:
   certbot + Cloudflare DNS-01, fallback verified by removing LE certs.

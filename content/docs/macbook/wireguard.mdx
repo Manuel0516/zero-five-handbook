@@ -13,7 +13,7 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 
 | Item | State |
 | --- | --- |
-| Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` |
+| Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` + **WireGuard macOS app** (adopted 2026-08-23, see below) |
 | Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
 | VPN address | `10.8.0.11/32` |
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
@@ -23,9 +23,11 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 | Runtime | VPS reachable; Delta handshake + AdGuard UI verified 2026-08-22 |
 | Mac startup | Activation after reboot or login remains unverified |
 
-The App Store WireGuard application was installed initially but is not used for
-this setup. The command-line workflow makes the configuration and inspection
-steps explicit.
+The App Store WireGuard application was installed initially. **As of 2026-08-23 it is the
+recommended way to bring the tunnel up** — the Homebrew `wg-quick` CLI does NOT reliably
+attach a DNS resolver for private names while roaming (see [Why private names failed on
+the MacBook](#why-private-names-failed-on-the-macbook)); the app's Network Extension
+attaches DNS to the tunnel itself. The CLI remains installed for `wg show` inspection.
 
 ## The Delta roaming endpoint (`delta-vpn.zero-five.space`)
 
@@ -178,7 +180,54 @@ Expected results:
 On Delta, also confirm the mesh peer, nftables, and `wg0` remain in their
 previous state. A handshake alone does not prove route or application policy.
 
-## Common failures
+## Why private names failed on the MacBook (roaming) — and the WireGuard-app fix
+
+**Diagnosed 2026-08-23.** Symptom: `router.zero-five.space` (and other private names)
+said **"Server Not Found"** on the MacBook while **roaming**, yet worked from the iPhone
+(the same tunnel resolver) and worked on the Mac when on the home LAN. The phone worked,
+the Mac did not — with the *same* name through the *same* tunnel. That asymmetry is the
+trap: it points the finger at the machine, not the network.
+
+Root cause is a **macOS-specific wg-quick DNS leak**, not routing or a broken service.
+The Homebrew `wg-quick` CLI applies the tunnel's `DNS = 10.8.0.2` line by writing that
+address onto macOS's **Wi-Fi (en0) resolver — not onto the tunnel's `utunN` interface.**
+So `10.8.0.2:53` (AdGuard) is allowed through the tunnel (the tunnel is a path, not a DNS-server bearer), but the resolver macOS is actually asking lives on en0 and its
+queries travel **out the Wi-Fi carrier**, never entering the tunnel:
+
+Verified:
+- A DNS query sent **from the tunnel IP `10.8.0.11`** → works (AdGuard answers).
+- The **same query from the Wi-Fi IP `192.168.1.109`** → times out.
+- `curl` uses macOS's resolver on Wi-Fi, so it fails — even though `curl -k https://10.8.0.2/` with a `Host:` header reached the router directly (that used the routed IP directly, not DNS).
+
+So the name was never failing to *route* — it was failing to *resolve*, because the
+resolver sits on the wrong interface. `curl` to the raw IP `http://10.8.0.2:8006`-style
+worked; `curl https://router.zero-five.space`-style ("server not found") failed.
+
+**Do NOT "fix" this by adding a public Cloudflare A record for `router.zero-five.space`**
+to make the name resolve globally. That publishes a private Zone-2 home-app name into
+public DNS — exactly the user probe that was already made for `router` earlier and
+rejected (`dns.zero-five.space`, `proxmox`, `jellyfin`, and similar private names must
+remain **AdGuard-rewrite-only**; this is the hard rule in the skill). The `router`
+Cloudflare A record was already added once and removed; never re-add it.
+
+**The right fix — attach DNS to the tunnel, not to Wi-Fi:**
+
+Option A (recommended, chosen 2026-08-23): use the **WireGuard macOS app** (App Store,
+Network Extension). The app assigns the tunnel `DNS =` to the tunnel's virtual interface
+scoped resolver, so queries are encapsulated and reach AdGuard. Import `zero-five.conf`
+by exporting it with the app or sharing the config; the CLI config remains the source
+of truth for keys/routes.
+
+Option B (home-LAN footnote — NOT roaming): while physically at home only, you can instead
+just set the Wi-Fi DNS to Delta's LAN address (`192.168.1.106`) so macOS queries AdGuard
+directly on the LAN without needing the tunnel at all:
+`sudo networksetup -setdnsservers Wi-Fi 192.168.1.106 1.1.1.1`. This is **home-only**
+and no longer works roaming; the WireGuard app (Option A) is the long-term fix and is
+the chosen path.
+
+**Verify after switching:** `curl https://<name>.zero-five.space` must resolve; if it
+still says server-not-found, `scutil --dns` shows whether `10.8.0.2` ended up on a
+tunnel-scoped resolver or got dropped to en0.
 
 | Symptom | Check |
 | --- | --- |
@@ -189,6 +238,7 @@ previous state. A handshake alone does not prove route or application policy.
 | Handshake but no Delta access | `AllowedIPs` must include `10.8.0.2/32`; Delta's `sport 51821 lookup main` rule (else the Mullvad tunnel swallows replies) |
 | Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` + `10.8.0.2/32` |
 | Works manually but not after reboot | No verified startup service yet |
+| Private names "Server Not Found" only while roaming (works on phone/LAN) | Homebrew wg-quick attaches `DNS=` to Wi-Fi (en0), not the tunnel → queries leak out the carrier and never reach `10.8.0.2`. Use the WireGuard macOS app (Network Extension) instead; do NOT add a public Cloudflare A record for the private name |
 
 ## Rollback
 

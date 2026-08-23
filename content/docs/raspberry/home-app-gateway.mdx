@@ -179,7 +179,7 @@ tls:
 
    Re-verify the **issuer** is Let's Encrypt, not `Zero Five Internal CA`, with:
    `openssl s_client -connect 10.8.0.2:443 -servername router.zero-five.space` → issuer
-   `O=Let's Encrypt`. Diagnosis ordering for any "can't reach <name> over VPN" report:
+   `O=Let's Encrypt`. Diagnosis ordering for any "can't reach `<name>` over VPN" report:
    (a) AdGuard rewrite → `10.8.0.2`, (b) Traefik serves the route from alpha (`curl
    --resolve`, 200/302), (c) **the cert issuer for that SNI** — before touching
    redirects or proxying.

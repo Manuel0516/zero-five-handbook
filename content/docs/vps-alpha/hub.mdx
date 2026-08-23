@@ -22,6 +22,63 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 | File browser | Admin-only, scoped to `Service.file_root`, path-traversal protected |
 | Audit log | Every control action and file write recorded |
 
+## Multi-node control plane (implemented in source, staged deployment pending)
+
+The next Hub architecture models the homelab as four nodes rather than one VPS
+service list:
+
+| Node | Mesh address | Relay role |
+|---|---:|---|
+| Alpha VPS | `10.8.0.1` | Existing Docker socket-proxy and Alpha host-agent |
+| Delta Raspberry | `10.8.0.2` | Sole on-premises relay, telemetry collector, service discovery, and LAN WoL relay |
+| Gamma laptop | `10.8.0.3` | Telemetry and services collected/controlled through Delta |
+| Beta laptop | `10.8.0.4` | Telemetry and services collected/controlled through Delta |
+
+The Hub database now has a `nodes` table and associates each service with a
+hosting node. The dashboard can display RAM, configured storage, load/uptime,
+relay freshness, and services per node. Delta's storage configuration includes
+its primary filesystem and the external 4 TB drive; Alpha, Beta, and Gamma use
+their primary device storage.
+
+### Delta relay security boundary
+
+Delta runs a separate `zero-five-hub-relay` systemd service, independent from
+`zero-five-backup`. It reuses the backup controller's dedicated SSH identity and
+aliases, but exposes a different authenticated API and service lifecycle. The
+relay accepts only fixed node names, fixed actions, and declared service
+manifest entries. It has no arbitrary shell, SSH, Docker, systemd, MAC-address,
+or file operation endpoint.
+
+Beta and Gamma power actions use the same reviewed backup topology:
+
+```text
+Hub → authenticated Delta relay
+  wake   → /usr/local/sbin/delta-wake beta|gamma
+  suspend → root@beta /usr/local/sbin/beta-suspend
+           manuel@gamma sudo /usr/local/sbin/gamma-suspend
+```
+
+The source templates intentionally contain no credentials. The relay must reuse
+scoped source-side NOPASSWD rules and the existing SSH aliases; it must not add a
+second broad sudo grant or automate a password prompt.
+
+Remote file browsing/editing is excluded. Existing file browsing remains an
+Alpha-specific feature until a separate security design is approved.
+
+### Remote services and Minecraft
+
+Docker labels and declarative service manifests provide stable service keys and
+node placement. A Minecraft service on Gamma can therefore use the same Hub
+service card and control API as Alpha Minecraft, while Delta performs the
+allowlisted remote operation. A sleeping Beta/Gamma node remains visible, but
+its services are shown as unavailable until telemetry confirms that it is awake.
+
+The implementation is staged: source code, migrations, tests, and secret-free
+infrastructure templates are prepared first; Delta installation and any
+production service migration require a separate deployment/verification step.
+
+---
+
 ## Architecture
 
 ```text

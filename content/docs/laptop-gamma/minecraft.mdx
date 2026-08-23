@@ -1,0 +1,89 @@
+---
+title: Minecraft Server
+description: LynxHouse Fabric 1.20.1 server — now runs on gamma as a bare-metal systemd unit (migrated from alpha 2026-08-23). Heap lowered to -Xmx4G.
+---
+
+# Minecraft Server (LynxHouse) on Gamma
+
+Migrated from alpha **2026-08-23**. LynxHouse is a modded **Fabric 1.20.1**
+server — bare-metal Java under systemd (the deployment never used Docker or a
+git repo). It now runs on gamma, LAN `192.168.1.107` / mesh `10.8.0.3`.
+
+| Property | Value |
+|---|---|
+| Address | `mc.zero-five.space` (SRV `_minecraft._tcp.mc` → 25565) |
+| Minecraft | 1.20.1 (Fabric loader, `fabric-installer-0.11.2.jar`) |
+| Java | OpenJDK 17 headless (`/usr/lib/jvm/java-17-openjdk-amd64/bin/java`) |
+| Heap | **`-Xms2G -Xmx4G`** (lowered from alpha's 8G to fit gamma's 6.8 GB RAM) |
+| Players | max 5, survival, easy, online mode on |
+| RCON | enabled on `127.0.0.1:25575` |
+| Local source | `~/services/minecraft/LynxHouse/` |
+
+## systemd unit
+
+`/etc/systemd/system/minecraft.service` (enabled, boot-starts):
+
+```ini
+[Unit]
+Description=Minecraft Fabric Server (LynxHouse)
+After=network.target
+
+[Service]
+User=manuel
+WorkingDirectory=/home/manuel/services/minecraft/LynxHouse
+ExecStart=/usr/lib/jvm/java-17-openjdk-amd64/bin/java -Xms2G -Xmx4G -jar fabric-server-launch.jar nogui
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+| Task | Command |
+|---|---|
+| Start/stop/restart | `sudo systemctl start\|stop\|restart minecraft` |
+| Logs | `journalctl -u minecraft -f` or `~/services/minecraft/LynxHouse/logs/latest.log` |
+| Verify listening | `ss -tlnp \| grep 25565` → `LISTEN ... *:25565` |
+
+Boot-readiness: server is warm in ~12s (`Done (11.9s)` in logs).
+
+## Firewall (gamma)
+
+Gamma's UFW is `ENABLED=no` — effectively not filtering. The install script
+added *scoped* UFW allows (mesh `10.8.0.0/24` + LAN `192.168.1.0/24` → TCP 25565)
+so that if UFW is ever enabled they're already present and scoped.
+
+## Reachability (verified 2026-08-23)
+
+| Path | Result |
+|---|---|
+| Delta (LAN) → `192.168.1.107:25565` | **OPEN** ✓ |
+| Alpha (mesh) → `10.8.0.3:25565` | **OPEN** ✓ |
+| External → `46.162.95.145:25565` | **TIMEOUT** (router forward pending) |
+
+DNS is live and dynamic: `mc.zero-five.space` → CNAME → `delta-vpn.zero-five.space`
+(the DDNS-tracked home WAN, `proxied=false`, so raw MC TCP passes; SRV kept).
+The **only missing link** is the router forward `TCP :25565 → 192.168.1.107`
+(home router UI; unblocked 2026-08-23 — do not leave external play down).
+
+## Mods (31)
+
+Fabric API plus: Create (+Additions/Steam Rails), Applied Energistics 2, Tech
+Reborn, Modern Industrialization, CC: Tweaked, Farmer's Delight, Croptopia,
+Regions Unexplored, TerraBlender, Supplementaries, Amendments, Another
+Furniture, Handcrafted, Chipped, Macaw's Furniture, Roughly Enough Items,
+Xaero's Minimap + World Map, Traveler's Backpack, Lithium, Fabric API,
+Architectury, Cloth Config, Cardinal Components, Moonlight, Resourceful Lib,
+EpheroLib, Forge Config API Port, Athena.
+
+All jars in `~/services/minecraft/LynxHouse/mods/` — players need matching
+client versions of the content mods.
+
+## Notes
+- World copied from alpha byte-for-byte (rsync, mesh); stray `world ` / nested
+  `LynxHouse/LynxHouse` preserved.
+- **Do not re-add Delta as a hop** — gamma answers directly on its LAN IP, so a
+  single router forward (`TCP :25565 → 192.168.1.107`) is the whole external
+  path. A Delta nftables DNAT hop would only add double-NAT fragility (public
+  source IPs fail the `gateway forward` policy-drop chain — see the AdGuard
+  pitfall) for zero benefit.

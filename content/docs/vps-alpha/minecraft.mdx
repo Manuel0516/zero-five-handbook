@@ -1,25 +1,37 @@
 ---
 title: Minecraft Server
-description: The LynxHouse Fabric 1.20.1 server — bare metal under systemd, 31 mods, RCON control through the hub, and the mc.zero-five.space SRV record.
+description: LynxHouse Fabric 1.20.1 server — MOVED to gamma (2026-08-23). Historical alpha deployment notes retained; live service documentation moved to /docs/laptop-gamma/minecraft.
 ---
 
-**LynxHouse** is a modded Minecraft **Fabric 1.20.1** server at `~/services/minecraft/LynxHouse`. It is the one service that runs neither in Docker nor from a git repo — bare-metal Java under systemd, with the world data backed up as files.
+> **MOVED to gamma 2026-08-23.** The LynxHouse Fabric server now runs as a
+> bare-metal systemd unit on **gamma** (`10.8.0.3`, LAN `192.168.1.107`), heap
+> lowered to `-Xmx4G` to fit gamma's 6.8 GB RAM. Live docs are on the
+> [gamma Minecraft page](/docs/laptop-gamma/minecraft). This alpha page is kept
+> for the historical record and rollback reference.
 
-| Property | Value |
+**LynxHouse** is a modded Minecraft **Fabric 1.20.1** server. It is the one
+service that runs neither in Docker nor from a git repo — bare-metal Java under
+systemd, with the world data backed up as files.
+
+| Property | Value (alpha era) |
 |----------|-------|
-| Address | `mc.zero-five.space` (SRV record `_minecraft._tcp.mc` → port 25565) |
-| Minecraft | 1.20.1 (Fabric loader, installed with `fabric-installer-0.11.2.jar`) |
-| Java | OpenJDK 17 (headless, from Ubuntu apt) |
-| Heap | `-Xms4G -Xmx8G` |
-| Players | max 5, survival, easy difficulty, online mode on |
-| Whitelist | `white-list=false` (but `enforce-whitelist=true` — flip both to lock the server) |
-| RCON | enabled on `127.0.0.1:25575` — used by the [hub-agent](/docs/vps-alpha/hub#hub-agent) |
+| Address | `mc.zero-five.space` (SRV `_minecraft._tcp.mc` → 25565) |
+| Minecraft | 1.20.1 (Fabric loader, `fabric-installer-0.11.2.jar`) |
+| Java | OpenJDK 17 headless (Ubuntu apt) |
+| Heap (alpha) | ~~`-Xms4G -Xmx8G`~~ → **moved to gamma as `-Xms2G -Xmx4G`** |
+| Players | max 5, survival, easy, online mode on |
+| RCON | `127.0.0.1:25575` — used by the hub-agent |
 
-> **Warning:** The 8 GB heap ceiling equals the machine's total RAM. In practice the JVM stays lower, but memory pressure is real — if the box swaps into OOM territory, this unit is the first suspect. Consider `-Xmx4G` if more services move in.
+## Why it moved
 
-## systemd unit
+Alpha's `minecraft.service` (8 GB heap ceiling ≈ the box's total RAM) was the
+#1 OOM suspect once more services moved in. Alpha has since been planned as a
+cleaner host. gamma has 1.1 GB free / 6.8 GB RAM and 830 GB free disk, placing
+the server alongside (not inside) a ram-hungry VPS.
 
-`/etc/systemd/system/minecraft.service` (enabled — starts at boot):
+## Alpha unit (historical — now disabled)
+
+`/etc/systemd/system/minecraft.service` (was enabled, boot-start):
 
 ```ini
 [Unit]
@@ -37,70 +49,17 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-| Task | Command |
-|------|---------|
-| Start / stop / restart | `sudo systemctl start\|stop\|restart minecraft` |
-| Logs | `journalctl -u minecraft -f` or `LynxHouse/logs/latest.log` |
-| From the browser | [Hub dashboard](/docs/vps-alpha/hub) card → start/stop/restart/console |
+> **Action required 2026-08-23:** alpha's unit is still set to `enabled`. Run
+> `sudo systemctl disable minecraft` on alpha so it stops trying to boot-start
+> on the next reboot.
 
-The hub-agent's hardcoded allowlist only permits the `minecraft` unit, and its `/command` endpoint sends RCON commands (`say`, `whitelist add`, `op`, …) — so day-to-day admin doesn't need SSH at all.
-
-## Mods (31)
-
-Fabric API plus, grouped by what they add:
-
-| Category | Mods |
-|----------|------|
-| Tech | Create (+ Create Addition, Steam Rails), Applied Energistics 2, Tech Reborn, Modern Industrialization, CC: Tweaked |
-| Food & farming | Farmer's Delight, Croptopia |
-| World gen | Regions Unexplored, TerraBlender |
-| Decoration & furniture | Supplementaries, Amendments, Another Furniture, Handcrafted, Chipped, Macaw's Furniture |
-| QoL & maps | Roughly Enough Items, Xaero's Minimap + World Map, Traveler's Backpack, Lithium (performance) |
-| Libraries | Fabric API, Architectury, Cloth Config, Cardinal Components, Moonlight, Resourceful Lib, EpheroLib, Forge Config API Port, Athena |
-
-All jars live in `LynxHouse/mods/` — **client players need matching versions** of the content mods.
-
-## Setup from scratch
-
-<Steps>
-
-### Install Java and open the firewall
-
-```bash
-sudo apt install openjdk-17-jre-headless
-sudo ufw allow 25565/tcp
-```
-
-### Restore or create the server folder
-
-Restore `LynxHouse/` from backup (world + mods + configs), or bootstrap fresh:
-
-```bash
-mkdir -p ~/services/minecraft/LynxHouse && cd ~/services/minecraft/LynxHouse
-# download fabric-installer and the 1.20.1 server jar, then:
-java -jar fabric-installer-0.11.2.jar server -mcversion 1.20.1 -downloadMinecraft
-echo "eula=true" > eula.txt
-```
-
-Set in `server.properties`: `server-port=25565`, `enable-rcon=true`, `rcon.port=25575`, and a strong `rcon.password` (must match the hub-agent's `rcon.conf` drop-in).
-
-### Install the unit
-
-Write the systemd unit shown above, then:
-
-```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now minecraft
-```
-
-### DNS
-
-Cloudflare already has `mc` (A, grey cloud) and the `_minecraft._tcp.mc` SRV record — players connect with just `mc.zero-five.space`.
-
-</Steps>
+The world was copied to gamma (1.1 GB, rsync over the mesh, verified byte-for-byte).
+The `LynxHouse/` folder includes a stray `world ` (trailing space) and nested
+`LynxHouse/LynxHouse` subdir from the original bootstrapping — preserved on both.
 
 ## Backups
 
-The world is plain files — back up while the server is stopped, or use RCON `save-off`/`save-all` around a live copy:
+The world is plain files — back up while stopped, or RCON `save-off`/`save-all`:
 
 ```bash
 sudo systemctl stop minecraft
@@ -108,7 +67,6 @@ tar czf ~/backups/lynxhouse-$(date +%F).tar.gz -C ~/services/minecraft LynxHouse
 sudo systemctl start minecraft
 ```
 
-The planned Raspberry Pi backup must retrieve this archive and retain older
-versions. The removed Google Drive remote is not a destination. Until the Pi
-copy and a world restore are tested, a local archive on the VPS is only a
-staging file, not a recovery backup.
+> 2026-08-23: the backup now belongs to the **gamma** runbook. Delta's backup
+> controller (`zero-five-backup`) should be taught the gamma world path as a new
+> source once runbooks settle.

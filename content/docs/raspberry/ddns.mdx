@@ -1,6 +1,6 @@
 ---
 title: Cloudflare DDNS (Delta roaming endpoint)
-description: "Keeps the delta-vpn.zero-five.space A record pointed at the home WAN IP so roaming WireGuard peers (MacBook, phone) can reach Delta from anywhere. Home WAN IP is read from the router's UPnP IGD — never an outbound IP-echo, because Delta's egress runs through Mullvad."
+description: "Keeps the delta-vpn.zero-five.space A record pointed at the home WAN IP so roaming WireGuard peers (MacBook, phone) can reach Delta from anywhere. Home WAN IP is learned UPnP-free via a UDP echo to alpha :51823 (destination-based lookup-main route bypasses Mullvad)."
 ---
 
 The **roaming WireGuard endpoint** (`delta-vpn.zero-five.space`) is a Cloudflare
@@ -22,23 +22,29 @@ The usual DDNS trick — ask the internet "what's my IP?" (`api.ipify.org`,
 Mullvad exit (e.g. `45.130.200.131`), **not** the home WAN IP. The updater must
 learn the home WAN IP from **inside** the LAN instead.
 
-## The WAN-IP source: router UPnP IGD
+## The WAN-IP source: UPnP-free via alpha UDP echo (2026-08-23)
 
-The home router — "Dual Band Gigabit Router 1200", a **STRONG / MiniUPnP**
-daemon — exposes a standard UPnP IGD (**InternetGatewayDevice**) service. From
-the LAN, Delta can query it credential-free:
+**The old UPnP IGD source was replaced.** UPnP is the exact feature that tears
+out manual port-forwards (the 2026-08-23 Minecraft incident destroyed the router's
+manual forwards and the router UI's :5500 IGD surface). The DDNS now detects the
+home WAN with **no UPnP**:
 
-1. **SSDP** multicast `239.255.255.250:1900` (or direct to `192.168.1.1:1900`)
-   → device-description `LOCATION: http://192.168.1.1:5500/rootDesc.xml`.
-2. Parse `WANIPConnection:1` service → control URL `/ctl/IPConn`.
-3. SOAP `GetExternalIPAddress` → `NewExternalIPAddress`.
+1. **Alpha** runs a tiny UDP echo service on `:51823` (`udp-echo-518.py`,
+   systemd `zero-five-udp-echo.service`) that replies with the source IP it
+   observes. Deployed on alpha, UFW-allow UDP 51823.
+2. **Delta** sends one UDP datagram to `95.111.229.142:51823` (alpha). A
+   **destination-based policy route** (`ip rule add pref 100 from all to
+   95.111.229.142 lookup main`) forces that probe **outside** the Mullvad tunnel,
+   egressing via the home router — so alpha sees Delta's **home WAN IP**, not a
+   Mullvad exit.
+3. The echo reply IS the home WAN IP. Credential-free, no router UPnP.
 
-Verified: returns `46.162.95.145` — the home WAN IP. This works because the
-SSDP/SOAP exchange is **LAN-local** (never leaves eth0 into Mullvad), and it
-needs **no router credentials**.
+**Self-healing rule:** the DDNS script runs as root (systemd `User=root`) and
+re-adds the `lookup main` bypass on every run (`ensure_bypass_rule()`), so it
+survives tunnel restarts/reboots with no manual `mullvad.conf` edit.
 
-The user enabled UPnP on the router (`Dual Band Gigabit Router 1200` at
-192.168.1.1) to make this possible.
+**Verification:** `python3 zero-five-ddns.py --wan-only` returns
+`home WAN IP: 46.162.95.145` (the home WAN, NOT the Mullvad exit `45.130.200.131`).
 
 ## Layout
 
@@ -46,6 +52,9 @@ The user enabled UPnP on the router (`Dual Band Gigabit Router 1200` at
   pulled from git). Secret-free — the Cloudflare token is read at runtime from
   `/etc/letsencrypt/cloudflare.ini` (the same Zone:DNS:Edit token certbot
   uses). Filename/ini key: `dns_cloudflare_api_token`.
+- **Alpha UDP echo**: `~/services/zero-five-infra/scripts/udp-echo-518.py`
+  (on alpha, systemd `zero-five-udp-echo.service`, binds `:51823`, replies with
+  the observed source IP). UFW-allow UDP 51823.
 - Systemd units (from `systemd/zero-five-ddns.*.example`):
   - `/etc/systemd/system/zero-five-ddns.service` — oneshot root run of the
     script.
@@ -58,7 +67,7 @@ The user enabled UPnP on the router (`Dual Band Gigabit Router 1200` at
 
 ## How it updates Cloudflare
 
-1. Read the home WAN IP via UPnP IGD.
+1. Read the home WAN IP via the alpha UDP echo (UPnP-free).
 2. `GET` the `delta-vpn.zero-five.space` A record (zone `zero-five.space`).
 3. If the WAN IP **differs** from the record, `PATCH` it (name + type + content
    + `proxied:false` + `ttl:1`). If unchanged, do nothing.
@@ -87,9 +96,9 @@ no-op if the WAN IP is already correct).
 bash ~/services/zero-five-infra/scripts/verify-zero-five-ddns.sh
 ```
 
-Prints: Delta's UPnP-detected WAN IP (token-free `--wan-only`), the timer
-enabled state, the state file, and the authoritative public record (CF token
-read from the `traefik` container env).
+Prints: Delta's home-WAN-IP (token-free `--wan-only`, via the alpha UDP echo),
+the timer enabled state, the state file, and the authoritative public record
+(CF token read from the `traefik` container env).
 
 Expected green output (2026-08-23):
 
@@ -105,8 +114,8 @@ public record: delta-vpn.zero-five.space -> 46.162.95.145
 - `python3 zero-five-ddns.py --dry-run` — report what it would do.
 - `python3 zero-five-ddns.py --force-update-to <IP>` — force the record to an
   explicit IP (e.g. recover from a bad run). Validates IPv4.
-- `--control-url http://192.168.1.1:5500` — bypass SSDP discovery if the
-  control URL is fixed.
+- `--probe HOST:PORT` — override the alpha UDP echo target (default
+  `95.111.229.142:51823`).
 - Rollback: `sudo systemctl disable zero-five-ddns.timer`, delete
   `/etc/systemd/system/zero-five-ddns.{service,timer}`. The CF record just
   stays at the last value; nothing breaks (it's only a WAN-IP registry).
@@ -115,16 +124,29 @@ public record: delta-vpn.zero-five.space -> 46.162.95.145
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `WAN IP detection failed` | UPnP/SSDP timeout (router UPnP off on a re-IP) | Re-enable UPnP on the router; verify with `--wan-ip` (token-free) |
+| `WAN IP detection failed: could not determine home WAN IP via UDP echo` | Alpha echo :51823 down, or the `lookup main` bypass route missing (Mullvad exit report) | Confirm `zero-five-udp-echo.service` active on alpha + UFW allows UDP 51823; the script self-adds the bypass — check `ip route get 95.111.229.142` shows eth0/192.168.1.1, not `dev mullvad` |
 | `Permission denied: /etc/letsencrypt/cloudflare.ini` in a non-root run | Only root reads the token | Run the script under the systemd service (root), or `--wan-ip` for a token-free check |
-| Record goes stale but the timer is enabled | Router UPnP flaked on a renewal cycle; or Mullvad egress propped up | Run `--dry-run` once, check the state file; if the WAN IP changed, the next 15-min tick fixes it |
+| Record goes stale but the timer is enabled | Probe timeout (alpha echo down) or the bypass route missing after a restart | `ensure_bypass_rule()` re-adds it on the next run; if alpha is up and still stale, check `ip rule list` for the `to 95.111.229.142 lookup main` entry |
 | Roaming unreachable at a new location | Firewall/router UDP 51821 forwarding may not follow a WAN IP change | On a network change, verify port 51821 is still forwarded (check manually) |
+
+> **The firewall drop that broke roaming (2026-08-23, fixed):** Delta's gateway
+> `forward` chain has `policy drop` and only accepted `br-*` (Docker container)
+> egress to mullvad/eth0. An inbound WAN WireGuard handshake (public source IP)
+> destined `10.8.0.2:51821` matched no accept → dropped *before* reaching
+> WireGuard. Fix: `sudo nft add rule ip gateway forward udp dport 51821 accept`
+> (accept only the WG port; no general egress opened). The mesh always worked
+> because it rides the `wg0` tunnel interface, which never crosses the forward
+> chain — the mesh-works-WAN-doesn't asymmetry is the signature of this drop.
 
 ## Design notes / trade-offs
 
-- **UPnP instead of outbound-echo** — required here because of the Mullvad
-  full-tunnel; it also keeps Delta's WAN detection blind to the VPN exit.
-  Trade-off: it depends on the router exposing UPnP IGD (user enabled it).
+- **UDP-echo instead of outbound-echo** — required here because of the Mullvad
+  full-tunnel; the destination `lookup main` bypass makes alpha the one oracle
+  that sees the home WAN. Trade-off: requires the alpha UDP echo service to be
+  up and the bypass route present (both self-healed every run).
+- **No router UPnP** — the previous UPnP IGD source was dropped because UPnP
+  is the thing that tears out static forwards; the UDP echo needs no router
+  cooperation and cannot disturb other config.
 - **Timer, not a loop** — systemd timers are the established Zero Five pattern
   (backup, certbot). `Persistent=true` means missed ticks (laptop asleep,
   Delta reboot) are still followed at the next scheduled check.

@@ -1,6 +1,6 @@
 ---
-title: Minecraft Server
-description: LynxHouse Fabric 1.20.1 server — MOVED to gamma (2026-08-23). Historical alpha deployment notes retained; live service documentation moved to /docs/laptop-gamma/minecraft.
+title: Minecraft Server (ARCHIVED — moved to gamma)
+description: "ARCHIVED. LynxHouse Fabric 1.20.1 server retired from alpha 2026-08-23 — moved to gamma and fully migrated. Historical alpha deployment + rollback reference kept for the record; live docs at /docs/laptop-gamma/minecraft."
 ---
 
 > **MOVED to gamma 2026-08-23.** The LynxHouse Fabric server now runs as a
@@ -49,9 +49,9 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-> **Action required 2026-08-23:** alpha's unit is still set to `enabled`. Run
-> `sudo systemctl disable minecraft` on alpha so it stops trying to boot-start
-> on the next reboot.
+> **Retired from alpha 2026-08-23.** `~/services/minecraft/` was removed (1.1 GB)
+> and `minecraft.service` disabled (see cleanup). Alpha no longer hosts Minecraft;
+> the server runs on [gamma](/docs/laptop-gamma/minecraft).
 
 The world was copied to gamma (1.1 GB, rsync over the mesh, verified byte-for-byte).
 The `LynxHouse/` folder includes a stray `world ` (trailing space) and nested

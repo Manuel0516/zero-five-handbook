@@ -52,12 +52,12 @@ name = "macbook"
 platform = "macos"
 
 [server]
-host = "192.168.1.104"   # this MacBook's LAN IP
+host = "10.8.0.11"        # this MacBook's mesh address (stable)
 port = 8765
 
 [peer]
 name = "linux"
-host = "192.168.1.110"   # the Linux desktop's LAN IP
+host = "10.8.0.12"        # the Linux desktop's mesh address (stable)
 port = 8765
 
 [clipboard]
@@ -70,7 +70,7 @@ download_dir = "~/Downloads"
 
 [security]
 encryption = false       # v1 is token-auth over plain HTTP
-shared_token = "<shared-token>"   # secret — must be identical on both devices
+shared_token = "<shared-token>"   # secret — must be identical on all devices
 
 [notifications]
 enabled = true
@@ -78,7 +78,9 @@ enabled = true
 
 The Linux config is identical except `device.name`/`device.platform`/`peer.*` are swapped. The `shared_token` value is not documented here on purpose — read it from the config on either machine when setting up a new device.
 
-> **Note:** The IPs are the current DHCP leases. If clipboard sync stops after a router restart, check both machines' IPs and update `peer.host` on each side.
+> **Reliability (2026-08):** LocalDrop peers now use the **WireGuard mesh addresses** (`10.8.0.11` MacBook, `10.8.0.12` MSI, `10.8.0.21` iPhone), not DHCP-assigned LAN IPs. Mesh addresses are stable by design — they survive router restarts and DHCP renewal, so `peer.host` never goes stale. See [LocalDrop — phone](/docs/iphone/localdrop). The old LAN-IP guidance (192.168.1.104/.110) was deprecated because DHCP leases drift after router restarts (the exact failure the docs flagged).
+
+> **Firewall / exposure:** :8765 must only be reachable by mesh peers. Do NOT add a port-forward for 8765 on the router — LocalDrop is plaintext, and a forward would expose it to the internet once DDNS points at the home WAN. The router currently has **zero** UPnP mappings (verified 2026-08-23), so nothing is exposed through UPnP today.
 
 ---
 

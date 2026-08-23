@@ -1,0 +1,82 @@
+---
+title: LocalDrop — phone
+description: "Clipboard sync and file transfer between the iPhone and the Zero Five desktop(s) via LocalDrop, run over the WireGuard mesh addresses for reliability."
+---
+
+[LocalDrop](https://github.com/Manuel0516/localdrop) syncs the clipboard and
+transfers files between the iPhone and the Linux/Mac machines. It is plain HTTP
+on port `8765` with a **shared token**, designed for a trusted private network
+only — never expose :8765 to the internet.
+
+The full tool design lives in the MacBook
+[LocalDrop](/docs/macbook/localdrop) and MSI
+[LocalDrop](/docs/laptop-msi/localdrop) pages. This page covers the phone as a
+peer.
+
+## Mesh addressing (reliability)
+
+LocalDrop peers are addressed by `host` in each device's `config.toml`. For a
+device set that includes a phone (which roams and re-DHCPs on every network
+change), use the **WireGuard mesh addresses** rather than LAN/DHCP IPs:
+
+| Device | Mesh address |
+| --- | --- |
+| MSI (Linux) | `10.8.0.12` |
+| MacBook | `10.8.0.11` |
+| iPhone | `10.8.0.21` |
+
+Mesh addresses are stable by design: they survive router restarts, DHCP
+renewal, and the phone switching WiFi networks. A LAN IP (`192.168.1.x`) can
+silently change and break sync until every `peer.host` is updated — the exact
+failure the older docs warned about. Using mesh addresses removes that whole
+class of problem.
+
+## Config sketch (phone side)
+
+```toml
+[device]
+name = "iphone"
+platform = "ios"
+
+[server]
+host = "10.8.0.21"        # this phone's mesh address (stable)
+port = 8765
+
+[peer]
+# whichever device(s) to sync clipboard/files with
+name = "linux"
+host = "10.8.0.12"        # MSI mesh address
+port = 8765
+
+[security]
+encryption = false
+shared_token = "<shared-token>"   # identical on all devices
+
+[files]
+enabled = true
+download_dir = "~/Downloads"
+```
+
+`shared_token` is a secret — it must be identical across every device but is
+never stored in the handbook or infra repo.
+
+## Security
+
+- :8765 must stay reachable **only by mesh peers**. Do **not** add a router
+  port-forward for 8765 — LocalDrop is plaintext, and now that DDNS keeps the
+  home WAN reachable, a forward would expose the clipboard + transferred files
+  to the internet.
+- The home router currently reports **zero** UPnP port-mappings (verified
+  2026-08-23), so nothing is exposed via UPnP today. The mesh itself is
+  encrypted; LocalDrop's own HTTP hop over the mesh is unencrypted but is only
+  traversed among trusted private peers.
+
+## Setup (phone)
+
+1. Create the tunnel in the WireGuard iOS app: `10.8.0.21/32`, peers per the
+   handshake/tunnels already documented.
+2. Install LocalDrop per the main [LocalDrop](/docs/macbook/localdrop) page;
+   edit `config.toml` to the mesh addresses above.
+3. Confirm the shared token matches the desktop/mac devices.
+4. `python3 main.py ping` from each side to confirm reachability.
+5. Never put the token or the private key in tracked files.

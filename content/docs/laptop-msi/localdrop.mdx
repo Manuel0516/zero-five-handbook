@@ -55,10 +55,12 @@ Install the Linux dependencies first:
 sudo pacman -S --needed python wl-clipboard libnotify zenity
 ```
 
-Set the MSI as the Linux device and the MacBook as its peer. Keep the token
-identical on both machines, but never put it in the handbook or infra repo.
-The peer address is a LAN detail, not the WireGuard address, unless the
-project is deliberately moved onto the VPN.
+Set the MSI as the Linux device and the MacBook (and phone) as peers. Keep the
+token identical on all devices, but never put it in the handbook or infra repo.
+The peer addresses are the **WireGuard mesh addresses** (`10.8.0.12` MSI,
+`10.8.0.11` MacBook, `10.8.0.21` iPhone) — mesh addresses are stable by design
+and survive DHCP re-leases, so `peer.host` does not go stale (unlike the old
+LAN-IP approach). See [LocalDrop — phone](/docs/iphone/localdrop).
 
 ## Operations
 

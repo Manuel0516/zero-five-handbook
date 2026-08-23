@@ -1,6 +1,7 @@
 {
   "title": "iPhone",
   "pages": [
-    "wireguard"
+    "wireguard",
+    "localdrop"
   ]
 }

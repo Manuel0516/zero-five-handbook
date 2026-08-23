@@ -1,82 +1,79 @@
 ---
 title: LocalDrop — phone
-description: "Clipboard sync and file transfer between the iPhone and the Zero Five desktop(s) via LocalDrop, run over the WireGuard mesh addresses for reliability."
+description: "Send clipboard entries and files from the iPhone to the Linux desktop over LocalDrop via iPhone Shortcuts. Push-only in v1 (Linux → iPhone is not supported). Uses the Linux desktop's static private IP."
 ---
 
 [LocalDrop](https://github.com/Manuel0516/localdrop) syncs the clipboard and
-transfers files between the iPhone and the Linux/Mac machines. It is plain HTTP
-on port `8765` with a **shared token**, designed for a trusted private network
-only — never expose :8765 to the internet.
+transfers files between the desktop machines. Its v1 is **push-only from the
+iPhone**: the phone cannot run a LocalDrop daemon (no `config.toml` on iOS),
+so the iPhone uses **Shortcuts** to POST clipboard/text and files to a desktop
+daemon. **Linux → iPhone is not supported in v1** (the reverse direction).
 
-The full tool design lives in the MacBook
+If you are setting up the MSI ⇄ MacBook pair, see the MacBook
 [LocalDrop](/docs/macbook/localdrop) and MSI
-[LocalDrop](/docs/laptop-msi/localdrop) pages. This page covers the phone as a
-peer.
+[LocalDrop](/docs/laptop-msi/localdrop) pages instead. This page only covers
+sending **from the phone**.
 
-## Mesh addressing (reliability)
+## What the phone can do (v1)
 
-LocalDrop peers are addressed by `host` in each device's `config.toml`. For a
-device set that includes a phone (which roams and re-DHCPs on every network
-change), use the **WireGuard mesh addresses** rather than LAN/DHCP IPs:
-
-| Device | Mesh address |
+| Direction | Supported? |
 | --- | --- |
-| MSI (Linux) | `10.8.0.12` |
-| MacBook | `10.8.0.11` |
-| iPhone | `10.8.0.21` |
+| iPhone → Linux (MSI) — clipboard & files | ✅ via Shortcuts |
+| iPhone → MacBook — clipboard & files | ✅ via Shortcuts |
+| Linux/Mac → iPhone | ❌ not supported in v1 |
 
-Mesh addresses are stable by design: they survive router restarts, DHCP
-renewal, and the phone switching WiFi networks. A LAN IP (`192.168.1.x`) can
-silently change and break sync until every `peer.host` is updated — the exact
-failure the older docs warned about. Using mesh addresses removes that whole
-class of problem.
+## Destination: the Linux/MSI desktop's static IP
 
-## Config sketch (phone side)
+The phone posts to the **MSI Linux desktop** at its **static private IP**:
 
-```toml
-[device]
-name = "iphone"
-platform = "ios"
-
-[server]
-host = "10.8.0.21"        # this phone's mesh address (stable)
-port = 8765
-
-[peer]
-# whichever device(s) to sync clipboard/files with
-name = "linux"
-host = "10.8.0.12"        # MSI mesh address
-port = 8765
-
-[security]
-encryption = false
-shared_token = "<shared-token>"   # identical on all devices
-
-[files]
-enabled = true
-download_dir = "~/Downloads"
+```
+http://192.168.1.110:8765/clipboard   (clipboard text)
+http://192.168.1.110:8765/file        (file bytes)
 ```
 
-`shared_token` is a secret — it must be identical across every device but is
-never stored in the handbook or infra repo.
+`192.168.1.110` is reserved static (it doesn't change), and the MSI daemon
+listens on `0.0.0.0:8765` so it answers on its LAN address. When the target is
+the MacBook instead, use `http://192.168.1.109:8765` (MacBook's static IP).
+
+> The phone is a one-way HTTP **client** — it never opens a listener, so the
+> desktop cannot push audio to it. Only the Shortcuts requests above matter.
+
+## Setup (iPhone)
+
+1. Confirm the MSI desktop daemon is running and listening on `0.0.0.0:8765`
+   (MSI's `config.toml`), reachable at `192.168.1.110`.
+2. Record the `shared_token` from the MSI/MacBook `config.toml`
+   (`[security] shared_token`) — it must match on the phone and the desktop.
+3. In the **Shortcuts** app:
+   - **Send clipboard to Linux:** `Get Clipboard` → `Get Contents of URL`
+     (URL `http://192.168.1.110:8765/clipboard`, method **POST**, headers
+     `X-LocalDrop-Token: <token>` + `Content-Type: application/json`, body:
+     `source = "iphone"`, `text = <Clipboard variable>`).
+   - **Send file to Linux:** `Get File` → `Get Contents of URL`
+     (URL `http://192.168.1.110:8765/file`, method **POST**, headers
+     `X-LocalDrop-Token: <token>` + `X-LocalDrop-Filename: <name>` +
+     `Content-Type: application/octet-stream`, body = file).
+4. Trigger the shortcut from the Share Sheet when sending a file.
 
 ## Security
 
-- :8765 must stay reachable **only by mesh peers**. Do **not** add a router
-  port-forward for 8765 — LocalDrop is plaintext, and now that DDNS keeps the
-  home WAN reachable, a forward would expose the clipboard + transferred files
-  to the internet.
+- Keep port `8765` **LAN-only** — the desktop daemon must listen on the LAN,
+  never be forwarded from the router. Do **not** add a router port-forward for
+  `8765`: LocalDrop is plaintext, and with DDNS now keeping the home WAN
+  reachable, a forward would expose the clipboard + transferred files to the
+  internet.
 - The home router currently reports **zero** UPnP port-mappings (verified
-  2026-08-23), so nothing is exposed via UPnP today. The mesh itself is
-  encrypted; LocalDrop's own HTTP hop over the mesh is unencrypted but is only
-  traversed among trusted private peers.
+  2026-08-23), so nothing is exposed via UPnP today.
+- The `shared_token` is a secret: it must be identical on the desktop and the
+  phone shortcut, but it is never stored in the handbook or the infra repo.
 
-## Setup (phone)
+## Troubleshooting
 
-1. Create the tunnel in the WireGuard iOS app: `10.8.0.21/32`, peers per the
-   handshake/tunnels already documented.
-2. Install LocalDrop per the main [LocalDrop](/docs/macbook/localdrop) page;
-   edit `config.toml` to the mesh addresses above.
-3. Confirm the shared token matches the desktop/mac devices.
-4. `python3 main.py ping` from each side to confirm reachability.
-5. Never put the token or the private key in tracked files.
+- `401` — the `X-LocalDrop-Token` header the shortcut sends doesn't match the
+  desktop's `shared_token`.
+- Timeout/refused — confirm the MSI daemon is up and listening on the LAN IP;
+  confirm the phone and MSI are on the same LAN (the phone must be on **WiFi**
+  — sending over cellular won't reach `192.168.1.110`).
+- Clipboard sync between the desktops themselves (MSI ⇄ MacBook) is the
+  separate pair configured on those machines — see
+  [MacBook LocalDrop](/docs/macbook/localdrop).

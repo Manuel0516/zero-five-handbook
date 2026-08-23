@@ -44,7 +44,9 @@ cp examples/config.example.toml config.toml
 
 ## Configuration
 
-One file per device: `~/projects/localdrop/config.toml`. This machine's config:
+One file per device: `~/projects/localdrop/config.toml`. This machine's config
+uses a **static private IP** as the peer address (reliable because it never
+changes, unlike a DHCP lease):
 
 ```toml
 [device]
@@ -52,12 +54,12 @@ name = "macbook"
 platform = "macos"
 
 [server]
-host = "10.8.0.11"        # this MacBook's mesh address (stable)
+host = "0.0.0.0"          # listen on all interfaces
 port = 8765
 
 [peer]
 name = "linux"
-host = "10.8.0.12"        # the Linux desktop's mesh address (stable)
+host = "192.168.1.110"    # the MSI Linux desktop's static private IP
 port = 8765
 
 [clipboard]
@@ -78,9 +80,15 @@ enabled = true
 
 The Linux config is identical except `device.name`/`device.platform`/`peer.*` are swapped. The `shared_token` value is not documented here on purpose — read it from the config on either machine when setting up a new device.
 
-> **Reliability (2026-08):** LocalDrop peers now use the **WireGuard mesh addresses** (`10.8.0.11` MacBook, `10.8.0.12` MSI, `10.8.0.21` iPhone), not DHCP-assigned LAN IPs. Mesh addresses are stable by design — they survive router restarts and DHCP renewal, so `peer.host` never goes stale. See [LocalDrop — phone](/docs/iphone/localdrop). The old LAN-IP guidance (192.168.1.104/.110) was deprecated because DHCP leases drift after router restarts (the exact failure the docs flagged).
+> **Reliability (2026-08):** the MacBook and MSI use **static private IPs** —
+> MacBook `192.168.1.109`, MSI `192.168.1.110` — reserved in the router's DHCP.
+> Because they never change, LocalDrop's `peer.host` stays valid across router
+> restarts and DHCP renewals. Old dynamically-assigned leases (e.g.
+> `192.168.1.104`) are deprecated; do not reuse them. This is deliberately the
+> simple 1:1 LocalDrop model (MSI ⇄ MacBook over the LAN); the mesh/Delta relay
+> and phone push are documented separately.
 
-> **Firewall / exposure:** :8765 must only be reachable by mesh peers. Do NOT add a port-forward for 8765 on the router — LocalDrop is plaintext, and a forward would expose it to the internet once DDNS points at the home WAN. The router currently has **zero** UPnP mappings (verified 2026-08-23), so nothing is exposed through UPnP today.
+> **Firewall / exposure:** :8765 must be reachable only by LAN peers. Do NOT add a port-forward for 8765 on the router — LocalDrop is plaintext, and a forward would expose it to the internet once DDNS points at the home WAN. The router currently has **zero** UPnP mappings (verified 2026-08-23), so nothing is exposed through UPnP today.
 
 ---
 

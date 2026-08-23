@@ -55,12 +55,15 @@ Install the Linux dependencies first:
 sudo pacman -S --needed python wl-clipboard libnotify zenity
 ```
 
-Set the MSI as the Linux device and the MacBook (and phone) as peers. Keep the
-token identical on all devices, but never put it in the handbook or infra repo.
-The peer addresses are the **WireGuard mesh addresses** (`10.8.0.12` MSI,
-`10.8.0.11` MacBook, `10.8.0.21` iPhone) — mesh addresses are stable by design
-and survive DHCP re-leases, so `peer.host` does not go stale (unlike the old
-LAN-IP approach). See [LocalDrop — phone](/docs/iphone/localdrop).
+Set the MSI as the Linux device and the MacBook as its peer. Keep the token
+identical on both machines, but never put it in the handbook or infra repo.
+The peer addresses are **static private IPs**: the MSI listens on `0.0.0.0`
+and points `peer.host` at the MacBook's static `192.168.1.109`; the MacBook
+listens on `0.0.0.0` and points `peer.host` at the MSI's static
+`192.168.1.110`. Because these are reserved (static) in the router's DHCP,
+they never go stale across restarts — the reliable, simple 1:1 LocalDrop model
+(MSI ⇄ MacBook over the LAN). The mesh/Delta relay and phone push are
+documented separately.
 
 ## Operations
 

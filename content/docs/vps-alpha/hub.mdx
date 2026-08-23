@@ -22,7 +22,7 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 | File browser | Admin-only, scoped to `Service.file_root`, path-traversal protected |
 | Audit log | Every control action and file write recorded |
 
-## Multi-node control plane (implemented in source, staged deployment pending)
+## Multi-node control plane (deployed and verified)
 
 The next Hub architecture models the homelab as four nodes rather than one VPS
 service list:
@@ -73,9 +73,11 @@ service card and control API as Alpha Minecraft, while Delta performs the
 allowlisted remote operation. A sleeping Beta/Gamma node remains visible, but
 its services are shown as unavailable until telemetry confirms that it is awake.
 
-The implementation is staged: source code, migrations, tests, and secret-free
-infrastructure templates are prepared first; Delta installation and any
-production service migration require a separate deployment/verification step.
+The implementation is deployed and verified. Delta's `zero-five-hub-relay`
+systemd unit is enabled and running on port `8775`; authenticated relay health
+and telemetry checks succeed for Delta, Gamma, and Beta. Hub's running backend
+has `DELTA_RELAY_URL` and `DELTA_RELAY_SECRET` configured, and
+`https://hub.zero-five.space/api/nodes` reports all four nodes online.
 
 ---
 

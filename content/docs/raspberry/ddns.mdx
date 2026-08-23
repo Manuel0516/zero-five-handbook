@@ -1,0 +1,143 @@
+---
+title: Cloudflare DDNS (Delta roaming endpoint)
+description: "Keeps the delta-vpn.zero-five.space A record pointed at the home WAN IP so roaming WireGuard peers (MacBook, phone) can reach Delta from anywhere. Home WAN IP is read from the router's UPnP IGD — never an outbound IP-echo, because Delta's egress runs through Mullvad."
+---
+
+The **roaming WireGuard endpoint** (`delta-vpn.zero-five.space`) is a Cloudflare
+A record (grey cloud / proxied=false) that resolves to the **home public IP**
+(46.162.95.145 as of 2026-08). Roaming peers (MacBook, iPhone) use
+`Endpoint = delta-vpn.zero-five.space:51821` to reach Delta from outside.
+
+Home/ISP connections are rarely static, so if the ISP reassigns that IP and the
+record goes stale, roaming devices can't find Delta. This page documents the
+**DDNS updater** on Delta that keeps that record current automatically.
+
+Deployed + verified 2026-08-23.
+
+## Why not an outbound IP-echo
+
+The usual DDNS trick — ask the internet "what's my IP?" (`api.ipify.org`,
+`ifconfig.me`, …) — **does not work here**: Delta's `wg-quick@mullvad` is
+`active` (full-tunnel `0.0.0.0/0`), so outbound traffic egresses through a
+Mullvad exit (e.g. `45.130.200.131`), **not** the home WAN IP. The updater must
+learn the home WAN IP from **inside** the LAN instead.
+
+## The WAN-IP source: router UPnP IGD
+
+The home router — "Dual Band Gigabit Router 1200", a **STRONG / MiniUPnP**
+daemon — exposes a standard UPnP IGD (**InternetGatewayDevice**) service. From
+the LAN, Delta can query it credential-free:
+
+1. **SSDP** multicast `239.255.255.250:1900` (or direct to `192.168.1.1:1900`)
+   → device-description `LOCATION: http://192.168.1.1:5500/rootDesc.xml`.
+2. Parse `WANIPConnection:1` service → control URL `/ctl/IPConn`.
+3. SOAP `GetExternalIPAddress` → `NewExternalIPAddress`.
+
+Verified: returns `46.162.95.145` — the home WAN IP. This works because the
+SSDP/SOAP exchange is **LAN-local** (never leaves eth0 into Mullvad), and it
+needs **no router credentials**.
+
+The user enabled UPnP on the router (`Dual Band Gigabit Router 1200` at
+192.168.1.1) to make this possible.
+
+## Layout
+
+- Script: `~/services/zero-five-infra/scripts/zero-five-ddns.py` (on Delta,
+  pulled from git). Secret-free — the Cloudflare token is read at runtime from
+  `/etc/letsencrypt/cloudflare.ini` (the same Zone:DNS:Edit token certbot
+  uses). Filename/ini key: `dns_cloudflare_api_token`.
+- Systemd units (from `systemd/zero-five-ddns.*.example`):
+  - `/etc/systemd/system/zero-five-ddns.service` — oneshot root run of the
+    script.
+  - `/etc/systemd/system/zero-five-ddns.timer` — every 15 min
+    (`OnUnitActiveSec=15min`), first check `OnBootSec=2min`, `Persistent=true`
+    so it catches up after downtime. `systemctl enable zero-five-ddns.timer`.
+- State: `/var/lib/zero-five-ddns/last-run.json` (WAN IP + timestamp + whether
+  it changed), which also makes the run idempotent — if no WAN change, no
+  Cloudflare call.
+
+## How it updates Cloudflare
+
+1. Read the home WAN IP via UPnP IGD.
+2. `GET` the `delta-vpn.zero-five.space` A record (zone `zero-five.space`).
+3. If the WAN IP **differs** from the record, `PATCH` it (name + type + content
+   + `proxied:false` + `ttl:1`). If unchanged, do nothing.
+4. Write the state file.
+
+It **only ever touches the `delta-vpn` A record** — never other records, never
+proxied/Cloudflare-ORANGE settings (orange-cloud would break WireGuard speed).
+It is idempotent and cheap (one GET per 15 min when nothing changes).
+
+## Install (one-time)
+
+On Delta (needs sudo — it writes to `/etc/systemd/system/` and reads the
+root-only token once for a first-run check):
+
+```bash
+sudo bash ~/services/zero-five-infra/scripts/install-zero-five-ddns.sh
+```
+
+The script copies the `.example` units to `/etc/systemd/system/zero-five-ddns.{service,timer}`,
+`systemctl enable zero-five-ddns.timer`, and runs one first check (which is a
+no-op if the WAN IP is already correct).
+
+## Verify (from alpha, no sudo — SSH to Delta as `manuel` + docker via the hub)
+
+```bash
+bash ~/services/zero-five-infra/scripts/verify-zero-five-ddns.sh
+```
+
+Prints: Delta's UPnP-detected WAN IP (token-free `--wan-only`), the timer
+enabled state, the state file, and the authoritative public record (CF token
+read from the `traefik` container env).
+
+Expected green output (2026-08-23):
+
+```
+home WAN IP: 46.162.95.145
+timer enabled: enabled
+wan_ip: 46.162.95.145, changed: false
+public record: delta-vpn.zero-five.space -> 46.162.95.145
+```
+
+## Manual / emergency
+
+- `python3 zero-five-ddns.py --dry-run` — report what it would do.
+- `python3 zero-five-ddns.py --force-update-to <IP>` — force the record to an
+  explicit IP (e.g. recover from a bad run). Validates IPv4.
+- `--control-url http://192.168.1.1:5500` — bypass SSDP discovery if the
+  control URL is fixed.
+- Rollback: `sudo systemctl disable zero-five-ddns.timer`, delete
+  `/etc/systemd/system/zero-five-ddns.{service,timer}`. The CF record just
+  stays at the last value; nothing breaks (it's only a WAN-IP registry).
+
+## Failure modes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `WAN IP detection failed` | UPnP/SSDP timeout (router UPnP off on a re-IP) | Re-enable UPnP on the router; verify with `--wan-ip` (token-free) |
+| `Permission denied: /etc/letsencrypt/cloudflare.ini` in a non-root run | Only root reads the token | Run the script under the systemd service (root), or `--wan-ip` for a token-free check |
+| Record goes stale but the timer is enabled | Router UPnP flaked on a renewal cycle; or Mullvad egress propped up | Run `--dry-run` once, check the state file; if the WAN IP changed, the next 15-min tick fixes it |
+| Roaming unreachable at a new location | Firewall/router UDP 51821 forwarding may not follow a WAN IP change | On a network change, verify port 51821 is still forwarded (check manually) |
+
+## Design notes / trade-offs
+
+- **UPnP instead of outbound-echo** — required here because of the Mullvad
+  full-tunnel; it also keeps Delta's WAN detection blind to the VPN exit.
+  Trade-off: it depends on the router exposing UPnP IGD (user enabled it).
+- **Timer, not a loop** — systemd timers are the established Zero Five pattern
+  (backup, certbot). `Persistent=true` means missed ticks (laptop asleep,
+  Delta reboot) are still followed at the next scheduled check.
+- **Token reuse** — the certbot `cloudflare.ini` token already has
+  `Zone:DNS:Edit`; no new secret. Critical: the *token must stay root-only*
+  (`0600`); the repo script reads it at runtime, never embeds it.
+- **Only one record** — deliberately narrow blast radius (`delta-vpn` A
+  record). The mesh renumber does not affect it (it points at the home WAN IP,
+  not Delta's mesh address).
+
+## Roster / mesh context
+
+The DDNS record is independent of the WireGuard mesh renumbering currently in
+flight — it holds the **home WAN IP**, so Delta moving mesh addresses doesn't
+change what `delta-vpn` should point at. The roaming peer configs
+(`Endpoint = delta-vpn...:51821`) use this record on MacBook/iPhone.

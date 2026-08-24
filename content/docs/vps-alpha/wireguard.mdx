@@ -8,11 +8,10 @@ stable public hub and primary path. Delta is now a second infrastructure node
 with a public UDP endpoint and direct peer definitions for registered clients.
 Gamma and the iPhone also connect as deployed clients.
 Beta is registered as a deployed client.
-Delta is deployed as the infrastructure peer at `10.8.0.2/32` and listens on
-UDP `51821` through `delta-vpn.zero-five.space`. Its Alpha handshake is
-verified. MSI is the first client with a reciprocal Delta peer; the remaining
-client rollout is incomplete.
-The BlackArch VM on Beta is registered as a direct VM client at `10.8.0.101/32`.
+Delta is deployed as the infrastructure peer at `10.8.0.2/32`. Its direct
+roaming endpoint is configured separately from the optional Alpha relay
+fallback. The BlackArch VM on Beta is registered as a direct VM client at
+`10.8.0.101/32`.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
 
@@ -88,6 +87,29 @@ The endpoint list copied from Alpha is observed NAT state. Ports can change
 when a client reconnects or its NAT mapping expires. Direct backup is durable
 only after each client has a stable reachable endpoint or uses
 `PersistentKeepalive = 25`.
+
+### Optional iPhone Alpha-relay fallback
+
+The direct iPhone profile remains the primary path (`10.8.0.21/32` → Delta).
+For networks that cannot reach Delta's residential public endpoint, an optional
+second profile is prepared in the infra repository:
+
+```text
+wireguard/iphone-alpha-relay.conf.example
+```
+
+It uses `10.8.0.22/32` and connects to Alpha at `95.111.229.142:51820`. Alpha
+then forwards `10.8.0.22` to Delta over the existing `10.8.0.1 ↔ 10.8.0.2`
+mesh peer. Delta's Alpha peer must include `10.8.0.22/32` so replies return
+through Alpha. This address separation preserves the direct `.21` route and
+allows the user to enable the relay only when needed; WireGuard does not
+perform automatic failover between duplicate destinations.
+
+Activation requires one-time root changes on Alpha and Delta: add `.22/32` to
+the existing phone peer on Alpha, add `.22/32` to Alpha's peer on Delta, and
+allow only `wg0`→`wg0` forwarding on Alpha. The runtime changes should be
+applied with `wg set` and persisted in the root-only configs; do not restart
+`wg0` over a mesh SSH session.
 
 ### Open rollout task: reciprocal Delta peers
 

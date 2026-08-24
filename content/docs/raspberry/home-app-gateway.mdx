@@ -44,10 +44,9 @@ Why this design (user decisions, 2026-08-22):
   `/etc/traefik/dynamic`)
 - Dynamic routes: `/home/manuel/services/proxy/dynamic/*.yml` (hot-reloaded)
 - **Internal CA**: `/home/manuel/services/proxy/ca/ca.{key,pem}` —
-  "Zero Five Internal CA" (created 2026-08-22, 10 years). Public cert also
-  at `/home/manuel/zero-five-ca.pem` on Delta and in the infra repo
-  (`proxy/zero-five-ca.pem`) for device trust distribution. **The CA private
-  key never leaves Delta.**
+  "Zero Five Internal CA" (created 2026-08-22, 10 years). Public cert
+  distributed from the infra repo (`proxy/zero-five-ca.pem`) for device trust.
+  **The CA private key never leaves Delta.**
 - TLS cert: `/home/manuel/services/proxy/certs/zero-five.{pem,key-pem}` —
   wildcard `*.zero-five.space` **signed by the internal CA** (not
   self-signed), 10 years. Trust the CA once per device → every subdomain
@@ -111,7 +110,7 @@ triggers the internal-CA fallback.
 
 **CA files (Delta, root-owned):**
 - Private key: `/home/manuel/services/proxy/ca/ca.key` (mode 600, never leaves Delta)
-- Public cert: `/home/manuel/services/proxy/ca/ca.pem` (copies: `/home/manuel/zero-five-ca.pem` on Delta, `proxy/zero-five-ca.pem` in the infra repo)
+- Public cert: `/home/manuel/services/proxy/ca/ca.pem` (distributed via `proxy/zero-five-ca.pem` in the infra repo)
 - Wildcard leaf: `/home/manuel/services/proxy/certs/zero-five.pem` (signed by CA)
 - **Fullchain** (default cert): `/home/manuel/services/proxy/certs/zero-five-fullchain.pem`
 - LE certs: `/etc/letsencrypt/live/<name>/` + copies in `/home/manuel/services/proxy/certs/le/`
@@ -132,8 +131,7 @@ Full rebuild runbook: [Delta Rebuild & Recovery](/docs/raspberry/delta-rebuild).
 - **Linux**: copy to `/usr/local/share/ca-certificates/zero-five-ca.crt` →
   `sudo update-ca-certificates`
 
-Fetch the cert: `scp manuel@10.8.0.2:/home/manuel/zero-five-ca.pem .` (or from
-the infra repo `proxy/zero-five-ca.pem`).
+Fetch the cert from the infra repo: `curl -O https://raw.githubusercontent.com/Manuel0516/zero-five-infra/main/proxy/zero-five-ca.pem` (or `scp manuel@10.8.0.2:/home/manuel/services/zero-five-infra/proxy/zero-five-ca.pem .`).
 
 **PITFALL — serve the full chain.** Traefik's dynamic TLS must point at a
 **fullchain** file (leaf + CA concatenated), not just the leaf. With only the

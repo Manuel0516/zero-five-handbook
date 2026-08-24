@@ -240,9 +240,9 @@ cert — the fallback is automatic, nothing to configure per app.
 
 ## Part 5 — Device trust (one-time per device)
 
-The CA cert (`proxy/ca/ca.pem`, also copied to `/home/manuel/zero-five-ca.pem`
-on Delta and in the infra repo as `proxy/zero-five-ca.pem`) must be trusted on
-each device ONCE. This is the deliberate trade for Cloudflare independence:
+The CA cert (`proxy/ca/ca.pem`, distributed via `proxy/zero-five-ca.pem` in
+the infra repo) must be trusted on each device ONCE. This is the deliberate
+trade for Cloudflare independence:
 
 - **macOS**: `sudo security add-trusted-cert -d -r trustRoot -k
   /Library/Keychains/System.keychain zero-five-ca.pem` (or Keychain Access →

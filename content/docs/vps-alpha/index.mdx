@@ -30,7 +30,11 @@ and unresolved risks.
 | Domain | `zero-five.space` (Porkbun registrar → Cloudflare DNS) |
 | SSH | `ssh contabo` — port `2020`, key-only (see [Security](/docs/vps-alpha/security)) |
 
-> **Note:** The server keeps its own summary at `~/docs/INFRASTRUCTURE.md`, but parts of it are outdated — it references an old IP (`162.255.119.186`) and claims UFW is not installed. The current IP is `95.111.229.142` and UFW is active. This handbook reflects the live state.
+> **Note:** The server previously kept its own summary at
+> `~/docs/INFRASTRUCTURE.md`, but that folder was **removed 2026-08-24** — the
+> handbook is the single source of truth. (The old file referenced an old IP
+> `162.255.119.186` and claimed UFW was not installed; the current IP is
+> `95.111.229.142` and UFW is active.)
 
 ---
 
@@ -176,8 +180,7 @@ world data + mod jars / containers there, backed up as files instead of git.
 ├── .hermes/               # Hermes Agent install + config + secrets + plugins
 ├── .config/systemd/user/  # hermes-gateway + hermes-dashboard units
 ├── hub-agent/             # systemd bridge service (venv + agent.py)
-├── backups/               # Local backups (docker volumes, legacy projects)
-├── docs/INFRASTRUCTURE.md # Older on-server notes (partly outdated)
+├── backups/               # Local backups (docker volumes, legacy projects) — to move to delta
 └── physics-degree/        # Coursework clone
 ```
 

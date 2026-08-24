@@ -39,11 +39,15 @@ Verified live with `docker ps`:
 | `secondbrain-api-1` | built from repo | secondbrain | internal only |
 | `secondbrain-db-1` | `postgres:18.3-alpine` | secondbrain | internal only |
 | `secondbrain-minio-1` | `quay.io/minio/minio` | secondbrain | internal only |
-| `open-webui` | `ghcr.io/open-webui/open-webui:main` | personal-ai/server | host `:3000`, VPN only via Traefik (`ai.zero-five.space`) |
-| `ollama-router` | `python:3.12-slim` | personal-ai/router | host network, `127.0.0.1:11435` |
-| `searxng` | `searxng/searxng:latest` | personal-ai/web-search | `127.0.0.1:8081` |
 | `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |
 | `handbook` | built from repo | handbook | via Traefik (`docs.zero-five.space`, VPN only) |
+
+> **Removed 2026-08-24 (alpha cleanup):** the personal-ai containers
+> (`open-webui`, `ollama-router`, `searxng` — the stack moved to
+> [gamma](/docs/laptop-gamma/ai-stack)) and the secondbrain **dev** stack
+> (`secondbrain-dev-db-1`, `secondbrain-dev-minio-1` — dev containers with
+> their volumes) were deleted from alpha. The `server_open-webui` volume is
+> also gone. See [archive AI stack](/docs/archive/ai-stack).
 
 Two services run as **native systemd user units**, not containers: the
 [Hermes Agent](/docs/vps-alpha/hermes-agent) gateway and web dashboard
@@ -58,9 +62,6 @@ host `:9119` and is routed through Traefik's file provider like Open WebUI).
 |---------|-------------|
 | `hub` | `~/services/hub/docker-compose.yml` |
 | `secondbrain` | `~/services/second-brain/compose.yaml` |
-| `server` | `~/services/personal-ai/server/docker-compose.yml` |
-| `router` | `~/services/personal-ai/router/docker-compose.yml` |
-| `web-search` | `~/services/personal-ai/web-search/docker-compose.yml` |
 | `handbook` | `~/services/zero-five-handbook/docker-compose.yml` (repo clone, updated by [the deploy pipeline](/docs/vps-alpha/handbook)) |
 
 > **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps-alpha/telegram-bot).

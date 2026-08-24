@@ -5,20 +5,21 @@ description: Native Ollama service configuration on the MSI and its planned priv
 
 ## Role
 
-The personal-ai router on Alpha is designed to merge models from two Ollama
+The personal-ai router on **gamma** is designed to merge models from two Ollama
 backends:
 
 ```mermaid
 flowchart LR
     browser["VPN client"] --> webui["Open WebUI<br/>ai.zero-five.space"]
-    webui --> router["ollama-router<br/>Alpha 127.0.0.1:11435"]
-    router --> server["Alpha Ollama<br/>10.8.0.1:11434"]
-    router --> msi["MSI Ollama<br/>10.8.0.12:11434<br/>planned"]
+    webui --> router["ollama-router<br/>gamma 127.0.0.1:11435"]
+    router --> server["gamma Ollama<br/>10.8.0.3:11434"]
+    router --> msi["MSI Ollama<br/>10.8.0.12:11434"]
 ```
 
 The MSI backend is private and reachable only through the WireGuard route.
-The current inventory found no local models, so the laptop branch currently
-returns no model inventory until models are deliberately installed.
+Since 2026-08-24 the laptop branch is **live**: `deepseek-r1:7b` and
+`qwen2.5-coder:7b` are deployed and merged by the gamma router (see
+[gamma AI stack](/docs/laptop-gamma/ai-stack)).
 
 ## Captured service configuration
 
@@ -36,15 +37,17 @@ Environment="OLLAMA_KEEP_ALIVE=1m"
 Environment="OLLAMA_NUM_CTX=65536"
 ```
 
-MSI's UFW permits TCP `11434` only on `wg0` from Alpha's `10.8.0.1/32` source:
+MSI's UFW permits TCP `11434` on `wg0` from gamma's `10.8.0.3/32` and
+alpha's `10.8.0.1/32` sources:
 
 ```bash
 sudo ufw allow in on wg0 from 10.8.0.1 to any port 11434 proto tcp
+sudo ufw allow in on wg0 from 10.8.0.3 to any port 11434 proto tcp
 sudo ufw reload
 ```
 
-This is required for the Alpha personal-ai router; the Ollama port remains
-closed on the LAN and public interfaces.
+This is required for the gamma personal-ai router (and the alpha fallback);
+the Ollama port remains closed on the LAN and public interfaces.
 
 The service source and drop-in examples are tracked under
 `zero-five-infra/settings/msi/ai/`. The actual system unit and any package

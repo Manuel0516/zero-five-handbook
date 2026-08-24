@@ -128,4 +128,11 @@ does **not** auto-discover new containers.
 
 Local development happens on the MacBook/laptop, not the VPS — see the repo README: Vite dev server on `:5173` proxying to FastAPI on `:8000`, with only `db` and `minio` in Docker (`compose.dev.yaml`). The repo also defines the multi-agent workflow (`AGENTS.md`, Ponytail plugin for Claude Code/Codex).
 
-**VPS dev environment (used for the embedded-agent work, 2026-08):** the VPS can also run a full dev stack without touching prod — `docker compose -f compose.dev.yaml up -d` (project `secondbrain-dev`, Postgres on `127.0.0.1:5433`, MinIO on `127.0.0.1:9100`), then the API and web run directly on the host: `uvicorn app.main:app --reload --port 8000` (from `apps/api`, env from `.env.dev`) and `npm run dev -- --port 5173` (from `apps/web`). Everything binds to `127.0.0.1` only; prod containers are untouched. Dev login: `manuel@dev.zero-five.space` (credentials in the VPS-only `.env.dev`). Feature branches are developed in git worktrees (`~/worktrees/sb-*`) and merged into `development`; prod deploys from `main` only (see CI/CD).
+> **VPS dev stack REMOVED 2026-08-24.** The alpha VPS used to run a full
+> second-brain dev stack (`docker compose -f compose.dev.yaml up -d`, project
+> `secondbrain-dev`, Postgres on `127.0.0.1:5433`, MinIO on `127.0.0.1:9100`)
+> with the API/web running on the host for the embedded-agent work. Those dev
+> containers and their volumes were **removed** during the alpha cleanup;
+> local dev now happens on the MacBook/laptop only. The worktrees
+> (`~/worktrees/sb-*`) were also part of that workflow and are no longer on
+> the VPS.

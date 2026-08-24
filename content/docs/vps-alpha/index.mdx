@@ -118,19 +118,9 @@ Three kinds of workloads coexist:
     href="/docs/vps-alpha/ollama"
   />
   <Card
-    title="AI Stack — Open WebUI, router, SearXNG"
-    description="The personal-ai project: one chat UI over server and laptop models"
-    href="/docs/vps-alpha/ai-stack"
-  />
-  <Card
     title="Second Brain — Life OS"
     description="Self-hosted calendar, notes, finances app with CI/CD deploys"
     href="/docs/vps-alpha/second-brain"
-  />
-  <Card
-    title="Minecraft — Fabric server"
-    description="Bare-metal LynxHouse server on mc.zero-five.space with 31 mods"
-    href="/docs/vps-alpha/minecraft"
   />
   <Card
     title="Telegram Translation Bot"
@@ -144,6 +134,11 @@ Three kinds of workloads coexist:
   />
 </Cards>
 
+> **Migrated to gamma (2026-08-24):** the [personal-ai AI stack](/docs/laptop-gamma/ai-stack)
+> (Open WebUI, ollama-router, SearXNG) and the [animated-figures pipeline](/docs/laptop-gamma/animated-figures)
+> now run on gamma. The old alpha pages for the AI stack and the two retired
+> monitors are [archived](/docs/archive).
+
 ---
 
 ## GitHub repositories
@@ -153,7 +148,6 @@ Everything deployed on the VPS lives in a repository under [github.com/Manuel051
 | Repository | Deployed at | What it is |
 |------------|-------------|------------|
 | [Manuel0516/hub](https://github.com/Manuel0516/hub) | `~/services/hub` | Dashboard, Traefik config, and host-agent |
-| [Manuel0516/personal-ai](https://github.com/Manuel0516/personal-ai) | `~/services/personal-ai` | Open WebUI, ollama-router, SearXNG, WireGuard configs |
 | [Manuel0516/second-brain](https://github.com/Manuel0516/second-brain) | `~/services/second-brain` | Life OS — calendar, notes, finances |
 | [Manuel0516/telegram-translation-bot](https://github.com/Manuel0516/telegram-translation-bot) | `~/services/telegram-translation-bot` | ES/EN/SV Telegram translator |
 | [Manuel0516/physics-degree](https://github.com/Manuel0516/physics-degree) | `~/physics-degree` | Degree coursework (also cloned on the VPS) |
@@ -165,7 +159,8 @@ at `~/.hermes` (git install of [NousResearch/hermes-agent](https://github.com/No
 updated with `hermes update`), with its config/secrets in `~/.hermes/config.yaml`
 and `~/.hermes/.env`. See [Hermes Agent](/docs/vps-alpha/hermes-agent).
 
-The Minecraft server (`~/services/minecraft`) is the only service **not** in git — it is world data plus mod jars, backed up as files instead.
+The Minecraft server and the AI stack moved to gamma in 2026-08; they are
+world data + mod jars / containers there, backed up as files instead of git.
 
 ---
 
@@ -175,10 +170,9 @@ The Minecraft server (`~/services/minecraft`) is the only service **not** in git
 /home/manuel/
 ├── services/              # Everything deployed, one folder per service
 │   ├── hub/               # Dashboard + Traefik (git)
-│   ├── personal-ai/       # AI stack + WireGuard configs (git)
 │   ├── second-brain/      # Life OS (git)
 │   ├── telegram-translation-bot/   # Bot (git)
-│   └── minecraft/LynxHouse/        # Fabric server (not git)
+│   └── zero-five-infra/   # Infrastructure repo (scripts, systemd, wireguard)
 ├── .hermes/               # Hermes Agent install + config + secrets + plugins
 ├── .config/systemd/user/  # hermes-gateway + hermes-dashboard units
 ├── hub-agent/             # systemd bridge service (venv + agent.py)
@@ -198,10 +192,12 @@ To recreate the server on a fresh Ubuntu VPS, follow the pages in this order:
 3. **[WireGuard](/docs/vps-alpha/wireguard)** — Bring up the VPN before Ollama, which binds to it
 4. **[Ollama](/docs/vps-alpha/ollama)** — Install natively, bind to `10.8.0.1`, pull models
 5. **[Traefik + Hub](/docs/vps-alpha/hub)** — Clone the hub repo; its compose file starts Traefik and the dashboard
-6. **[AI Stack](/docs/vps-alpha/ai-stack)** — Open WebUI, ollama-router, SearXNG
-7. **[Second Brain](/docs/vps-alpha/second-brain)** — Clone, configure `.env`, deploy
-8. **[Minecraft](/docs/vps-alpha/minecraft)** — Restore world backup, install Fabric, enable the unit
-9. **[Telegram Bot](/docs/vps-alpha/telegram-bot)** — Build and run the container
-10. **[Hermes Agent](/docs/vps-alpha/hermes-agent)** — Native install, Telegram bot, dashboard unit, accounts plugin, VPN-only Traefik route
+6. **[Second Brain](/docs/vps-alpha/second-brain)** — Clone, configure `.env`, deploy
+7. **[Telegram Bot](/docs/vps-alpha/telegram-bot)** — Build and run the container
+8. **[Hermes Agent](/docs/vps-alpha/hermes-agent)** — Native install, Telegram bot, dashboard unit, accounts plugin, VPN-only Traefik route
+
+> **Note:** the AI stack, Minecraft, and animated-figures no longer rebuild on
+> alpha — they live on [gamma](/docs/laptop-gamma) (see its pages). The
+> `ai.zero-five.space` Traefik route on alpha proxies to gamma over the mesh.
 
 > **Tip:** DNS (Cloudflare) and the domain survive a server migration — only the A records need to point at the new IP.

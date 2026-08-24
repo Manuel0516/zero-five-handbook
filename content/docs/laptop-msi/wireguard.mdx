@@ -139,6 +139,20 @@ key remains a placeholder because the MSI identity must stay on the laptop.
 - A WireGuard handshake authenticates the peer; it does not prove that Ollama,
   SSH, or LocalDrop is healthy.
 
+## 2026-08-24: LAN endpoints + gamma mutual peer
+
+Two changes on this date (see [gamma AI stack](/docs/laptop-gamma/ai-stack)):
+
+1. **Delta peer endpoint → LAN IP.** The home router's hairpin NAT is broken
+   for WireGuard, so `Endpoint = delta-vpn.zero-five.space:51820` (public
+   DDNS) failed from inside the LAN — the direct Delta handshake died and DNS
+   via AdGuard (`10.8.0.2`) broke. Fix: `Endpoint = 192.168.1.106:51820`.
+   Roaming: swap back to the DDNS name away from home.
+2. **Gamma mutual peer** (default port 51820, LAN endpoint `192.168.1.107`),
+   so the personal-ai router on gamma can reach the MSI's Ollama
+   (`deepseek-r1:7b`, `qwen2.5-coder:7b`). MSI UFW now allows `11434` from
+   `10.8.0.3/32` in addition to `10.8.0.1/32` (alpha).
+
 ## Rollback
 
 Remove only the Delta peer from the MSI runtime and persistent client file,

@@ -33,7 +33,7 @@ home WAN with **no UPnP**:
    systemd `zero-five-udp-echo.service`) that replies with the source IP it
    observes. Deployed on alpha, UFW-allow UDP 51823.
 2. **Delta** sends one UDP datagram to `95.111.229.142:51823` (alpha). A
-   **destination-based policy route** (`ip rule add pref 100 from all to
+   **destination-based policy route** (`ip rule add pref 5 from all to
    95.111.229.142 lookup main`) forces that probe **outside** the Mullvad tunnel,
    egressing via the home router — so alpha sees Delta's **home WAN IP**, not a
    Mullvad exit.
@@ -45,6 +45,28 @@ survives tunnel restarts/reboots with no manual `mullvad.conf` edit.
 
 **Verification:** `python3 zero-five-ddns.py --wan-only` returns
 `home WAN IP: 46.162.95.145` (the home WAN, NOT the Mullvad exit `45.130.200.131`).
+
+## Mullvad full-tunnel leak — bypass raised to pref 5 (2026-08-24)
+
+**Symptom:** the CF record briefly pointed at `45.130.200.131` (the Mullvad
+exit IP), breaking roaming peers and the Minecraft CNAME. Root cause: the
+bypass rule was `pref 100`, the **same priority** as the `mullvad.conf` PostUp
+exemption — and when Mullvad's rules won the tie, the probe rode the full
+tunnel (`AllowedIPs 0.0.0.0/0`) and alpha saw the Mullvad exit, not the home
+WAN.
+
+**Fix (committed `zero-five-infra` `45d2a30`):**
+- `BYPASS_RULE` raised `pref 100` → **`pref 5`** — always beats Mullvad's
+  `pref 100` rules, so the probe and delta's mesh WG egress via the real WAN.
+- `mullvad.conf` PostUp/PostDown exemption corrected `sport 51821` (stale) →
+  **`sport 51820`** (delta's actual WG listen port). Backup:
+  `/etc/wireguard/mullvad.conf.bak-20260824`.
+
+**Diagnostic tell:** in alpha's `wg show wg0`, delta and MSI egress from the
+home WAN IP while gamma and beta (the Mullvad-gateway clients) egress from the
+Mullvad exit. If the DDNS record ever equals the gamma/beta egress IP, the
+probe is leaking through Mullvad again — check `ip rule show` for the pref-5
+entry.
 
 ## Layout
 

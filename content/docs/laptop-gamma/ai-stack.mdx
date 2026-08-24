@@ -1,6 +1,6 @@
 ---
 title: AI Stack
-description: The personal-ai stack on Gamma — Open WebUI, Ollama, and SearXNG migrated from alpha on 2026-08-24; the translation bot keeps translategemma on the VPS.
+description: The personal-ai stack on Gamma — Open WebUI, Ollama, and SearXNG migrated from alpha on 2026-08-24; MSI laptop leg wired as a mutual WireGuard peer; the translation bot keeps translategemma on the VPS.
 ---
 
 # AI Stack on Gamma
@@ -19,10 +19,10 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
              │
         ollama-router (gamma 127.0.0.1:11435)
              ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, nomic-embed-text
-             └──→ MSI Ollama     10.8.0.12:11434  → no models deployed yet
+             └──→ MSI Ollama     10.8.0.12:11434  → deepseek-r1:7b, qwen2.5-coder:7b
 ```
 
-## What lives where (post-migration)
+## What lives where (post-migration, verified 2026-08-24)
 
 | Piece | Machine | Detail |
 |-------|---------|--------|
@@ -31,8 +31,42 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
 | SearXNG | gamma | `~/services/personal-ai/web-search`, `127.0.0.1:8081` only |
 | Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.8.0.3:11434` |
 | `qwen2.5:3b` + `nomic-embed-text` | gamma | chat + embeddings |
+| Ollama daemon | MSI | native, `OLLAMA_HOST=10.8.0.12:11434` |
+| `deepseek-r1:7b` + `qwen2.5-coder:7b` | MSI | the "laptop leg" — reachable via the gamma↔MSI WG peer |
 | `translategemma:4b` + Ollama | **alpha** | **kept** — only for the translation bot |
 | translation-bot container | alpha | untouched, calls `10.8.0.1:11434` |
+
+**Router health check** (both backends live):
+```bash
+curl http://127.0.0.1:11435/health
+# server:  ['nomic-embed-text:latest', 'qwen2.5:3b']
+# laptop:  ['deepseek-r1:7b', 'qwen2.5-coder:7b']
+```
+
+## The MSI laptop leg — mutual WireGuard peer (2026-08-24)
+
+The router's laptop backend points at `10.8.0.12:11434`, but gamma's wg0
+originally had **no route to the MSI** — the router used to live on alpha,
+which (as the WG hub) could reach every peer. Fix: a **mutual peer** between
+gamma and MSI, both on the home LAN, both using **default port 51820** (gamma
+was on 51822; moved to 51820 to keep things simple).
+
+- **Gamma** `/etc/wireguard/wg0.conf`: `ListenPort = 51820` + MSI peer
+  (`PublicKey EY6Hvumu…`, `Endpoint 192.168.1.110:51820`, `AllowedIPs
+  10.8.0.12/32`, `PersistentKeepalive 25`)
+- **MSI** `/etc/wireguard/wg0.conf`: gamma peer (`PublicKey 4+S25E4b…`,
+  `Endpoint 192.168.1.107:51820`, `AllowedIPs 10.8.0.3/32`, `PersistentKeepalive
+  25`)
+- **MSI UFW**: `sudo ufw allow in on wg0 from 10.8.0.3 to any port 11434 proto
+  tcp` (previously only alpha was allowed)
+
+LAN endpoints (not the DDNS name) are deliberate: the home router's hairpin
+NAT is broken for WireGuard, so home-to-home peers must use LAN IPs — same
+pattern as the MSI→delta and beta→delta fixes. Roaming caveat: the LAN
+endpoints only work while both machines are at home.
+
+Verify: `ping 10.8.0.12` from gamma, `curl http://10.8.0.12:11434/api/tags`
+from gamma, and the router `/health` above.
 
 ## Gamma-specific configuration
 
@@ -77,12 +111,17 @@ day. Mitigations in place:
 
 ## Notes
 
-- The laptop leg of the router (`10.8.0.12`) is **unroutable from gamma** —
-  gamma's wg0 only carries `10.8.0.1/32` (alpha). The router reports it
-  offline gracefully (models disappear from the merged list); the 3 s
-  `TAGS_TIMEOUT_SECONDS` keeps `/health` fast instead of hanging.
+- The laptop leg is now **routable from gamma** (mutual WG peer, added
+  2026-08-24) — see the MSI leg section above. The 3 s `TAGS_TIMEOUT_SECONDS`
+  still protects `/health` when the MSI is off or away from home.
 - The repo clone on gamma has no GitHub SSH key — pull updates from alpha
   (`rsync -a ~/services/personal-ai/ gamma:~/services/personal-ai/`) or add a
   deploy key.
 - Open WebUI's web-search setting still points at `http://127.0.0.1:8081`
-  (SearXNG on the same host), preserved via the migrated volume.
+  (SearXNG on the same host), preserved via the migrated volume. Its Ollama
+  base URL is stored in the webui DB (`ollama.base_urls`), NOT the compose env
+  — after the migration the DB still listed dead backends (`10.8.0.1`,
+  `10.8.0.2`); fixed to `["http://10.8.0.3:11434"]` on 2026-08-24. Use the
+  Admin Panel or a direct sqlite UPDATE to change it, not the compose file.
+- Chat speed: gamma's i7-5500U gives ~16 tok/s on `qwen2.5:1.5b`, ~10-14 tok/s
+  on `qwen2.5:3b`; the MSI's 7B models are for heavier/coding tasks.

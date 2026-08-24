@@ -125,6 +125,21 @@ proves its client persistence. Alpha's enabled service and owner-applied file
 make the hub entry durable by configuration; a controlled Alpha reboot is still
 required for direct boot proof.
 
+## 2026-08-24: LAN delta endpoint + host-key note
+
+Two findings from the SSH diagnosis session (see [beta SSH](/docs/laptop-beta/ssh)):
+
+1. **Delta peer endpoint → LAN IP.** Same broken-hairpin issue as the MSI:
+   beta's Delta peer used `delta-vpn.zero-five.space:51820` (public DDNS),
+   which the home router cannot hairpin back to the LAN. The direct
+   beta↔Delta handshake died (stale 57 min), which broke the MacBook's
+   `ProxyJump delta` path to beta. Fix: `Endpoint = 192.168.1.106:51820`.
+2. **Host keys were regenerated** when beta was (re)installed ~2026-07-21
+   (Proxmox UI cert date). Clients with pins from before that date see
+   `REMOTE HOST IDENTIFICATION HAS CHANGED` — re-pin with
+   `ssh-keygen -R 10.8.0.4 && ssh-keygen -R 192.168.1.166`, then accept the
+   new key (verify via `ssh-keyscan` from two paths first).
+
 ## Rollback
 
 If the runtime peer causes any unexpected behavior, remove only Beta:

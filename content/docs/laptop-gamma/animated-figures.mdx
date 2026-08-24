@@ -1,5 +1,6 @@
 ---
 title: Animated Figures (YouTube AI pipeline)
+description: Full-stack faceless YouTube video pipeline — script (Codex) + images (OpenRouter) + narration (Edge TTS) + animated subtitles → MP4. Moved from alpha to gamma 2026-08-24.
 ---
 
 # Animated Figures — YouTube AI video pipeline
@@ -10,6 +11,10 @@ engineering** niche: ONE iconic machine per video (plane, train, ship,
 rocket, submarine...), explained in depth for **~3 minutes (450-550
 words)** — what it is, how it works, why it works, real-life moments,
 final fact. **Active language: English** (`--lang en`).
+
+> **Migrated alpha → gamma 2026-08-24.** Now runs on gamma at
+> `~/services/animated-figures` (native, not Docker). The VPS no longer hosts
+> the pipeline.
 
 **Design rule:** AI images are 100% visual — never contain text, labels or
 numbers (image models garble them). All text lives in crisp Pillow
@@ -23,11 +28,16 @@ auto-convert to text-cards.
 
 ## Location & repo
 
-- Path: `~/services/animated-figures` (native, not Docker)
-- Repo: https://github.com/Manuel0516/animated-figures (SSH remote on alpha)
-- Venv: `.venv` inside the service folder (Python 3.11)
+- Path: `~/services/animated-figures` (native, not Docker) on **gamma**
+- Repo: https://github.com/Manuel0516/animated-figures (SSH remote on alpha;
+  gamma's copy is rsynced from alpha — no GitHub key on gamma yet)
+- Venv: `.venv` inside the service folder (Python 3.14 on gamma; alpha used
+  3.11 — all deps install on both)
 - Brand identity: `brand.yaml` — canvas 1920×1080@30fps, near-black
   `#0E0E10` background, off-white `#F5F3EC` ink, gold `#FFD24A` accent
+- Secrets: `.env` (OPENROUTER_API_KEY) copied to gamma via scp (never git);
+  Codex OAuth token at `~/.hermes/auth.json` on gamma (copied from alpha —
+  `gen_script.py` reads it, same path as Hermes)
 
 ## Mascot: the yellow-helmet engineer
 
@@ -96,14 +106,14 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
-System packages needed for manim (pycairo) — requires sudo:
+> **Manim is disabled in the active flow** — the `requirements.txt` manim line
+> is stale; the pipeline needs only requests / python-dotenv / edge-tts /
+> PyYAML / Pillow (all install clean on gamma's Python 3.14). No cairo/Pango
+> system packages needed. System deps on gamma are just `ffmpeg` and
+> `python3.14-venv` (both installed 2026-08-24).
 
-```bash
-sudo apt install libcairo2-dev pkg-config fonts-dejavu-core
-```
-
-Nerd Font (JetBrainsMono) for diagram node icons is installed per-user at
-`~/.local/share/fonts/` (icon glyphs in manim diagrams).
+The Nerd Font (JetBrainsMono) at `~/.local/share/fonts/` is only for the
+retired manim diagram path — not needed by the active Pillow renderers.
 
 ## Output
 
@@ -113,7 +123,7 @@ Each run produces `output/<slug>/`:
 
 ## Playbook: generate a video
 
-1. `cd ~/services/animated-figures`
+1. `ssh gamma` → `cd ~/services/animated-figures`
 2. Paste `prompts/master_prompt_en.txt` (or `_es`) into a code agent
 3. Agent writes script + project.json, then runs:
    `python scripts/run_all.py --dir output/<slug> --lang en`
@@ -121,3 +131,8 @@ Each run produces `output/<slug>/`:
 
 For scheduled automation, a cron job can call `run_all.py` on a
 pre-generated project folder.
+
+> **Alpha note (pre-2026-08-24):** the pipeline lived on the VPS
+> (`~/services/animated-figures`, Python 3.11 venv). That copy still exists on
+> alpha as a fallback until the first real video renders on gamma; the alpha
+> copy is NOT the active deployment.

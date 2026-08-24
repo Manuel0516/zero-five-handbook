@@ -1,12 +1,16 @@
 ---
 title: WireGuard — VPS-only access
-description: Configure the iPhone as 10.8.0.21 with a narrow route to only the VPS, then deploy and verify the peer safely.
+description: Configure the iPhone with separate direct-Delta and Alpha-relay identities, then deploy and verify the peer safely.
 ---
 
-The iPhone is deployed as `10.8.0.21/32`. Its WireGuard peer advertises only
-`10.8.0.1/32`, so the phone sends traffic to the VPS through the tunnel without
-turning WireGuard into its default internet route. It receives no WireGuard
-route to the CachyOS laptop or MacBook.
+The iPhone has two intentionally separate WireGuard identities:
+
+- Direct Delta: `10.8.0.21/32`, primary path to `delta-vpn.zero-five.space:51820`.
+- Alpha relay: `10.8.0.32/32`, fallback path to Alpha at `95.111.229.142:51820`.
+
+The `.30+` range is reserved for externally relayed or tunneled client
+identities. The two profiles use narrow host routes only; neither is a full
+tunnel and neither routes the home LAN.
 
 Runtime handshake and private-service access were restored and verified on
 2026-07-24 after registering the phone's current public identity. The tracked
@@ -18,20 +22,20 @@ working runtime interface alone does not prove persistence.
 
 ```mermaid
 flowchart LR
-    phone["iPhone<br/>10.8.0.21/32"]
+    phone["iPhone<br/>10.8.0.21/32 direct<br/>10.8.0.32/32 relay"]
     vps["VPS wg0<br/>10.8.0.1/24"]
     laptop["CachyOS laptop<br/>10.8.0.12"]
     mac["MacBook<br/>10.8.0.11"]
 
-    phone -->|"AllowedIPs: 10.8.0.1/32"| vps
+    phone -->|"Direct: .21 → Delta<br/>Relay: .32 → Alpha → Delta"| vps
     phone -. "No WireGuard route" .-> laptop
     phone -. "No WireGuard route" .-> mac
 ```
 
 Two layers provide client isolation:
 
-1. The iPhone's `AllowedIPs = 10.8.0.1/32` installs only a host route to the
-   VPS.
+1. The direct profile installs only the required Alpha/Delta service routes;
+   the relay profile installs `10.8.0.1/32, 10.8.0.2/32` through Alpha.
 2. The VPS keeps its default UFW routed policy at `deny`, so it does not forward
    traffic between WireGuard clients.
 
@@ -40,12 +44,29 @@ restrict the phone to a particular VPS port or application. If that narrower
 policy is needed later, add explicit UFW rules for `10.8.0.21` in a separate,
 recovery-protected firewall change.
 
+## Direct and externally relayed profiles
+
+Keep these as separate WireGuard profiles and enable only one at a time while
+verifying a path:
+
+| Profile | Interface address | Peer endpoint | Allowed IPs |
+| --- | --- | --- | --- |
+| Direct Delta (primary) | `10.8.0.21/32` | `delta-vpn.zero-five.space:51820` | Alpha/Delta service `/32`s |
+| Alpha relay (fallback) | `10.8.0.32/32` | `95.111.229.142:51820` | `10.8.0.1/32, 10.8.0.2/32` |
+
+The relay identity belongs to the reserved external/tunneled section
+`10.8.0.30-10.8.0.39`. It is deliberately different from `.21`, so Delta's
+return traffic selects Alpha's relay peer instead of the direct iPhone peer.
+The fallback template is
+`zero-five-infra/wireguard/iphone-alpha-relay.conf.example`.
+
 ## Operational source
 
 | File | Purpose |
 | --- | --- |
 | `zero-five-infra/wireguard/iphone.conf.example` | Exact iPhone address, VPS identity, endpoint, route, and keepalive |
-| `zero-five-infra/wireguard/vps.conf.example` | Reserved iPhone peer and `10.8.0.21/32` route on the hub |
+| `zero-five-infra/wireguard/vps.conf.example` | Reserved iPhone peer with direct `.21/32` and relay `.32/32` routes on the hub |
+| `zero-five-infra/wireguard/iphone-alpha-relay.conf.example` | Separate `.32/32` fallback profile through Alpha |
 | `zero-five-infra/scripts/validate_wireguard.py` | Checks the fixed address, hub-and-spoke topology, routes, and key placeholders |
 | `zero-five-infra/scripts/generate_iphone_wireguard_qr.sh` | Creates a temporary keypair and terminal-only import QR |
 

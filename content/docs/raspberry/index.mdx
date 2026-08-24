@@ -33,7 +33,7 @@ only its public key and `/32` route.
 | Alpha SSH key | Authorized for `manuel` on Delta |
 | WireGuard package and interface | Installed; `wg0` enabled and active |
 | WireGuard address | `10.8.0.2/32` |
-| WireGuard listen port | UDP `443` |
+| WireGuard listen port | UDP `51820` |
 | Alpha peer and handshake | Verified: active handshake |
 | Delta SSH key on Alpha | Authorized for `manuel`; direct SSH verified over WireGuard |
 | NAS disk | `/dev/sda2`, ext4 label `nas`, persistently mounted at `/srv/nas` |
@@ -205,7 +205,8 @@ The target layout is:
 | `10.8.0.2` | Delta Raspberry Pi / infrastructure |
 | `10.8.0.3-10.8.0.9` | Trusted infrastructure and servers |
 | `10.8.0.11-10.8.0.19` | Personal computers |
-| `10.8.0.20-10.8.0.29` | Mobile devices |
+| `10.8.0.20-10.8.0.29` | Direct mobile devices |
+| `10.8.0.30-10.8.0.39` | External/relayed client identities |
 | `10.8.0.100-10.8.0.199` | VMs and future virtual guests |
 
 Reserved assignments:
@@ -218,6 +219,8 @@ Reserved assignments:
 10.8.0.11   MacBook
 10.8.0.12   MSI
 10.8.0.21   iPhone
+10.8.0.31   MacBook via Alpha relay
+10.8.0.32   iPhone via Alpha relay
 10.8.0.100  BlackArch VM
 ```
 

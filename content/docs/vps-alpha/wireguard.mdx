@@ -21,12 +21,12 @@ without exposing the Ollama API publicly.
 flowchart LR
     subgraph clients["Trusted clients"]
         cachyos["MSI laptop<br/>10.8.0.12/32<br/>Delta peer active"]
-        macbook["MacBook<br/>10.8.0.11/32<br/>Runtime verified"]
+        macbook["MacBook<br/>10.8.0.11/32 direct<br/>10.8.0.31/32 relay"]
         gamma["Gamma<br/>10.8.0.3/32<br/>Runtime and persistence verified"]
         beta["Beta laptop / Proxmox<br/>10.8.0.4/32<br/>Runtime verified"]
         delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Direct backup node"]
         blackarch["BlackArch VM<br/>10.8.0.101/32<br/>SSH and runtime verified"]
-        iphone["iPhone<br/>10.8.0.21/32<br/>Runtime restored 2026-07-24"]
+        iphone["iPhone<br/>10.8.0.21/32 direct<br/>10.8.0.32/32 relay"]
     end
 
     subgraph vps["VPS hub"]
@@ -50,10 +50,10 @@ flowchart LR
 | --- | --- | --- |
 | VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
 | MSI laptop | `10.8.0.12/32` | Alpha and Delta peers active; direct handshake and ping verified 2026-08-13; reboot persistence pending |
-| MacBook | `10.8.0.11/32` | Runtime and VPS persistence verified; Mac reboot activation pending |
+| MacBook | `10.8.0.11/32` direct; `10.8.0.31/32` Alpha relay | Runtime and VPS persistence verified; Mac reboot activation pending |
 | Gamma | `10.8.0.3/32` | Alpha path verified; Delta peer, direct ping, and Delta→Gamma SSH verified 2026-08-13; Gamma reboot persistence pending |
 | Beta | `10.8.0.4/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
-| iPhone | `10.8.0.21/32` | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
+| iPhone | `10.8.0.21/32` direct; `10.8.0.32/32` Alpha relay | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
 | BlackArch VM | `10.8.0.101/32` | Direct VM peer; SSH through Alpha, active WireGuard, and key-only access verified 2026-08-12 |
 | Delta Raspberry Pi | `10.8.0.2/32` | LAN SSH, active WireGuard, Alpha handshake, and direct peer definitions verified; reciprocal rollout pending |
 
@@ -67,7 +67,7 @@ reach the laptop through WireGuard.
 
 Alpha remains the primary hub because it has the stable VPS address and hosts
 the private services. Delta is a secondary infrastructure node with the
-DNS-only name `delta-vpn.zero-five.space`, UDP `443` forwarded to
+DNS-only name `delta-vpn.zero-five.space`, UDP `51820` forwarded to
 `192.168.1.106`, and direct `/32` peers for registered nodes.
 
 The redundancy model is:
@@ -90,10 +90,13 @@ only after each client has a stable reachable endpoint or uses
 
 ### Optional Alpha-relay fallback for phone and MacBook
 
-The direct profiles remain primary:
+The direct profiles remain primary. The external/relayed address section is
+reserved at `.30+` so transport identity is obvious:
 
-- iPhone: `10.8.0.21/32` → Delta
-- MacBook: `10.8.0.11/32` → Delta
+| Device | Direct Delta identity | Alpha-relay identity |
+| --- | --- | --- |
+| MacBook | `10.8.0.11/32` | `10.8.0.31/32` |
+| iPhone | `10.8.0.21/32` | `10.8.0.32/32` |
 
 For networks that cannot reach Delta's residential public endpoint, optional
 second profiles are prepared in the infra repository:
@@ -103,7 +106,7 @@ wireguard/iphone-alpha-relay.conf.example
 wireguard/macbook-alpha-relay.conf.example
 ```
 
-They use `10.8.0.22/32` and `10.8.0.23/32`, respectively, and connect to Alpha
+They use `10.8.0.32/32` for the iPhone and `10.8.0.31/32` for the MacBook, and connect to Alpha
 at `95.111.229.142:51820`. Their `AllowedIPs` include both Alpha (`10.8.0.1/32`)
 and Delta (`10.8.0.2/32`), so VPS-hosted services remain reachable while Alpha
 forwards the fallback addresses to Delta over the
@@ -113,8 +116,8 @@ preserves the direct routes and allows the user to enable the relay only when
 needed; WireGuard does not perform automatic failover between duplicate
 destinations.
 
-Activation requires one-time root changes on Alpha and Delta: add `.22/32` to
-the iPhone peer and `.23/32` to the MacBook peer on Alpha, add both addresses
+Activation requires one-time root changes on Alpha and Delta: add `.32/32` to
+the iPhone peer and `.31/32` to the MacBook peer on Alpha, add both addresses
 to Alpha's peer on Delta, and allow only `wg0`→`wg0` forwarding on Alpha. The
 runtime changes should be applied with `wg set` and persisted in the root-only
 configs; do not restart `wg0` over a mesh SSH session.
@@ -127,7 +130,7 @@ Add this peer to MSI first, then Gamma, Beta, MacBook, BlackArch, and iPhone:
 [Peer]
 # Peer: delta
 PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
-Endpoint = delta-vpn.zero-five.space:443
+Endpoint = delta-vpn.zero-five.space:51820
 AllowedIPs = 10.8.0.2/32
 PersistentKeepalive = 25
 ```
@@ -278,7 +281,7 @@ after reboot.
 ## Security boundaries
 
 - Private keys never leave their owning machine.
-- Alpha exposes WireGuard UDP `51820`; Delta exposes UDP `443` through a DNS-only Cloudflare record.
+- Alpha and Delta expose WireGuard on UDP `51820`; Delta uses a DNS-only Cloudflare record.
 - Ollama binds to WireGuard addresses and receives no public Traefik route.
 - New clients peer with Alpha first; direct Delta peers are an explicit backup path.
 - Beta routes only `10.8.0.1/32`; its normal LAN and internet traffic do not

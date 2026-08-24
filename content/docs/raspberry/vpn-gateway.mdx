@@ -1,6 +1,6 @@
 ---
 title: Delta VPN Gateway (Mullvad)
-description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gamma only. Delta also runs its own Mullvad client. MSI/MacBook stay on the normal mesh with their own Mullvad toggles. Mesh always direct via a sport-443 routing rule."
+description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gamma only. Delta also runs its own Mullvad client. MSI/MacBook stay on the normal mesh with their own Mullvad toggles. Mesh always direct via a sport-51820 routing rule."
 ---
 
 > **Status: DEPLOYED 2026-08-14.** Delta forwards only Beta and Gamma
@@ -19,7 +19,7 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
   (personal Zero Five VPN), normal internet via the home router, and each
   laptop may run **its own Mullvad toggle** (e.g. MSI) without breaking
   the mesh.
-- **Mesh is always direct.** A policy rule (`sport 443 lookup main`)
+- **Mesh is always direct.** A policy rule (`sport 51820 lookup main`)
   keeps all WireGuard mesh keepalives out of the Mullvad tunnel, on every
   machine, home or roaming.
 
@@ -86,11 +86,11 @@ fall into the tunnel, and the mesh handshake dies. The fix lives in
 `/etc/wireguard/mullvad.conf`:
 
 ```ini
-PostUp   = ip rule add pref 100 from all sport 443 lookup main
-PostDown = ip rule del pref 100 from all sport 443 lookup main
+PostUp   = ip rule add pref 100 from all sport 51820 lookup main
+PostDown = ip rule del pref 100 from all sport 51820 lookup main
 ```
 
-`sport 443` is Delta's `wg0` listen port — every packet the mesh sends
+`sport 51820` is Delta's `wg0` listen port — every packet the mesh sends
 out originates from that port. The rule sends those packets to the main
 table (direct, via the router) **before** the tunnel rules are reached.
 Result: mesh keepalives always egress directly, tunnel up or down.
@@ -108,7 +108,7 @@ Mullvad toggled off after the fix; the MSI peer shows a fresh handshake.
 | Delta mesh | `wg0` 10.8.0.2/32; direct `/32` peer routes; LAN endpoints for Beta/Gamma (`192.168.1.166:49252`, `192.168.1.107:51822`) |
 | Delta tunnel | `wg-quick@mullvad` enabled at boot; `net.ipv4.ip_forward=1` |
 | NAT | nftables `table ip gateway`: forward accept only Beta/Gamma; masquerade out `eth0` + `mullvad` for Beta/Gamma |
-| Mesh-direct | `ip rule pref 100 from all sport 443 lookup main` (PostUp/PostDown in mullvad.conf) |
+| Mesh-direct | `ip rule pref 100 from all sport 51820 lookup main` (PostUp/PostDown in mullvad.conf) |
 | Beta | gateway `192.168.1.106` in `/etc/network/interfaces`; `gateway-watch` active |
 | Gamma | netplan default via `192.168.1.106`; `gateway-watch` active; fixed `ListenPort 51822` |
 | Gamma LAN IP | `192.168.1.107` (DHCP, changed from the previously documented `.164`) |
@@ -165,7 +165,7 @@ files.
   laptop egress goes through Delta; if the tunnel itself drops, Delta's
   fail-open forwarding keeps laptops online on the direct path.
 - **Laptop running its own Mullvad + mesh:** works now because Delta's
-  replies egress via `sport 443 lookup main`. The laptop's keepalives
+  replies egress via `sport 51820 lookup main`. The laptop's keepalives
   arrive via the home router, not via a Mullvad exit, when the laptop's
   own Mullvad is off; keep the laptop's Mullvad toggle for its *internet*
   traffic, not for the mesh path.
@@ -173,7 +173,7 @@ files.
   addresses — switch Mullvad server or pool, not a design fix.
 - **`wg-quick up mullvad` also routes Delta's own traffic** through the
   tunnel (intended — Delta has its own client). The mesh is excluded via
-  the `sport 443` rule — confirm `ip rule show` after any config
+  the `sport 51820` rule — confirm `ip rule show` after any config
   change.
 - **`mullvad.conf` contains a private key** — `chmod 600`, never commit,
   never paste. Mullvad accounts support multiple WireGuard devices; each

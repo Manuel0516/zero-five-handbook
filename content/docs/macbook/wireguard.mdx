@@ -15,9 +15,9 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 | --- | --- |
 | Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` + **WireGuard macOS app** (adopted 2026-08-23, see below) |
 | Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
-| VPN address | `10.8.0.11/32` |
+| VPN address | `10.8.0.11/32` direct; `10.8.0.31/32` Alpha relay |
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
-| Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:443`) |
+| Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:51820`) |
 | Delta endpoint | Public A record `delta-vpn.zero-five.space` → home WAN IP (grey cloud, NOT proxied) |
 | DNS | `DNS = 10.8.0.2, 1.1.1.1` in `[Interface]` (AdGuard first, Cloudflare fallback) |
 | Runtime | VPS reachable; Delta handshake + AdGuard UI verified 2026-08-22 |
@@ -31,7 +31,7 @@ attaches DNS to the tunnel itself. The CLI remains installed for `wg show` inspe
 
 ## The Delta roaming endpoint (`delta-vpn.zero-five.space`)
 
-Delta's mesh port (`443/udp`) is port-forwarded on the home router. The
+Delta's mesh port (`51820/udp`) is port-forwarded on the home router. The
 MacBook's Delta peer points at a **Cloudflare A record** instead of a raw IP:
 
 | Property | Value |
@@ -39,7 +39,7 @@ MacBook's Delta peer points at a **Cloudflare A record** instead of a raw IP:
 | Name | `delta-vpn.zero-five.space` |
 | Type / content | A → home WAN IP (46.162.95.145 as of 2026-08) |
 | Proxy | **grey cloud (`proxied=false`)** — Cloudflare proxying would terminate WireGuard (it only speaks HTTP); this is a DNS-only record |
-| Port | 443 (Delta's `ListenPort` on `wg0`) |
+| Port | 51820 (Delta's `ListenPort` on `wg0`) |
 
 Because the endpoint is a DNS name, the same config works at home (hairpin NAT
 via the router) and roaming (direct to the home WAN IP). WireGuard re-resolves
@@ -66,7 +66,7 @@ interface. The number may change and must never be hard-coded.
 ```text
 MacBook                              VPS / Delta
 10.8.0.11/32  -------------------->  10.8.0.1/32   (VPS,   95.111.229.142:51820)
-             -------------------->  10.8.0.2/32   (Delta, delta-vpn.zero-five.space:443)
+             -------------------->  10.8.0.2/32   (Delta, delta-vpn.zero-five.space:51820)
 
               no WireGuard route for 10.8.0.12+ or internet (default route untouched)
 ```
@@ -75,6 +75,21 @@ MacBook                              VPS / Delta
 host routes; the default route stays on the normal interface. Other mesh nodes
 (MSI `10.8.0.12`, etc.) are not routed through this tunnel, matching the
 gateway design where only Beta/Gamma use Delta as egress.
+
+## Direct and externally relayed identities
+
+The MacBook has two intentionally separate addresses:
+
+| Path | Address | Profile endpoint | Purpose |
+| --- | --- | --- | --- |
+| Direct Delta | `10.8.0.11/32` | `delta-vpn.zero-five.space:51820` | Primary path to Delta |
+| Alpha relay | `10.8.0.31/32` | `95.111.229.142:51820` | Fallback path through Alpha |
+
+Import `wireguard/macbook-alpha-relay.conf.example` as a separate profile. Its
+`AllowedIPs` are `10.8.0.1/32, 10.8.0.2/32`, so the fallback reaches both
+Alpha-hosted services and Delta services. Enable only one MacBook profile while
+testing failover; WireGuard does not automatically switch between these
+identities.
 
 ## Files and ownership
 
@@ -249,9 +264,9 @@ tunnel-scoped resolver or got dropped to en0.
 | --- | --- |
 | `wg-quick` rejects the config | Private-key placeholder was not replaced, syntax, or permissions |
 | No handshake with VPS | VPS endpoint, UDP firewall, public-key match, internet access |
-| No handshake with Delta | `delta-vpn.zero-five.space` resolves to the current home WAN IP; record must be **grey cloud** (proxied=false); router port-forward UDP 443 → 192.168.1.106; Delta's public key matches |
+| No handshake with Delta | `delta-vpn.zero-five.space` resolves to the current home WAN IP; record must be **grey cloud** (proxied=false); router port-forward UDP 51820 → 192.168.1.106; Delta's public key matches |
 | Handshake but no VPS access | `AllowedIPs`, macOS route, VPS UFW, service binding |
-| Handshake but no Delta access | `AllowedIPs` must include `10.8.0.2/32`; Delta's `sport 443 lookup main` rule (else the Mullvad tunnel swallows replies) |
+| Handshake but no Delta access | `AllowedIPs` must include `10.8.0.2/32`; Delta's `sport 51820 lookup main` rule (else the Mullvad tunnel swallows replies) |
 | Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` + `10.8.0.2/32` |
 | Works manually but not after reboot | No verified startup service yet |
 | Private names "Server Not Found" only while roaming (works on phone/LAN) | Homebrew wg-quick attaches `DNS=` to Wi-Fi (en0), not the tunnel → queries leak out the carrier and never reach `10.8.0.2`. Use the WireGuard macOS app (Network Extension) instead; do NOT add a public Cloudflare A record for the private name |

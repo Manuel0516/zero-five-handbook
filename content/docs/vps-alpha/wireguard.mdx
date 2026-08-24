@@ -104,7 +104,9 @@ wireguard/macbook-alpha-relay.conf.example
 ```
 
 They use `10.8.0.22/32` and `10.8.0.23/32`, respectively, and connect to Alpha
-at `95.111.229.142:51820`. Alpha forwards those addresses to Delta over the
+at `95.111.229.142:51820`. Their `AllowedIPs` include both Alpha (`10.8.0.1/32`)
+and Delta (`10.8.0.2/32`), so VPS-hosted services remain reachable while Alpha
+forwards the fallback addresses to Delta over the
 existing `10.8.0.1 ↔ 10.8.0.2` mesh peer. Delta's Alpha peer must include both
 fallback addresses so replies return through Alpha. This address separation
 preserves the direct routes and allows the user to enable the relay only when

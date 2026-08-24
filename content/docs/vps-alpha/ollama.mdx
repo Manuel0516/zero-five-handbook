@@ -1,9 +1,13 @@
 ---
 title: Ollama
-description: The native Ollama model server on the VPS — bound to the WireGuard interface, its models, keep-alive tuning, and every service that consumes it.
+description: The native Ollama model server on the VPS — bound to the WireGuard interface. Since 2026-08-24 it hosts only translategemma:4b for the Telegram translation bot; the AI stack moved to gamma.
 ---
 
 Ollama runs **natively on the host** (not in Docker) so every project on the server can share one model runtime. Version at time of writing: `0.30.8`, installed at `/usr/local/bin/ollama` via the official installer.
+
+> **2026-08-24:** the personal AI models (`qwen2.5:3b`, `nomic-embed-text`)
+> moved to [gamma](/docs/laptop-gamma/ai-stack). Alpha's Ollama now hosts
+> **only `translategemma:4b`** for the [Telegram translation bot](/docs/vps-alpha/telegram-bot).
 
 The defining configuration choice: **Ollama binds to the VPN address, not localhost and not the public interface.**
 
@@ -34,18 +38,18 @@ Edit the override with `sudo systemctl edit ollama`, then `sudo systemctl restar
 
 ## Models
 
-Verified with `ollama list`:
+Verified with `ollama list` (2026-08-24, post-migration):
 
 | Model | Size | Used by |
 |-------|------|---------|
-| `qwen2.5:3b` | 1.9 GB | General chat via [Open WebUI](/docs/vps-alpha/ai-stack) |
 | `translategemma:4b` | 3.3 GB | [Telegram translation bot](/docs/vps-alpha/telegram-bot) |
-| `nomic-embed-text` | 274 MB | Embeddings (Open WebUI RAG) |
 
-The MSI laptop was historically intended to host heavier models such as
-`deepseek-r1:7b` and `qwen2.5-coder:7b` at `10.8.0.12:11434`. The 2026-08-07
-MSI inventory found no local Ollama models or model blobs, so that laptop
-inventory is currently planned/stale rather than verified deployed state.
+`qwen2.5:3b` and `nomic-embed-text` moved to gamma on 2026-08-24 (see
+[gamma AI stack](/docs/laptop-gamma/ai-stack)). The MSI laptop was historically
+intended to host heavier models such as `deepseek-r1:7b` and
+`qwen2.5-coder:7b` at `10.8.0.12:11434`; the 2026-08-07 MSI inventory found no
+local Ollama models or model blobs, so that laptop inventory is currently
+planned/stale rather than verified deployed state.
 
 ---
 
@@ -73,10 +77,11 @@ curl http://10.8.0.1:11434/api/tags
 
 | Consumer | How it connects |
 |----------|-----------------|
-| [ollama-router](/docs/vps-alpha/ai-stack#ollama-router) | `SERVER_OLLAMA_URL=http://10.8.0.1:11434` |
-| [Open WebUI](/docs/vps-alpha/ai-stack#open-webui) | via the router at `127.0.0.1:11435` |
 | [Telegram bot](/docs/vps-alpha/telegram-bot) | `OLLAMA_URL=http://10.8.0.1:11434/api/chat` |
 | Laptop (any tool) | `http://10.8.0.1:11434` over WireGuard |
+
+The ollama-router and Open WebUI no longer consume alpha's Ollama — they moved
+to gamma with the AI stack (2026-08-24).
 
 ---
 
@@ -118,9 +123,7 @@ sudo systemctl daemon-reload && sudo systemctl restart ollama
 
 ```bash
 export OLLAMA_HOST=10.8.0.1:11434
-ollama pull qwen2.5:3b
-ollama pull translategemma:4b
-ollama pull nomic-embed-text
+ollama pull translategemma:4b   # the only model alpha hosts post-migration
 ```
 
 ### Verify

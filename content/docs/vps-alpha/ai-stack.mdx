@@ -1,110 +1,53 @@
 ---
 title: AI Stack
-description: The personal-ai project — Open WebUI as the single chat interface, the ollama-router that merges server and laptop models, and SearXNG for web search.
+description: The personal-ai project — migrated to gamma on 2026-08-24. Alpha now keeps only the Telegram translation bot's translategemma model.
 ---
 
-The [personal-ai repo](https://github.com/Manuel0516/personal-ai) (`~/services/personal-ai`) defines a **distributed AI system**: one chat interface that transparently uses models on the VPS *and* on the laptop, connected over [WireGuard](/docs/vps-alpha/wireguard). The user picks a model in Open WebUI and never thinks about which machine runs it.
+> **Migrated 2026-08-24.** The personal-ai stack (Open WebUI, ollama-router,
+> SearXNG, and the qwen2.5:3b + nomic-embed-text models) now runs on
+> [gamma](/docs/laptop-gamma/ai-stack). This page is retained for the alpha-side
+> history, the unchanged public URL, and the edge that still lives here.
+
+The [personal-ai repo](https://github.com/Manuel0516/personal-ai)
+(`~/services/personal-ai`) defines a **distributed AI system**: one chat
+interface that transparently uses models on different machines over
+[WireGuard](/docs/vps-alpha/wireguard).
 
 ```text
-Browser (on VPN) → https://ai.zero-five.space (Traefik, VPN-only)
+Browser (on VPN) → https://ai.zero-five.space (Traefik on alpha, VPN-only)
              │
-        Open WebUI (host :3000)
+        Open WebUI — NOW ON GAMMA host :3000 (10.8.0.3)
              │
-        ollama-router (127.0.0.1:11435)
-             ├──→ VPS Ollama    10.8.0.1:11434  → qwen2.5:3b, translategemma:4b
-             └──→ MSI Ollama     10.8.0.12:11434  → models planned; inventory empty 2026-08-07
+        ollama-router — NOW ON GAMMA (127.0.0.1:11435)
+             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, nomic-embed-text
+             └──→ MSI Ollama     10.8.0.12:11434  → no models yet
 ```
 
-The repo contains three deployable pieces (each its own Compose project) plus the WireGuard templates and a `docs/` folder with the original runbooks (`architecture.md`, `setup-server.md`, `setup-laptop.md`, `operations.md`, `security.md`).
+## What still runs on alpha
 
-> **Note:** A project rule inherited from the laptop side: **no AUR packages** on CachyOS — only official repos, official upstream installers, Docker images, or documented manual binaries.
+| Piece | Detail |
+|-------|--------|
+| Traefik edge | `ai.zero-five.space` router → `http://10.8.0.3:3000` (mesh) — see `traefik/dynamic/host-services.yml` |
+| Ollama daemon | native systemd, `10.8.0.1:11434`, **only `translategemma:4b`** |
+| Translation bot | `~/services/telegram-translation-bot`, calls `10.8.0.1:11434` |
 
----
+The Open WebUI, ollama-router, and SearXNG containers were removed from alpha;
+`qwen2.5:3b` and `nomic-embed-text` were deleted from alpha's Ollama.
 
-## Open WebUI
+## History
 
-The chat interface at **[ai.zero-five.space](https://ai.zero-five.space)**. Compose file: `server/docker-compose.yml`.
+Before the migration (see [gamma AI stack](/docs/laptop-gamma/ai-stack) for the
+current full picture), the stack ran entirely on alpha:
 
-| Property | Value |
-|----------|-------|
-| Image | `ghcr.io/open-webui/open-webui:main` |
-| Network | `network_mode: host`, listens on `:3000` |
-| Public access | **VPN only** — `https://ai.zero-five.space` (Traefik `ipWhiteList 10.8.0.0/24`, DNS → `10.8.0.1`); port 3000 is not opened in [UFW](/docs/vps-alpha/security#firewall-ufw) |
-| Ollama backend | `OLLAMA_BASE_URLS=http://127.0.0.1:11435` — the router, not Ollama directly |
-| Data | Docker volume `open-webui` (users, chats, settings — back it up) |
-| Routing | Traefik file provider → `host.docker.internal:3000` (see [Traefik](/docs/vps-alpha/traefik)) |
+- Open WebUI at `host :3000` (`network_mode: host`), data in volume
+  `server_open-webui`
+- ollama-router merging VPS (`10.8.0.1:11434`) + laptop (`10.8.0.12:11434`)
+- SearXNG at `127.0.0.1:8081` as Open WebUI's web-search backend
+- Ollama bound to `10.8.0.1:11434` with `qwen2.5:3b`, `translategemma:4b`,
+  `nomic-embed-text`
 
-Host networking is deliberate: it lets the container reach the loopback router and the WireGuard IPs. Settings like the SearXNG URL persist inside Open WebUI's own database after first launch — changing the compose environment later won't override them; use the Admin Panel instead.
+## URL and access (unchanged)
 
-```bash
-cd ~/services/personal-ai/server && docker compose up -d
-```
-
-## ollama-router
-
-A ~100-line FastAPI proxy (source in `router/src/ollama_router/`) that makes two Ollama instances look like one. Runs from a stock `python:3.12-slim` image with host networking, bound to `127.0.0.1:11435`.
-
-What it does:
-
-- `GET /api/tags` — queries both backends and returns the **merged** model list; if the laptop is offline, its models simply disappear from the list instead of erroring
-- `GET /health` — reports each backend's URL, online state, and models
-- Everything else under `/api/*` — proxied to whichever backend owns the requested model (`SERVER_MODELS` vs `LAPTOP_MODELS` in `config.py`)
-
-| Env var | Value |
-|---------|-------|
-| `SERVER_OLLAMA_URL` | `http://10.8.0.1:11434` |
-| `LAPTOP_OLLAMA_URL` | `http://10.8.0.12:11434` |
-
-```bash
-cd ~/services/personal-ai/router && docker compose up -d
-curl http://127.0.0.1:11435/health   # check both backends
-```
-
-## SearXNG
-
-Metasearch engine used as Open WebUI's web-search backend. **Not public** — bound to `127.0.0.1:8081`.
-
-| Property | Value |
-|----------|-------|
-| Image | `searxng/searxng:latest` |
-| Config | `web-search/searxng/settings.yml` (contains its secret key — not committed) |
-| Consumer | Open WebUI references `http://127.0.0.1:8081` in its own settings DB |
-
-```bash
-cd ~/services/personal-ai/web-search && docker compose up -d
-```
-
-> **Warning:** Don't expose SearXNG publicly without also updating the URL stored inside Open WebUI's settings — they are coupled.
-
----
-
-## Setup from scratch
-
-Prerequisites: [WireGuard](/docs/vps-alpha/wireguard) up, [Ollama](/docs/vps-alpha/ollama) bound to `10.8.0.1:11434`, [Docker](/docs/vps-alpha/docker) installed, [Traefik](/docs/vps-alpha/traefik) running.
-
-```bash
-cd ~/services
-git clone git@github.com:Manuel0516/personal-ai.git && cd personal-ai
-
-# 1. Router first (Open WebUI points at it)
-cd router && docker compose up -d && cd ..
-
-# 2. Open WebUI
-cd server && docker compose up -d && cd ..
-
-# 3. SearXNG
-cd web-search
-cp searxng/settings.yml.example searxng/settings.yml   # set a fresh secret
-docker compose up -d
-```
-
-Then create the first Open WebUI account at `https://ai.zero-five.space` (first signup becomes admin — from inside the VPN) and configure web search in the Admin Panel to point at `http://127.0.0.1:8081`.
-
-## Operations
-
-| Task | Command |
-|------|---------|
-| Check both Ollama backends | `curl http://127.0.0.1:11435/health` |
-| Laptop models visible? | `curl http://10.8.0.12:11434/api/tags` (fails when laptop is off — expected) |
-| Restart the UI | `cd ~/services/personal-ai/server && docker compose restart` |
-| Update Open WebUI | `docker compose pull && docker compose up -d` in `server/` |
+- **https://ai.zero-five.space** — VPN only (`ipWhiteList 10.8.0.0/24`), DNS →
+  `10.8.0.1` (alpha), Traefik proxies over the mesh to gamma.
+- Port 3000 is not opened in alpha's UFW; the mesh path needs no extra rule.

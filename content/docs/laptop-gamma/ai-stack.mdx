@@ -1,0 +1,88 @@
+---
+title: AI Stack
+description: The personal-ai stack on Gamma — Open WebUI, Ollama, and SearXNG migrated from alpha on 2026-08-24; the translation bot keeps translategemma on the VPS.
+---
+
+# AI Stack on Gamma
+
+The [personal-ai repo](https://github.com/Manuel0516/personal-ai)
+(`~/services/personal-ai`) runs on gamma as of **2026-08-24** — migrated
+completely from [alpha](/docs/vps-alpha/ai-stack) so the VPS keeps only what
+the [Telegram translation bot](/docs/vps-alpha/telegram-bot) needs. The chat
+URL is unchanged: **https://ai.zero-five.space** (VPN-only, Traefik on alpha
+proxies to gamma over the mesh).
+
+```text
+Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
+             │
+        Open WebUI (gamma host :3000)
+             │
+        ollama-router (gamma 127.0.0.1:11435)
+             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, nomic-embed-text
+             └──→ MSI Ollama     10.8.0.12:11434  → no models deployed yet
+```
+
+## What lives where (post-migration)
+
+| Piece | Machine | Detail |
+|-------|---------|--------|
+| Open WebUI | gamma | `~/services/personal-ai/server`, volume `server_open-webui` (migrated from alpha) |
+| ollama-router | gamma | `~/services/personal-ai/router`, `SERVER_OLLAMA_URL=http://10.8.0.3:11434` |
+| SearXNG | gamma | `~/services/personal-ai/web-search`, `127.0.0.1:8081` only |
+| Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.8.0.3:11434` |
+| `qwen2.5:3b` + `nomic-embed-text` | gamma | chat + embeddings |
+| `translategemma:4b` + Ollama | **alpha** | **kept** — only for the translation bot |
+| translation-bot container | alpha | untouched, calls `10.8.0.1:11434` |
+
+## Gamma-specific configuration
+
+Ollama follows the same pattern as alpha but binds to gamma's mesh address:
+`/etc/systemd/system/ollama.service.d/override.conf` sets
+`OLLAMA_HOST=10.8.0.3:11434` and `OLLAMA_KEEP_ALIVE=10m`.
+
+The router's `src/ollama_router/` was patched locally on gamma (not pushed to
+the repo — deployment-specific):
+
+- `config.py`: `SERVER_MODELS = {"qwen2.5:3b", "nomic-embed-text"}` and
+  `TAGS_TIMEOUT_SECONDS = 3` (defaults can be overridden via env in
+  `docker-compose.yml`)
+- `health.py`: `filter_models` normalizes the `:latest` suffix, so
+  `nomic-embed-text:latest` matches the bare name.
+
+`docker-compose.yml` (router) sets `REQUEST_TIMEOUT_SECONDS=120` — cold model
+loads take ~30 s on gamma's CPU, so the old 3 s default killed non-streaming
+chat requests.
+
+## RAM budget (important)
+
+Gamma has **6.7 GB RAM** and shares it with
+[Minecraft](/docs/laptop-gamma/minecraft) (`-Xmx4G`). Loading `qwen2.5:3b`
+(~2.5–3 GB resident) while Minecraft is up caused an OOM thrash on migration
+day. Mitigations in place:
+
+- **16 GB swap** at `/swap.img` (fstab entry, active since 2026-08-24) — the
+  `~/swap-grow-16g.sh` script was missing `mkswap`; patched.
+- `OLLAMA_KEEP_ALIVE=10m` unloads idle models.
+- For heavy AI + Minecraft at the same time, expect swap I/O; stopping
+  Minecraft frees ~3 GB.
+
+## Operations
+
+| Task | Command |
+|------|---------|
+| Check router + backends | `curl http://127.0.0.1:11435/health` |
+| Restart Open WebUI | `cd ~/services/personal-ai/server && docker compose restart` |
+| Restart the whole stack | `cd ~/services/personal-ai/{server,router,web-search} && docker compose up -d` |
+| Models | `export OLLAMA_HOST=10.8.0.3:11434 && ollama list` |
+
+## Notes
+
+- The laptop leg of the router (`10.8.0.12`) is **unroutable from gamma** —
+  gamma's wg0 only carries `10.8.0.1/32` (alpha). The router reports it
+  offline gracefully (models disappear from the merged list); the 3 s
+  `TAGS_TIMEOUT_SECONDS` keeps `/health` fast instead of hanging.
+- The repo clone on gamma has no GitHub SSH key — pull updates from alpha
+  (`rsync -a ~/services/personal-ai/ gamma:~/services/personal-ai/`) or add a
+  deploy key.
+- Open WebUI's web-search setting still points at `http://127.0.0.1:8081`
+  (SearXNG on the same host), preserved via the migrated volume.

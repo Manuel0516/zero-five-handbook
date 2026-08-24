@@ -120,7 +120,7 @@ http:
 |-----|---------|--------|
 | `https://hub.zero-five.space` | hub-frontend container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)) | labels |
 | `https://brain.zero-five.space` | secondbrain web container — **VPN only** | labels |
-| `https://ai.zero-five.space` | Open WebUI on host `:3000` — **VPN only** | file provider |
+| `https://ai.zero-five.space` | Open WebUI on **gamma** `10.8.0.3:3000` (mesh backend; since 2026-08-24) — **VPN only** | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
 | `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |
 | `https://hermes.zero-five.space` | Hermes dashboard on host `:9119` — **VPN only** (same `ipWhiteList` pattern, see [Hermes Agent](/docs/vps-alpha/hermes-agent)) | file provider |

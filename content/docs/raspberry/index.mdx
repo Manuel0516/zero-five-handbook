@@ -197,31 +197,41 @@ chosen. Do not install a backup stack speculatively.
 
 ## VPN address convention
 
-The target layout is:
+**Delta is the keeper of the `10.8.0.0/24` numbering plan** — this table is
+the single source of truth for who owns which WireGuard address. New devices
+pick the next free number **inside their role's range**; never reuse a number
+from another role.
 
-| Range | Assignment |
-| --- | --- |
-| `10.8.0.1` | Alpha VPS / WireGuard hub |
-| `10.8.0.2` | Delta Raspberry Pi / infrastructure |
-| `10.8.0.3-10.8.0.9` | Trusted infrastructure and servers |
-| `10.8.0.11-10.8.0.19` | Personal computers |
-| `10.8.0.20-10.8.0.29` | Direct mobile devices |
-| `10.8.0.30-10.8.0.39` | External/relayed client identities |
-| `10.8.0.100-10.8.0.199` | VMs and future virtual guests |
+| Range | Assignment | Destined for |
+| --- | --- | --- |
+| `10.8.0.1` | Alpha VPS | WireGuard hub — the public entry point (UDP 51820) |
+| `10.8.0.2` | Delta Raspberry Pi | Infrastructure: AdGuard DNS, app gateway, backup controller, Mullvad gateway |
+| `10.8.0.3 – 10.8.0.9` | Trusted infrastructure & servers | Gamma (`.3`), Beta (`.4`); `.5-.9` free for future always-on nodes |
+| `10.8.0.11 – 10.8.0.19` | Personal computers (direct) | MacBook (`.11`), MSI (`.12`); `.13-.19` free |
+| `10.8.0.20 – 10.8.0.29` | Mobile devices (direct) | iPhone (`.21`); `.20, .22-.29` free |
+| `10.8.0.30 – 10.8.0.39` | **Relayed / tunneled identities** | Always `.30 + direct number`: MacBook relay `.31`, iPhone relay `.32`. These are the *through-the-VPS* identities, never assigned as direct |
+| `10.8.0.100 – 10.8.0.199` | VMs and virtual guests | BlackArch VM (`.101`); `.100, .102+` free for future VMs |
 
-Reserved assignments:
+**Direct vs relay numbering rule (iPhone + MacBook):** each mobile/laptop
+device has TWO identities — a **direct** number in its role range (`.11`, `.21`)
+that connects straight to the mesh (home LAN or roaming), and a **relay**
+number in `.30+` (`.31`, `.32`) that routes *through the VPS* for networks that
+cannot reach Delta's residential endpoint directly. The `.30+` block exists
+exactly so the two paths are visually distinct and never collide.
+
+### Reserved assignments (current)
 
 ```text
-10.8.0.1    Alpha VPS
-10.8.0.2    Delta Raspberry Pi
-10.8.0.3    Gamma
-10.8.0.4    Beta Proxmox
-10.8.0.11   MacBook
-10.8.0.12   MSI
-10.8.0.21   iPhone
-10.8.0.31   MacBook via Alpha relay
-10.8.0.32   iPhone via Alpha relay
-10.8.0.100  BlackArch VM
+10.8.0.1    Alpha VPS                  (hub)
+10.8.0.2    Delta Raspberry Pi         (infra)
+10.8.0.3    Gamma                      (AI host + Minecraft)
+10.8.0.4    Beta Proxmox               (VM host)
+10.8.0.11   MacBook                    (direct)
+10.8.0.12   MSI laptop                 (direct, AI backend)
+10.8.0.21   iPhone                     (direct)
+10.8.0.31   MacBook via VPS relay      (through Alpha)
+10.8.0.32   iPhone via VPS relay       (through Alpha)
+10.8.0.101  BlackArch VM               (on Beta)
 ```
 
 ## Migration gate

@@ -6,19 +6,23 @@ description: The MSI's dual-hub WireGuard configuration, direct Delta failover, 
 ## Design
 
 The MSI is represented by the legacy-named `cachyos-laptop` template in
-`zero-five-infra`. Its address is `10.8.0.12/32`. It has two independent
-WireGuard peers: Alpha at `10.8.0.1` and Delta at `10.8.0.2`.
+`zero-five-infra`. Its address is `10.8.0.12/32`. It has three WireGuard
+peers: Alpha at `10.8.0.1`, Delta at `10.8.0.2`, and **Gamma at `10.8.0.3`
+(mutual peer, added 2026-08-24)**.
 
 ```mermaid
 flowchart LR
     msi["MSI laptop<br/>10.8.0.12/32"] -->|"Primary peer<br/>10.8.0.1/32"| alpha["Alpha VPS<br/>10.8.0.1/24<br/>UDP 51820"]
-    msi -->|"Direct failover peer<br/>10.8.0.2/32"| delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>UDP 443"]
-    alpha --> services["Alpha services<br/>Ollama / router"]
+    msi -->|"Direct peer<br/>10.8.0.2/32"| delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>UDP 51820"]
+    msi <-->|"Mutual peer<br/>10.8.0.3/32<br/>LAN 192.168.1.110:51820 ⇄ .107:51820"| gamma["Gamma<br/>10.8.0.3/32<br/>AI host"]
+    gamma -->|"Ollama 10.8.0.12:11434"| msi
 ```
 
 The narrow route means ordinary internet, LAN traffic, and local desktop
 traffic remain outside WireGuard. The laptop is not a default-route VPN and
-does not become a bridge to other clients.
+does not become a bridge to other clients. The gamma peer exists **only** to
+carry Ollama traffic to the gamma router — its `AllowedIPs` is the single
+`10.8.0.3/32`.
 
 ## Current state
 

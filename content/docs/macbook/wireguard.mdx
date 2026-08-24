@@ -78,7 +78,21 @@ gateway design where only Beta/Gamma use Delta as egress.
 
 ## Direct and externally relayed identities
 
-The MacBook has two intentionally separate addresses:
+The MacBook has **two different connection types**, deliberately kept as
+separate WireGuard profiles:
+
+```mermaid
+flowchart LR
+    mac["MacBook"]
+    subgraph path1["Connection type 1 — DIRECT (normal)"]
+        d1["10.8.0.11/32 → delta-vpn.zero-five.space:51820"]
+    end
+    subgraph path2["Connection type 2 — THROUGH THE VPS (relay)"]
+        r1["10.8.0.31/32 → 95.111.229.142:51820 (Alpha) → Delta"]
+    end
+    mac --> d1
+    mac --> r1
+```
 
 | Path | Address | Profile endpoint | Purpose |
 | --- | --- | --- | --- |

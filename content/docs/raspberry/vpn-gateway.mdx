@@ -29,9 +29,10 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
 | --- | --- |
 | Delta | Raspberry Pi 4 Model B, always-on home node (192.168.1.106, wg0 10.8.0.2). See [index](/docs/raspberry). |
 | Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.4). **Gateway client.** |
-| Gamma | Clean box, Ubuntu + netplan (192.168.1.107, wg0 10.8.0.3). Jellyfin host. **Gateway client.** |
-| MSI | MSI laptop (10.8.0.12). Not a gateway client; own Mullvad toggle. |
+| Gamma | Clean box, Ubuntu + netplan (192.168.1.107, wg0 10.8.0.3). **AI host** (Open WebUI, Ollama, router, SearXNG) + Minecraft. **Gateway client.** |
+| MSI | MSI laptop (10.8.0.12). **AI backend** (Ollama deepseek-r1:7b, qwen2.5-coder:7b) wired to gamma via mutual WG peer. Not a gateway client; own Mullvad toggle. |
 | MacBook | Admin + dev box (10.8.0.11). Not a gateway client; own Mullvad toggle. |
+| iPhone | Mobile access (10.8.0.21 direct / 10.8.0.32 VPS relay). |
 | Home router | 192.168.1.1 — normal egress for all non-gateway devices. |
 | `mullvad` | Delta's Mullvad WireGuard interface (config `/etc/wireguard/mullvad.conf`), distinct from `wg0` (Zero Five mesh). |
 
@@ -100,19 +101,19 @@ to Delta arrive via the home router (`192.168.1.1`), Delta replies
 direct, handshake completes — verified 2026-08-14 with the MSI's own
 Mullvad toggled off after the fix; the MSI peer shows a fresh handshake.
 
-## Current verified state (2026-08-14)
+## Current verified state (2026-08-14, gamma port updated 2026-08-24)
 
 | Fact | Value |
 | --- | --- |
 | Delta | Pi 4 B Rev 1.4, Debian 13 (trixie), eth0 192.168.1.106/24 (DHCP) |
-| Delta mesh | `wg0` 10.8.0.2/32; direct `/32` peer routes; LAN endpoints for Beta/Gamma (`192.168.1.166:49252`, `192.168.1.107:51822`) |
+| Delta mesh | `wg0` 10.8.0.2/32; direct `/32` peer routes; LAN endpoints for Beta/Gamma (`192.168.1.166:49252`, `192.168.1.107:51820`) |
 | Delta tunnel | `wg-quick@mullvad` enabled at boot; `net.ipv4.ip_forward=1` |
 | NAT | nftables `table ip gateway`: forward accept only Beta/Gamma; masquerade out `eth0` + `mullvad` for Beta/Gamma |
-| Mesh-direct | `ip rule pref 100 from all sport 51820 lookup main` (PostUp/PostDown in mullvad.conf) |
+| Mesh-direct | `ip rule pref 5 from all to 95.111.229.142 lookup main` (DDNS probe bypass) + `pref 100 from all sport 51820 lookup main` (mesh keepalives) — see [DDNS](/docs/raspberry/ddns) |
 | Beta | gateway `192.168.1.106` in `/etc/network/interfaces`; `gateway-watch` active |
-| Gamma | netplan default via `192.168.1.106`; `gateway-watch` active; fixed `ListenPort 51822` |
+| Gamma | netplan default via `192.168.1.106`; `gateway-watch` active; `ListenPort 51820` (default, was 51822) |
 | Gamma LAN IP | `192.168.1.107` (DHCP, changed from the previously documented `.164`) |
-| Egress (all) | Beta/Gamma/Delta → Mullvad IP `45.130.200.134` (verified); mesh peers reachable |
+| Egress (all) | Beta/Gamma/Delta → Mullvad IP `45.130.200.131` (verified 2026-08-24); mesh peers reachable |
 
 ## Toggle and location switching
 

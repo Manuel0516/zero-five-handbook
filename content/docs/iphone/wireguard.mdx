@@ -46,8 +46,21 @@ recovery-protected firewall change.
 
 ## Direct and externally relayed profiles
 
-Keep these as separate WireGuard profiles and enable only one at a time while
-verifying a path:
+The iPhone has **two different connection types**, kept as separate WireGuard
+profiles (enable only one at a time while verifying a path):
+
+```mermaid
+flowchart LR
+    phone["iPhone"]
+    subgraph path1["Connection type 1 — DIRECT (normal)"]
+        d1["10.8.0.21/32 → delta-vpn.zero-five.space:51820"]
+    end
+    subgraph path2["Connection type 2 — THROUGH THE VPS (relay)"]
+        r1["10.8.0.32/32 → 95.111.229.142:51820 (Alpha) → Delta"]
+    end
+    phone --> d1
+    phone --> r1
+```
 
 | Profile | Interface address | Peer endpoint | Allowed IPs |
 | --- | --- | --- | --- |

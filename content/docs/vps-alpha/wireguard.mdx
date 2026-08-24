@@ -20,42 +20,53 @@ without exposing the Ollama API publicly.
 ```mermaid
 flowchart LR
     subgraph clients["Trusted clients"]
-        cachyos["MSI laptop<br/>10.8.0.12/32<br/>Delta peer active"]
-        macbook["MacBook<br/>10.8.0.11/32 direct<br/>10.8.0.31/32 relay"]
-        gamma["Gamma<br/>10.8.0.3/32<br/>Runtime and persistence verified"]
-        beta["Beta laptop / Proxmox<br/>10.8.0.4/32<br/>Runtime verified"]
-        delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Direct backup node"]
-        blackarch["BlackArch VM<br/>10.8.0.101/32<br/>SSH and runtime verified"]
-        iphone["iPhone<br/>10.8.0.21/32 direct<br/>10.8.0.32/32 relay"]
+        msi["MSI laptop<br/>10.8.0.12/32<br/>AI backend (Ollama)<br/>peers: Alpha + Delta + Gamma"]
+        macbook["MacBook<br/>10.8.0.11/32 direct<br/>10.8.0.31/32 VPS relay"]
+        gamma["Gamma<br/>10.8.0.3/32<br/>AI host + Minecraft<br/>peers: Alpha + Delta + MSI"]
+        beta["Beta / Proxmox<br/>10.8.0.4/32<br/>peers: Alpha + Delta"]
+        delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Infra node + Mullvad gateway"]
+        blackarch["BlackArch VM<br/>10.8.0.101/32"]
+        iphone["iPhone<br/>10.8.0.21/32 direct<br/>10.8.0.32/32 VPS relay"]
     end
 
-    subgraph vps["VPS hub"]
+    subgraph vps["VPS hub (Alpha)"]
         wg["WireGuard wg0<br/>10.8.0.1/24<br/>UDP 51820"]
-        ollama["Ollama API<br/>10.8.0.1:11434<br/>VPN only"]
+        ollama["Ollama<br/>10.8.0.1:11434<br/>translategemma only"]
     end
 
-    cachyos -->|"Encrypted tunnel<br/>Keepalive 25 seconds"| wg
-    macbook -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    gamma -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    beta -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    delta -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    blackarch -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    iphone -->|"Encrypted tunnel<br/>VPS-only route"| wg
-    wg -->|"Private service traffic"| ollama
-    macbook -. "No peer route and UFW routed deny" .-> cachyos
-    iphone -. "No peer route and UFW routed deny" .-> macbook
+    subgraph ai["AI mesh (2026-08-24)"]
+        gwui["Open WebUI on gamma<br/>10.8.0.3:3000"]
+        router["ollama-router on gamma<br/>127.0.0.1:11435"]
+        gm["gamma Ollama<br/>10.8.0.3:11434<br/>qwen2.5:3b, nomic-embed"]
+        msm["MSI Ollama<br/>10.8.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"]
+    end
+
+    msi -->|"tunnel 51820"| wg
+    macbook -->|"tunnel 51820"| wg
+    gamma -->|"tunnel 51820"| wg
+    beta -->|"tunnel 51820"| wg
+    delta -->|"tunnel 51820"| wg
+    blackarch -->|"tunnel 51820"| wg
+    iphone -->|"tunnel 51820"| wg
+    wg -->|"translation bot"| ollama
+
+    gamma <-->|"mutual WG peer<br/>LAN 192.168.1.107:51820 ⇄ 192.168.1.110:51820"| msi
+    gwui --> router
+    router --> gm
+    router --> msm
+    gamma -. "served via Traefik on Alpha" .-> gwui
 ```
 
-| Machine | Address | Verification |
-| --- | --- | --- |
-| VPS | `10.8.0.1/24` | Runtime and reboot persistence verified |
-| MSI laptop | `10.8.0.12/32` | Alpha and Delta peers active; direct handshake and ping verified 2026-08-13; reboot persistence pending |
-| MacBook | `10.8.0.11/32` direct; `10.8.0.31/32` Alpha relay | Runtime and VPS persistence verified; Mac reboot activation pending |
-| Gamma | `10.8.0.3/32` | Alpha path verified; Delta peer, direct ping, and Delta→Gamma SSH verified 2026-08-13; Gamma reboot persistence pending |
-| Beta | `10.8.0.4/32` | Beta reboot persistence, handshake, bidirectional ping, Handbook access, Alpha-to-Proxmox access, and Mac SSH jump verified 2026-07-22; Alpha peer owner-applied and Alpha reboot proof pending |
-| iPhone | `10.8.0.21/32` direct; `10.8.0.32/32` Alpha relay | Runtime identity rotation and private-service access verified 2026-07-24; obsolete peer cleanup and updated persistent-file proof pending |
-| BlackArch VM | `10.8.0.101/32` | Direct VM peer; SSH through Alpha, active WireGuard, and key-only access verified 2026-08-12 |
-| Delta Raspberry Pi | `10.8.0.2/32` | LAN SSH, active WireGuard, Alpha handshake, and direct peer definitions verified; reciprocal rollout pending |
+| Machine | Address | Role | Peers |
+| --- | --- | --- | --- |
+| Alpha VPS | `10.8.0.1/24` | WireGuard hub, Traefik edge, translation bot | all clients |
+| Delta Pi | `10.8.0.2/32` | Infra node: AdGuard DNS, app gateway, backup controller, Mullvad gateway | Alpha + registered clients |
+| Gamma | `10.8.0.3/32` | AI host (Open WebUI, ollama-router, SearXNG, Ollama qwen2.5:3b/nomic-embed-text), Minecraft | Alpha + Delta + **MSI** |
+| Beta / Proxmox | `10.8.0.4/32` | Proxmox VE host, BlackArch VM parent | Alpha + Delta |
+| MacBook | `10.8.0.11/32` direct; `10.8.0.31/32` VPS relay | Admin + dev box | Alpha + Delta |
+| MSI | `10.8.0.12/32` | **AI backend** (Ollama deepseek-r1:7b, qwen2.5-coder:7b), personal desktop | Alpha + Delta + **Gamma** |
+| iPhone | `10.8.0.21/32` direct; `10.8.0.32/32` VPS relay | Mobile access | Alpha + Delta |
+| BlackArch VM | `10.8.0.101/32` | Security research VM (on Beta) | Alpha + Delta |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed

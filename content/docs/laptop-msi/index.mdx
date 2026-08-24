@@ -19,23 +19,29 @@ restorable source files.
 ```mermaid
 flowchart LR
     msi["MSI Alpha 15<br/>laptop-msi<br/>CachyOS + Hyprland"]
+    gamma["Gamma<br/>10.8.0.3<br/>AI host"]
+    router["ollama-router on gamma<br/>127.0.0.1:11435"]
+    webui["Open WebUI<br/>ai.zero-five.space"]
     alpha["Alpha VPS<br/>10.8.0.1<br/>WireGuard hub"]
-    webui["Private AI services<br/>Open WebUI / router"]
     mac["MacBook<br/>administration"]
     localdrop["LocalDrop<br/>clipboard + files"]
 
-    msi -->|"planned/narrow peer<br/>10.8.0.12"| alpha
-    alpha -->|"VPN-only Ollama path<br/>10.8.0.12:11434"| msi
+    msi <-->|"mutual WG peer<br/>10.8.0.12 ⇄ 10.8.0.3<br/>LAN 51820"| gamma
+    msi -->|"Ollama 10.8.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"| router
+    gamma --> router
+    router --> webui
+    webui -. "Traefik on Alpha" .-> alpha
+    msi -->|"peer 10.8.0.12"| alpha
     mac -->|"local network"| localdrop
     msi -->|"local network"| localdrop
-    alpha --> webui
 ```
 
-The MSI is primarily a personal Linux desktop. It also has the planned shape
-of a second AI backend: the VPS router can reach `10.8.0.12:11434` over
-WireGuard when the laptop peer and Ollama service are actually enabled. The
-2026-08-07 inventory found no local Ollama models, so that backend is not
-currently a verified deployed capability.
+The MSI is a personal Linux desktop **and a live AI backend**. It runs
+Ollama (`10.8.0.12:11434`) with `deepseek-r1:7b` and `qwen2.5-coder:7b`, and
+since 2026-08-24 it is wired to gamma through a **mutual WireGuard peer**
+(default port 51820, LAN endpoints) so gamma's ollama-router merges the MSI
+models into Open WebUI — the laptop branch is fully deployed and verified
+(`MSI_LEG_WORKS` chat reply).
 
 | Property | State |
 | --- | --- |

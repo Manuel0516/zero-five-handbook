@@ -12,7 +12,7 @@ WireGuard peers: Alpha at `10.8.0.1` and Delta at `10.8.0.2`.
 ```mermaid
 flowchart LR
     msi["MSI laptop<br/>10.8.0.12/32"] -->|"Primary peer<br/>10.8.0.1/32"| alpha["Alpha VPS<br/>10.8.0.1/24<br/>UDP 51820"]
-    msi -->|"Direct failover peer<br/>10.8.0.2/32"| delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>UDP 51821"]
+    msi -->|"Direct failover peer<br/>10.8.0.2/32"| delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>UDP 443"]
     alpha --> services["Alpha services<br/>Ollama / router"]
 ```
 
@@ -88,7 +88,7 @@ the private key.
    [Peer]
    # Peer: delta
    PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
-   Endpoint = delta-vpn.zero-five.space:51821
+   Endpoint = delta-vpn.zero-five.space:443
    AllowedIPs = 10.8.0.2/32
    PersistentKeepalive = 25
    ```

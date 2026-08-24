@@ -67,7 +67,7 @@ reach the laptop through WireGuard.
 
 Alpha remains the primary hub because it has the stable VPS address and hosts
 the private services. Delta is a secondary infrastructure node with the
-DNS-only name `delta-vpn.zero-five.space`, UDP `51821` forwarded to
+DNS-only name `delta-vpn.zero-five.space`, UDP `443` forwarded to
 `192.168.1.106`, and direct `/32` peers for registered nodes.
 
 The redundancy model is:
@@ -88,28 +88,34 @@ when a client reconnects or its NAT mapping expires. Direct backup is durable
 only after each client has a stable reachable endpoint or uses
 `PersistentKeepalive = 25`.
 
-### Optional iPhone Alpha-relay fallback
+### Optional Alpha-relay fallback for phone and MacBook
 
-The direct iPhone profile remains the primary path (`10.8.0.21/32` → Delta).
-For networks that cannot reach Delta's residential public endpoint, an optional
-second profile is prepared in the infra repository:
+The direct profiles remain primary:
+
+- iPhone: `10.8.0.21/32` → Delta
+- MacBook: `10.8.0.11/32` → Delta
+
+For networks that cannot reach Delta's residential public endpoint, optional
+second profiles are prepared in the infra repository:
 
 ```text
 wireguard/iphone-alpha-relay.conf.example
+wireguard/macbook-alpha-relay.conf.example
 ```
 
-It uses `10.8.0.22/32` and connects to Alpha at `95.111.229.142:51820`. Alpha
-then forwards `10.8.0.22` to Delta over the existing `10.8.0.1 ↔ 10.8.0.2`
-mesh peer. Delta's Alpha peer must include `10.8.0.22/32` so replies return
-through Alpha. This address separation preserves the direct `.21` route and
-allows the user to enable the relay only when needed; WireGuard does not
-perform automatic failover between duplicate destinations.
+They use `10.8.0.22/32` and `10.8.0.23/32`, respectively, and connect to Alpha
+at `95.111.229.142:51820`. Alpha forwards those addresses to Delta over the
+existing `10.8.0.1 ↔ 10.8.0.2` mesh peer. Delta's Alpha peer must include both
+fallback addresses so replies return through Alpha. This address separation
+preserves the direct routes and allows the user to enable the relay only when
+needed; WireGuard does not perform automatic failover between duplicate
+destinations.
 
 Activation requires one-time root changes on Alpha and Delta: add `.22/32` to
-the existing phone peer on Alpha, add `.22/32` to Alpha's peer on Delta, and
-allow only `wg0`→`wg0` forwarding on Alpha. The runtime changes should be
-applied with `wg set` and persisted in the root-only configs; do not restart
-`wg0` over a mesh SSH session.
+the iPhone peer and `.23/32` to the MacBook peer on Alpha, add both addresses
+to Alpha's peer on Delta, and allow only `wg0`→`wg0` forwarding on Alpha. The
+runtime changes should be applied with `wg set` and persisted in the root-only
+configs; do not restart `wg0` over a mesh SSH session.
 
 ### Open rollout task: reciprocal Delta peers
 
@@ -119,7 +125,7 @@ Add this peer to MSI first, then Gamma, Beta, MacBook, BlackArch, and iPhone:
 [Peer]
 # Peer: delta
 PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
-Endpoint = delta-vpn.zero-five.space:51821
+Endpoint = delta-vpn.zero-five.space:443
 AllowedIPs = 10.8.0.2/32
 PersistentKeepalive = 25
 ```
@@ -270,7 +276,7 @@ after reboot.
 ## Security boundaries
 
 - Private keys never leave their owning machine.
-- Alpha exposes WireGuard UDP `51820`; Delta exposes UDP `51821` through a DNS-only Cloudflare record.
+- Alpha exposes WireGuard UDP `51820`; Delta exposes UDP `443` through a DNS-only Cloudflare record.
 - Ollama binds to WireGuard addresses and receives no public Traefik route.
 - New clients peer with Alpha first; direct Delta peers are an explicit backup path.
 - Beta routes only `10.8.0.1/32`; its normal LAN and internet traffic do not

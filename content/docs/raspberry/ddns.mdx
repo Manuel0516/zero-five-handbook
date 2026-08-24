@@ -6,7 +6,7 @@ description: "Keeps the delta-vpn.zero-five.space A record pointed at the home W
 The **roaming WireGuard endpoint** (`delta-vpn.zero-five.space`) is a Cloudflare
 A record (grey cloud / proxied=false) that resolves to the **home public IP**
 (46.162.95.145 as of 2026-08). Roaming peers (MacBook, iPhone) use
-`Endpoint = delta-vpn.zero-five.space:51821` to reach Delta from outside.
+`Endpoint = delta-vpn.zero-five.space:443` to reach Delta from outside.
 
 Home/ISP connections are rarely static, so if the ISP reassigns that IP and the
 record goes stale, roaming devices can't find Delta. This page documents the
@@ -127,13 +127,13 @@ public record: delta-vpn.zero-five.space -> 46.162.95.145
 | `WAN IP detection failed: could not determine home WAN IP via UDP echo` | Alpha echo :51823 down, or the `lookup main` bypass route missing (Mullvad exit report) | Confirm `zero-five-udp-echo.service` active on alpha + UFW allows UDP 51823; the script self-adds the bypass — check `ip route get 95.111.229.142` shows eth0/192.168.1.1, not `dev mullvad` |
 | `Permission denied: /etc/letsencrypt/cloudflare.ini` in a non-root run | Only root reads the token | Run the script under the systemd service (root), or `--wan-ip` for a token-free check |
 | Record goes stale but the timer is enabled | Probe timeout (alpha echo down) or the bypass route missing after a restart | `ensure_bypass_rule()` re-adds it on the next run; if alpha is up and still stale, check `ip rule list` for the `to 95.111.229.142 lookup main` entry |
-| Roaming unreachable at a new location | Firewall/router UDP 51821 forwarding may not follow a WAN IP change | On a network change, verify port 51821 is still forwarded (check manually) |
+| Roaming unreachable at a new location | Firewall/router UDP 443 forwarding may not follow a WAN IP change | On a network change, verify port 443 is still forwarded (check manually) |
 
 > **The firewall drop that broke roaming (2026-08-23, fixed):** Delta's gateway
 > `forward` chain has `policy drop` and only accepted `br-*` (Docker container)
 > egress to mullvad/eth0. An inbound WAN WireGuard handshake (public source IP)
-> destined `10.8.0.2:51821` matched no accept → dropped *before* reaching
-> WireGuard. Fix: `sudo nft add rule ip gateway forward udp dport 51821 accept`
+> destined `10.8.0.2:443` matched no accept → dropped *before* reaching
+> WireGuard. Fix: `sudo nft add rule ip gateway forward udp dport 443 accept`
 > (accept only the WG port; no general egress opened). The mesh always worked
 > because it rides the `wg0` tunnel interface, which never crosses the forward
 > chain — the mesh-works-WAN-doesn't asymmetry is the signature of this drop.
@@ -162,4 +162,4 @@ public record: delta-vpn.zero-five.space -> 46.162.95.145
 The DDNS record is independent of the WireGuard mesh renumbering currently in
 flight — it holds the **home WAN IP**, so Delta moving mesh addresses doesn't
 change what `delta-vpn` should point at. The roaming peer configs
-(`Endpoint = delta-vpn...:51821`) use this record on MacBook/iPhone.
+(`Endpoint = delta-vpn...:443`) use this record on MacBook/iPhone.

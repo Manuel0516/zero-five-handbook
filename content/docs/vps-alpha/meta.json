@@ -13,8 +13,6 @@
     "second-brain",
     "crypto-ledger",
     "telegram-bot",
-    "hermes-agent",
-    "trafikverket-monitor",
-    "trafiko-monitor"
+    "hermes-agent"
   ]
 }

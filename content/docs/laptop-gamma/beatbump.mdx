@@ -9,10 +9,17 @@ Beatbump is a SvelteKit/Go alternative frontend for YouTube Music. It runs on
 Gamma with the upstream `invidious-companion` service and is available only
 through the Zero Five VPN at **`https://music.zero-five.space`**.
 
+**Ready state verified 2026-08-25:** both containers are running, the companion
+is healthy, the Gamma backend returns HTTP 200, Delta Traefik returns HTTP 200,
+and the live SNI certificate is Let's Encrypt. The Hub card is registered against
+Gamma's backend health URL.
+
 It does not require a personal YouTube/Google account. Beatbump uses anonymous
 server-side YouTube access; personal subscriptions, history, and recommendations
 are therefore not available. Do not provide personal YouTube cookies or OAuth
-credentials to the service.
+credentials to the service. It remembers recent searches, the last track, local
+favorites, playlists, and settings in the browser, but it does not build a
+YouTube-style personalized recommendation profile from listening history.
 
 ## Architecture
 
@@ -72,6 +79,12 @@ Downloads are stored in `~/services/beatbump/downloads`, not in Docker's root
 filesystem or a shared NAS path. The directory is intentionally separate from
 the SQLite database so it can be backed up, inspected, or removed independently.
 
+The host directory is mounted into Beatbump as `/downloads`. To configure the
+application, open Beatbump → **Settings**, set **Download Path** to
+`/downloads`, and save. Downloads remain disabled until this application-level
+path is set. The optional ongoing-download feature can then be enabled from the
+same settings page.
+
 Downloading media may have copyright and service-terms implications. Keep the
 service private and use it only for content you are permitted to store.
 
@@ -120,25 +133,78 @@ du -sh downloads db
 
 ## Operations and rollback
 
+### Start, stop, restart, and update
+
+Run these commands on Gamma:
+
 ```bash
 cd ~/services/beatbump
+
+# Start or enable the stack after a stop
+# (Docker Compose restart policy handles host/container restarts.)
+docker compose up -d
+
+# Stop playback service and companion without deleting data
+docker compose stop
+
+# Start stopped containers again
+docker compose start
+
+# Restart both containers
+docker compose restart
+
+# Pull newer upstream images and recreate changed containers
 docker compose pull
 docker compose up -d
+
+# Inspect state and recent errors
 docker compose ps
+docker compose logs --tail=100 beatbump beatbump-companion
 ```
 
-To stop the experiment without deleting its data:
+`docker compose down` also stops and removes the containers and network but
+retains the bind-mounted database/download directories. The named companion
+cache volume is retained unless explicitly removed. Do not use `down -v` unless
+you intentionally want to remove the disposable companion cache as well.
+
+### Data and rollback
+
+Persistent data is local to Gamma:
+
+```text
+~/services/beatbump/db/         Beatbump SQLite database
+~/services/beatbump/downloads/  downloaded audio
+```
+
+To disable the service while preserving everything:
 
 ```bash
+cd ~/services/beatbump
 docker compose down
 ```
 
-To remove the containers and retain downloads/database data, use the command
-above and leave the service directory in place. Remove `downloads/` only when
-the downloaded collection is intentionally being deleted. The companion cache
-is a disposable Docker volume and can be removed separately after stopping the
-stack.
+To restore it:
 
+```bash
+cd ~/services/beatbump
+docker compose up -d
+```
+
+To remove the experiment completely, stop the stack first, archive or delete
+`db/` and `downloads/` deliberately, and remove the disposable Docker cache
+volume only after confirming that no downloaded collection needs it.
+
+### Health and storage checks
+
+```bash
+cd ~/services/beatbump
+docker compose ps
+docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}' beatbump beatbump-companion
+du -sh db downloads
+```
+
+The expected steady state is `beatbump` running and
+`beatbump-companion` running/healthy.
 ## Source of truth
 
 - Secret-free deployment reference: `zero-five-infra/services/beatbump/compose.yaml.example`

@@ -15,10 +15,11 @@ proxies to gamma over the mesh).
 ```text
 Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
              │
-        Open WebUI (gamma host :3000)
+        Open WebUI (gamma host :3000)   <- backend 127.0.0.1:11435 (router)
              │
         ollama-router (gamma 127.0.0.1:11435)
-             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, nomic-embed-text
+             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, qwen2.5:1.5b, nomic-embed-text, openbmb/minicpm5
+             ├──→ alpha Ollama  10.8.0.1:11434  → translategemma:4b
              └──→ MSI Ollama     10.8.0.12:11434  → deepseek-r1:7b, qwen2.5-coder:7b
 ```
 
@@ -30,17 +31,18 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
 | ollama-router | gamma | `~/services/personal-ai/router`, `SERVER_OLLAMA_URL=http://10.8.0.3:11434` |
 | SearXNG | gamma | `~/services/personal-ai/web-search`, `127.0.0.1:8081` only |
 | Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.8.0.3:11434` |
-| `qwen2.5:3b` + `openbmb/minicpm5:latest` + `nomic-embed-text` | gamma | chat + embeddings; MiniCPM5 uses a router-injected 8192-token context |
+| `qwen2.5:3b`, `qwen2.5:1.5b`, `nomic-embed-text`, `openbmb/minicpm5:latest` | gamma | chat + embeddings (Server leg). MiniCPM5 uses a router-injected 8192-token context and has tools stripped. |
 
 | Ollama daemon | MSI | native, `OLLAMA_HOST=10.8.0.12:11434` |
 | `deepseek-r1:7b` + `qwen2.5-coder:7b` | MSI | the "laptop leg" — reachable via the gamma↔MSI WG peer |
-| `translategemma:4b` + Ollama | **alpha** | **kept** — only for the translation bot |
+| `translategemma:4b` + Ollama | **alpha** | served to the WebUI via the router's **alpha leg** (`10.8.0.1:11434`); also still used directly by the translation bot |
 | translation-bot container | alpha | untouched, calls `10.8.0.1:11434` |
 
-**Router health check** (both backends live):
+**Router health check** (all three legs live):
 ```bash
 curl http://127.0.0.1:11435/health
-# server:  ['nomic-embed-text:latest', 'qwen2.5:3b']
+# server:  ['openbmb/minicpm5:latest', 'qwen2.5:1.5b', 'nomic-embed-text:latest', 'qwen2.5:3b']
+# alpha:   ['translategemma:4b']
 # laptop:  ['deepseek-r1:7b', 'qwen2.5-coder:7b']
 ```
 
@@ -177,9 +179,12 @@ intentionally deleting persistent data.
   deploy key.
 - Open WebUI's web-search setting still points at `http://127.0.0.1:8081`
   (SearXNG on the same host), preserved via the migrated volume. Its Ollama
-  base URL is stored in the webui DB (`ollama.base_urls`), NOT the compose env
-  — after the migration the DB still listed dead backends (`10.8.0.1`,
-  `10.8.0.2`); fixed to `["http://10.8.0.3:11434"]` on 2026-08-24. Use the
-  Admin Panel or a direct sqlite UPDATE to change it, not the compose file.
+  base URL is stored in the webui DB (`ollama.base_urls`), NOT the compose env.
+  **It must be `["http://127.0.0.1:11435"]` (the router)** or the model-level
+  tuning (MiniCPM5 context + tool-stripping, alpha-route translategemma) is
+  bypassed. The compose env applies only on first launch; repoint via the Admin
+  Panel or a direct sqlite UPDATE:
+  `docker exec open-webui python3 -c "import sqlite3;db=sqlite3.connect('/app/backend/data/webui.db');db.execute('update config set value=? where key=?',('["http://127.0.0.1:11435"]','ollama.base_urls'));db.commit()"`
+  then restart the container.
 - Chat speed: gamma's i7-5500U gives ~16 tok/s on `qwen2.5:1.5b`, ~10-14 tok/s
   on `qwen2.5:3b`; the MSI's 7B models are for heavier/coding tasks.

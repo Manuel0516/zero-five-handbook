@@ -1,0 +1,277 @@
+---
+title: AI Control Plane — Design Proposal
+description: Evolve the Gamma AI stack into a single model + agent + tool control plane (Open WebUI Computer, MCP servers, optional LiteLLM) over the existing Ollama/router/SearXNG stack. Design only — not deployed.
+---
+
+> **Status: DESIGN PROPOSAL — nothing here is deployed.** This page records the
+> proposed architecture for turning the Gamma personal-AI stack into a single
+> AI control plane. It will be updated as pieces are built; a runbook page will
+> then document verified state. This is a *future project* — see the
+> [Future Projects index](/docs/future-projects).
+
+## Naming map
+
+| Name | What it is |
+| --- | --- |
+| AI stack | The current Gamma deployment: Open WebUI, ollama-router, SearXNG, native Ollama. See [AI Stack on Gamma](/docs/laptop-gamma/ai-stack). |
+| Control plane | The proposed unified layer where the user picks models/tools once instead of moving between apps. |
+| open-webui-computer | The Open WebUI ecosystem service that runs agents in a sandbox with shell, files, Git, browser, screenshots, and sub-agents. |
+| MCP | Model Context Protocol — the standard way to expose tools (filesystem, Git, Docker, APIs) to any capable model. |
+| LiteLLM | Optional unified OpenAI-compatible gateway for routing, cost tracking, rate limiting, and fallback across providers. |
+
+## Vision
+
+This is the one self-hosted idea worth building properly — not to replace
+ChatGPT/Claude, but to become a **single AI control plane**:
+
+```text
+                    ┌────────────────────────┐
+                    │      Open WebUI        │
+                    │ chat / files / RAG /   │
+                    │ agents / model picker  │
+                    └───────────┬────────────┘
+                                │
+          ┌─────────────────────┼──────────────────────┐
+          │                     │                      │
+          ▼                     ▼                      ▼
+   ┌─────────────┐      ┌───────────────┐      ┌──────────────┐
+   │   Models    │      │ Agent Runtime │      │    Tools     │
+   │             │      │               │      │              │
+   │ OpenRouter  │      │ OWUI Computer │      │ MCP servers  │
+   │ Local LLMs  │      │ Open Terminal │      │ SearXNG      │
+   │ OpenAI API  │      │ Codex CLI     │      │ Browser      │
+   │ Claude API  │      │ Claude Code   │      │ Git/GitHub   │
+   │ Gemini etc. │      │               │      │ APIs         │
+   └──────┬──────┘      └───────────────┘      └──────────────┘
+          │
+          ▼
+   ┌─────────────┐
+   │  LiteLLM    │ ← optional routing / costs / limits
+   └─────────────┘
+```
+
+Why this matters here: **the hub already exists on Gamma.** Open WebUI, the
+ollama-router, and SearXNG are live. Version 1 of this plan is mostly
+*connecting* the pieces already running, plus adding the agent runtime — not
+greenfield building.
+
+## Why Open WebUI
+
+Open WebUI connects directly to Ollama/local models, OpenRouter, Anthropic,
+OpenAI, Gemini, and anything exposing an OpenAI-compatible endpoint
+([docs](/docs/laptop-gamma/ai-stack) — the router already merges these). Its
+**Computer + Open Terminal** system is the agent layer: shell commands, files,
+Git, code editing, web search, browser navigation, screenshots, sub-agents, and
+scheduled jobs, all behind approval controls.
+
+A useful capability: **coding subscriptions become backends.** Open WebUI
+Computer supports Codex, Claude Code, Cursor, Cline, OpenCode, etc. by reusing
+the CLI authentication already present on the host. So a single model list
+might look like:
+
+```text
+GENERAL
+├── Qwen local
+├── Gemini Flash
+├── DeepSeek
+├── Claude Sonnet
+├── GPT
+└── OpenRouter Auto
+
+AGENTS
+├── Codex
+├── Claude Code
+├── Local Coding Agent
+└── Research Agent
+
+SPECIALISTS
+├── Physics
+├── Programming
+├── Homelab Admin
+├── Research
+└── Document Analysis
+```
+
+### The subscription-vs-API distinction (important)
+
+A ChatGPT subscription is **not** an OpenAI API subscription — API billing stays
+separate. But **Codex is included with ChatGPT plans** and supports login using
+the ChatGPT account, including through the Codex CLI, which Open WebUI Computer
+can expose as an agent backend:
+
+```text
+Open WebUI → Open WebUI Computer → Codex CLI → ChatGPT subscription
+```
+
+That routes Codex requests through the subscription instead of per-request API
+billing. Claude works the same for **Claude Code** when the Claude plan includes
+it; ordinary Claude API billing stays separate from Pro/Max. The point: never
+hack web-session cookies into treating a subscription as an API.
+
+## Web access
+
+Two complementary tools, both already on the trail:
+
+- **SearXNG** — already the Gamma search backend; Open WebUI uses it directly
+  so agents can issue searches autonomously during reasoning.
+- **Browser agent** — a local Chromium/Chrome driven by Open WebUI Computer for
+  navigation, clicking, filling, and screenshots:
+
+```text
+search("RTX 3080 laptop Sweden")  →  SearXNG  →  results + pages
+browser.open(...)  /  browser.click(...)  /  browser.fill(...)  /  browser.screenshot(...)
+```
+
+That is real agentic web ability, closer to browsing than RAG search.
+
+## MCP is the glue
+
+Rather than writing a lot of proprietary integrations, invest in the **Model
+Context Protocol**. Open WebUI supports MCP natively. The eventual toolbox:
+
+```text
+MCP
+├── filesystem
+├── GitHub
+├── Docker
+├── PostgreSQL
+├── Home Assistant
+├── calendar
+├── email
+├── notes
+├── crypto ledger
+├── homelab monitoring
+└── custom tools
+```
+
+Then every sufficiently capable model gets the same toolbox, and the choice of
+*model* and the choice of *tools* decouple:
+
+> Instead of "Claude can do X / ChatGPT can do Y / Gemini has Z",
+> → "My AI environment can do X/Y/Z, and I choose which model provides the
+>   intelligence."
+
+## LiteLLM later
+
+Not in version 1. Once many APIs are wired, put **LiteLLM** between Open WebUI
+and the providers: a unified OpenAI-compatible endpoint plus cost tracking,
+rate limiting, and auth. It enables rules:
+
+```text
+simple question        → local Qwen
+web research           → Gemini / cheap OpenRouter model
+difficult reasoning    → Claude / GPT
+coding                 → Codex subscription
+privacy-sensitive      → local model only
+huge context           → cheapest provider
+provider failure       → automatic fallback
+```
+
+That is when it becomes a genuine AI router, not just a chat UI.
+
+## Security posture — terminal access stays isolated
+
+This is the part not to casually enable. Open WebUI's Computer should be
+treated like SSH: anyone with access can reach filesystem/shell within the
+exposed boundary. Plan:
+
+```text
+Internet
+   ✕
+   │
+WireGuard / private network      (10.8.0.0/24 + alpha Traefik, VPN-only)
+   │
+   ▼
+Open WebUI                        (ai.zero-five.space, VPN-only)
+   │
+   ▼
+Agent execution → Docker sandbox → /workspace      (mounted-only access)
+   │
+   ▼
+Privileged homelab MCP (narrow ops only)
+   get_container_status() / restart_container(name) /
+   read_service_logs(name) / get_system_metrics()
+```
+
+A privileged homelab MCP would expose narrowly-defined operations like the above
+rather than handing any model unrestricted root SSH to the infrastructure. Web
+search and the browser only run inside the sandbox; nothing can reach the
+homelab admin surfaces without an explicit scoped tool call.
+
+## What version 1 would actually be
+
+No bespoke UI. Start from the existing Gamma stack and add the missing agent
+layer:
+
+```text
+Docker Compose (Gamma)
+  open-webui            (already running)
+  open-webui-computer   (NEW — the agent sandbox)
+  open-terminal         (NEW — terminal in the sandbox)
+  ollama                (already running: qwen2.5 family, minicpm5, nomic)
+  searxng               (already running)
+  postgres              (NEW — optional, for richer agent state)
+```
+
+Then, in order:
+
+1. Models: OpenRouter + local models (already mostly present).
+2. Codex subscription + Claude Code as agent backends.
+3. MCP servers (filesystem, Git/GitHub, then homelab ops).
+4. LiteLLM (only after several providers exist).
+5. Specialized agents (physics, homelab admin, research, document analysis).
+
+### What already runs on Gamma
+
+Because Gamma already runs Open WebUI, the ollama-router, and SearXNG, version 1
+is mostly wiring and a new runtime. On day one the useful percentage is high:
+
+| Piece | Already on Gamma | Status |
+| --- | --- | --- |
+| Open WebUI | yes | running |
+| ollama-router (merges models) | yes | running |
+| local models (qwen2.5, minicpm5, nomic) | yes | running |
+| SearXNG | yes | running |
+| Open Router / cloud models | no | to add |
+| Codex / Claude Code backends | no | add via Open WebUI Computer |
+| MCP servers | no | add iteratively, one MCP at a time |
+| LiteLLM | no | later, after more providers |
+
+### Rollout order and open questions
+
+1. Add the Open WebUI Computer + open-terminal services to the same Compose as
+   the existing server project.
+2. Confirm approval controls and the Docker sandbox mount boundary are correct
+   before exposing any agent to real files.
+3. Wire SearXNG as the agent search backend (already Open WebUI's search engine).
+4. Add one coding backend (Codex or Claude Code) and validate subscription
+   login inside the sandbox.
+5. Add one non-privileged MCP (filesystem inside /workspace) and one scoped
+   homelab MCP; keep the homelab MCP read-only-first.
+6. Only then consider LiteLLM and the full MCP fleet.
+
+Open questions to resolve during design:
+- Where does the sandbox's /workspace live on Gamma's disk, and how much?
+- Do helpers need I/O beyond the sandbox, and which approval path?
+- gamma heap/RAM budget with a browser + models resident (the stack already
+  risks swap with Minecraft up; document the memory math before adding a
+  Chromium runtime).
+- One URL `ai.zero-five.space` stays the single entry point; nothing public.
+
+## Sources
+
+- Open WebUI: [quick-start / connect a provider](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/), [Computer / AI in your workspace](https://docs.openwebui.com/ecosystem/computer/), [Computer FAQ](https://docs.openwebui.com/ecosystem/computer/faq/)
+- OpenAI Help — [Managing billing on ChatGPT web and platform](https://help.openai.com/en/articles/9039756)
+- OpenAI Help — [Using Codex with your ChatGPT subscription](https://help.openai.com/sv-se/articles/11369540)
+- Anthropic — [paid Claude subscription vs Claude API](https://support.claude.com/en/articles/9876003)
+- LiteLLM — [documentation](https://docs.litellm.ai)
+- LibreChat — [compatibility matrix](https://www.librechat.ai/docs/compatibility)
+
+## Next steps
+
+1. Confirm this proposal in chat (scope, sandbox boundary, RAM budget).
+2. When started, split this into the runbook pages: the agent runtime gets a
+   verified state page under `laptop-gamma`, and this index entry drops to a
+   pointer.
+3. Nothing here is deployed; reference the [AI-stack page](/docs/laptop-gamma/ai-stack)
+   for how the current stack actually works now.

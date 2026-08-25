@@ -1,0 +1,40 @@
+---
+title: Future Projects
+description: Design proposals for projects the Zero Five homelab has not built yet — the AI control plane and the automated media pipeline. Design only; nothing here is deployed.
+---
+
+> **Status: DESIGN PROPOSALS.** Every project in this section is planned, not
+> deployed. They are collected here so the architecture, threat model, and
+> requirements are written down before any machine is touched — exactly the
+> plan-first, hands-off workflow the homelab uses for real changes. A page here
+> moves to a runbook style only once its components are actually built and
+> verified.
+
+## The projects
+
+<Cards>
+  <Card
+    title="AI Control Plane"
+    description="Evolve the Gamma AI stack into a single model + agent + tool control plane: Open WebUI Computer, MCP, and optional LiteLLM on top of the existing Ollama/router/SearXNG stack."
+    href="/docs/future-projects/ai-control-plane"
+  />
+  <Card
+    title="Media Pipeline"
+    description="Two-box privacy-preserving Jellyfin automation (Beta download/quarantine VMs + Gamma clean box) with signed transfers and destroy-on-detection."
+    href="/docs/future-projects/media-pipeline"
+  />
+</Cards>
+
+## How a proposal here reaches reality
+
+A design reaches verified state through the same sequence as any homelab change:
+
+1. Agree the scope, architecture, and threat model in chat first.
+2. Record the resolved design here (the proposal page).
+3. Build incrementally against an active machine, verifying at each step.
+4. When a component is live, split the design into a runbook/configuration page
+   under the relevant machine section and update this index to point to it.
+
+The homelab golden rules apply: no secrets in the handbook, deployment-local
+config stays off the public repos, and commits accumulate on major milestones,
+not per change.

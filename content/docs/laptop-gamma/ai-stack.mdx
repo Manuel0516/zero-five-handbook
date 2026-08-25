@@ -30,7 +30,8 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
 | ollama-router | gamma | `~/services/personal-ai/router`, `SERVER_OLLAMA_URL=http://10.8.0.3:11434` |
 | SearXNG | gamma | `~/services/personal-ai/web-search`, `127.0.0.1:8081` only |
 | Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.8.0.3:11434` |
-| `qwen2.5:3b` + `nomic-embed-text` | gamma | chat + embeddings |
+| `qwen2.5:3b` + `openbmb/minicpm5:latest` + `nomic-embed-text` | gamma | chat + embeddings; MiniCPM5 uses a router-injected 8192-token context |
+
 | Ollama daemon | MSI | native, `OLLAMA_HOST=10.8.0.12:11434` |
 | `deepseek-r1:7b` + `qwen2.5-coder:7b` | MSI | the "laptop leg" — reachable via the gamma↔MSI WG peer |
 | `translategemma:4b` + Ollama | **alpha** | **kept** — only for the translation bot |
@@ -87,6 +88,13 @@ the repo — deployment-specific):
 loads take ~30 s on gamma's CPU, so the old 3 s default killed non-streaming
 chat requests.
 
+For `openbmb/minicpm5:latest`, the router injects Ollama's per-request
+`options.num_ctx=8192`. This is intentionally model-specific: the other Gamma
+models retain Ollama's normal context behavior. The MiniCPM5 model advertises a
+much larger native context, but 8192 is the current safe starting point for
+Gamma's 6.7 GB RAM and CPU-only workload. Raise it only after checking memory
+pressure and response latency.
+
 ## RAM budget (important)
 
 Gamma has **6.7 GB RAM** and shares it with
@@ -100,13 +108,56 @@ day. Mitigations in place:
 - For heavy AI + Minecraft at the same time, expect swap I/O; stopping
   Minecraft frees ~3 GB.
 
+## Start and stop the AI stack
+
+The web stack is split into three Compose projects, while Ollama runs as a
+native systemd service. These commands stop the containers without deleting the
+Open WebUI volume or model files. Stop Minecraft separately with
+`sudo systemctl stop minecraft` when more RAM is needed.
+
+### Stop everything
+
+```bash
+sudo systemctl stop ollama
+for dir in server router web-search; do
+  (cd ~/services/personal-ai/$dir && docker compose down)
+done
+```
+
+Stopping Ollama first prevents new requests while the router and WebUI close.
+The downloaded models remain on disk.
+
+### Start everything
+
+```bash
+sudo systemctl start ollama
+for dir in server web-search router; do
+  (cd ~/services/personal-ai/$dir && docker compose up -d)
+done
+```
+
+Verify the stack in dependency order:
+
+```bash
+systemctl is-active ollama
+curl --fail http://10.8.0.3:11434/api/tags
+curl --fail http://127.0.0.1:11435/health
+cd ~/services/personal-ai/server && docker compose ps
+cd ~/services/personal-ai/router && docker compose ps
+cd ~/services/personal-ai/web-search && docker compose ps
+```
+
+If only the WebUI/router/search containers need to be cycled while Ollama stays
+loaded, omit the `systemctl` command and run the Compose loops. `docker compose
+down` does not remove the named Open WebUI volume; do not add `-v` unless
+intentionally deleting persistent data.
+
 ## Operations
 
 | Task | Command |
 |------|---------|
 | Check router + backends | `curl http://127.0.0.1:11435/health` |
 | Restart Open WebUI | `cd ~/services/personal-ai/server && docker compose restart` |
-| Restart the whole stack | `cd ~/services/personal-ai/{server,router,web-search} && docker compose up -d` |
 | Models | `export OLLAMA_HOST=10.8.0.3:11434 && ollama list` |
 
 ## Notes

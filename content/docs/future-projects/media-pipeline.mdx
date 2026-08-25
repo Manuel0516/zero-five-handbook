@@ -1,12 +1,13 @@
 ---
 title: Media Pipeline — Design Proposal
-description: Proposed two-box Jellyfin automation pipeline (Beta download VM + Gamma clean box) with hermetic quarantine, signed transfers, and destroy-on-detection. Design only — not deployed.
+description: Target two-box Jellyfin automation pipeline (Beta download VM + Gamma clean box) with hermetic quarantine, signed transfers, and destroy-on-detection; the hardened media-vm base exists, but media services and quarantine are not deployed.
 ---
 
-> **Status: DESIGN PROPOSAL — nothing in this page is deployed.**
-> This document records the agreed architecture and requirements. It will be
-> updated as components are built, and a separate runbook/configuration page
-> will document verified state.
+> **Status: TARGET DESIGN — the hardened `media-vm` base is deployed, but the
+> downloader, transfer boundary, quarantine VM, signing, and Gamma importer are
+> not deployed.**
+> This page records the target architecture and requirements. The current guest
+> runbook is [Media VM](/docs/laptop-beta/media-vm).
 
 ## Goal and threat model
 

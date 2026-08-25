@@ -3,7 +3,8 @@ title: Media VM
 description: Verified setup, lockdown modes, recovery procedures, and resource notes for the media download guest on Beta.
 ---
 
-> **Status: MVP guest deployed; media applications not deployed yet.**
+> **Status: hardened base and qBittorrent MVP deployed; VPN disconnect/leak testing and
+> the quarantine/import boundary remain outstanding.**
 >
 > This page records the current `media-vm` guest and the operational decisions made
 > during bring-up. The larger two-VM download/quarantine architecture remains a
@@ -27,7 +28,8 @@ description: Verified setup, lockdown modes, recovery procedures, and resource n
 | Guest agent | `qemu-guest-agent` active |
 | SSH | Active; inbound firewall rule permits Beta only |
 | VPN | Mullvad connected; autoconnect and lockdown enabled |
-| Media services | Not installed yet |
+| Media services | qBittorrent-nox MVP active; Docker installed but no media containers deployed |
+| Tor Browser | Tor Browser 15.0.20 installed under `/home/zero/Applications/tor-browser` |
 
 The guest has no Zero Five WireGuard mesh address. Its only WireGuard interface is
 Mullvad's egress tunnel. Administration enters through the LAN path from Beta,
@@ -86,7 +88,104 @@ Normal mode is intended for future downloader setup:
 Do not create an automatic VPN-to-direct-internet fallback. A silent fallback would
 expose download traffic if the Mullvad account expires or the tunnel fails.
 
-## Intentional direct-internet fallback
+## qBittorrent MVP
+
+The first downloader component is installed as a native Debian service rather than a
+Docker media stack. This keeps the first network-boundary test small and observable.
+
+```text
+Service:       media-qbittorrent.service
+Binary:        /usr/bin/qbittorrent-nox
+User:          zero
+Profile:       /home/zero/services/media-pipeline/config/qbittorrent
+WebUI:         192.168.1.105:8080
+Torrent bind:  wg0-mullvad
+WebUI auth:    qBittorrent-generated temporary password until changed by operator
+```
+
+The service is enabled and starts only when `/sys/class/net/wg0-mullvad` exists. Its
+systemd unit uses `NoNewPrivileges`, a private temporary directory, a read-only system
+filesystem, and narrowly scoped write paths. The WebUI is allowed through UFW only
+from Beta's administrative source `192.168.1.166`.
+
+The qBittorrent directories are:
+
+```text
+/home/zero/services/media-pipeline/
+├── config/qbittorrent/
+├── downloads/incomplete/
+├── downloads/complete/
+├── quarantine/
+├── rejected/
+├── manifests/
+└── outbox/
+```
+
+Retrieve the current temporary WebUI password locally; never store it in this
+handbook or send it through chat:
+
+```bash
+sudo journalctl -u media-qbittorrent.service --no-pager \
+  | grep 'temporary password' \
+  | tail -1
+```
+
+Log in as `admin`, set a permanent strong password in the WebUI, and do not reuse an
+SSH or Mullvad credential. The temporary password changes when the service starts
+until a permanent WebUI password is configured.
+
+Verify the service and binding:
+
+```bash
+systemctl is-active media-qbittorrent.service
+ss -lntup | grep -E '(:8080|:6881)'
+grep -E '^(WebUI|Connection|Downloads)' \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/config/qBittorrent.conf
+```
+
+The expected WebUI listener is `192.168.1.105:8080`, not `*:8080`. The qBittorrent
+configuration must contain both `Connection\Interface=wg0-mullvad` and
+`Connection\InterfaceName=wg0-mullvad`.
+
+The Mullvad-disconnect test is still outstanding. Do not add real media torrents
+until this test confirms that qBittorrent stops or cannot make torrent connections
+when Mullvad is disconnected. Use a freely redistributable Debian test torrent for
+that verification.
+
+## Tor Browser
+
+Tor Browser 15.0.20 is installed at:
+
+```text
+/home/zero/Applications/tor-browser
+```
+
+Launch it with:
+
+```bash
+/home/zero/Applications/tor-browser/start-tor-browser.desktop
+```
+
+The archive was downloaded from the official Tor Project distribution host. Its
+signature was verified against the Tor Browser Developers primary fingerprint:
+
+```text
+EF6E 286D DA85 EA2A 4BA7 DE68 4E2C 6E87 9329 8290
+```
+
+The GPG message saying the key was “not certified with a trusted signature” was a
+local trust warning, not a bad signature. The key was then imported through the Tor
+Project WKD, independently fingerprint-checked, and marked locally trusted. The
+final verification reported `Good signature` and `[ultimate]`.
+
+Tor Browser is for web browsing and research only. Do not route qBittorrent or bulk
+media traffic through Tor. Tor is not a suitable torrent transport: it is slow,
+primarily TCP-oriented, cannot provide a complete all-protocol transparent route,
+and torrent clients can leak outside a SOCKS configuration. Bulk downloads remain
+Mullvad-bound; an all-internet Tor transparent proxy is intentionally not enabled.
+
+If Mullvad is unavailable, keep the media services stopped. Do not silently fall back
+to Tor or direct internet access.
 
 If Mullvad is cancelled or deliberately replaced, the operator must explicitly
 switch to direct mode. This is a privacy downgrade, not the default recovery path:
@@ -233,9 +332,9 @@ The expected future memory budget is different:
 - do not run a second full desktop, model, or unrelated service in this guest;
 - monitor `free -h`, `swapon --show`, and `systemd-cgtop` after each component.
 
-The desktop was therefore a large part of the original RAM increase; the media
-pipeline itself has not yet been installed and cannot be responsible for the
-initial high usage.
+The desktop was therefore a large part of the original RAM increase; qBittorrent now
+uses approximately 29 MiB in the verified idle state, and the media pipeline itself
+has not yet been exercised with a real torrent.
 
 ## Bring-up incident: broad desktop cleanup
 
@@ -257,6 +356,29 @@ that a guest remains reachable. Any future cleanup must:
 5. reboot-test DHCP, SSH, Mullvad, UFW, and LightDM independently;
 6. never use broad autoremove until the simulated removal list is reviewed.
 
+## Bring-up incident: qBittorrent profile permissions and INI syntax
+
+The first qBittorrent service attempt crashed because its profile tree was created as
+`root:root` while the systemd service runs as `zero`. The service was corrected by
+creating the cache directory and recursively assigning the profile to `zero:zero`.
+
+A second attempt wrote qBittorrent INI keys with doubled backslashes. qBittorrent
+ignored those entries, resulting in a listener on `*:8080` and no effective interface
+binding. The config was rewritten with single backslashes, the service was stopped
+before rewriting, and the final verification showed:
+
+```text
+Service:   active
+WebUI:     192.168.1.105:8080
+Mullvad:   connected
+Torrent:   wg0-mullvad
+HTTP:      200
+```
+
+Do not treat a running qBittorrent process as proof of containment. Always inspect the
+listener address, the effective config keys, and the Mullvad state before adding a
+torrent.
+
 ## Verification checklist
 
 Run after reboot or package changes:
@@ -272,7 +394,12 @@ mullvad status
 mullvad lockdown-mode get
 mullvad auto-connect get
 sudo /usr/sbin/ufw status verbose
-ss -lntup
+systemctl is-active media-qbittorrent.service
+ss -lntup | grep -E '(:8080|:6881)'
+grep -E '^(WebUI|Connection|Downloads)' \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/config/qBittorrent.conf
+free -h
+swapon --show
 ```
 
 From the operator side, verify a fresh SSH connection through Delta and Beta. Do

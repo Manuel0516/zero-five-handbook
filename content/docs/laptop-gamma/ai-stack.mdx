@@ -95,6 +95,13 @@ much larger native context, but 8192 is the current safe starting point for
 Gamma's 6.7 GB RAM and CPU-only workload. Raise it only after checking memory
 pressure and response latency.
 
+The router also **strips tool definitions** from MiniCPM5 requests. MiniCPM5 is
+a small agentic model, and on a CPU box it rambles for hundreds of tokens
+deciding which tool to call (Open WebUI injects a long tool list by default).
+Without tools, it answers a simple "hi!" in one short line; with its thinking
+kept on, it stays brief instead of deliberating over function selection. This
+is a per-model `MODEL_STRIP_TOOLS` set in the router's config.
+
 ## RAM budget (important)
 
 Gamma has **6.7 GB RAM** and shares it with

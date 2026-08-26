@@ -1,0 +1,108 @@
+---
+title: qBittorrent
+description: qBittorrent service, WebUI, profile, Mullvad binding, credentials, and testing.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Current deployment
+
+The first downloader component is a native Debian service rather than a Docker media
+stack. This keeps the first network-boundary test small and observable.
+
+```text
+Service:       media-qbittorrent.service
+Binary:        /usr/bin/qbittorrent-nox
+User:          zero
+Profile:       /home/zero/services/media-pipeline/config/qbittorrent
+WebUI:         192.168.1.105:8080
+Torrent bind:  wg0-mullvad
+```
+
+The service is enabled and starts only when `/sys/class/net/wg0-mullvad` exists. Its
+systemd unit uses `NoNewPrivileges`, a private temporary directory, a read-only system
+filesystem, and narrowly scoped write paths. The WebUI is allowed through UFW only
+from Beta's administrative source `192.168.1.166`.
+
+## Directories
+
+```text
+/home/zero/services/media-pipeline/
+├── config/qbittorrent/
+├── downloads/incomplete/
+├── downloads/complete/
+├── quarantine/
+├── rejected/
+├── manifests/
+└── outbox/
+```
+
+## Credentials
+
+The WebUI username is initially:
+
+```text
+admin
+```
+
+The first service start generates a temporary password. Retrieve it locally and never
+store it in the handbook, send it through chat, or reuse an SSH/Mullvad credential:
+
+```bash
+sudo journalctl -u media-qbittorrent.service --no-pager \
+  | grep 'temporary password' \
+  | tail -1
+```
+
+Log in and immediately set a permanent strong password under:
+
+```text
+Tools → Options → Web UI
+```
+
+Once a permanent password is configured, the service will no longer rely on the
+startup temporary-password state.
+
+## Verification
+
+```bash
+systemctl is-active media-qbittorrent.service
+ss -lntup | grep -E '(:8080|:6881)'
+grep -E '^(WebUI|Connection|Downloads)' \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/config/qBittorrent.conf
+mullvad status
+```
+
+The expected WebUI listener is `192.168.1.105:8080`, not `*:8080`. The configuration
+must contain exactly one literal backslash in each key:
+
+```text
+Connection\Interface=wg0-mullvad
+Connection\InterfaceName=wg0-mullvad
+WebUI\Address=192.168.1.105
+```
+
+## Outstanding leak test
+
+Do not add real media torrents until this test passes:
+
+1. Pause/stop qBittorrent.
+2. Disconnect Mullvad.
+3. Confirm qBittorrent cannot start without `wg0-mullvad`.
+4. Confirm no torrent traffic can use the ordinary LAN route.
+5. Reconnect Mullvad.
+6. Confirm qBittorrent starts again and remains VPN-bound.
+
+Use a freely redistributable Debian test torrent. A running process or an HTTP 200
+WebUI response is not proof of torrent containment; inspect the listener, effective
+configuration, Mullvad status, and actual traffic path.
+
+## Bring-up incidents
+
+The first attempt created the nested profile as `root:root` while systemd runs qBittorrent
+as `zero`. The missing cache directory and recursive ownership were corrected.
+
+The next attempt wrote INI keys with doubled backslashes. qBittorrent ignored them and
+exposed `*:8080`. The profile was rewritten with single backslashes, the service was
+stopped before rewriting, and final verification showed the LAN-specific WebUI,
+`wg0-mullvad` binding, Mullvad connected, and HTTP 200.

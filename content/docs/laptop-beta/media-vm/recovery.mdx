@@ -1,0 +1,101 @@
+---
+title: Recovery
+description: SSH, DHCP, display-manager, and service recovery procedures for media-vm.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## SSH recovery
+
+Normal administration uses the established Delta → Beta → guest path. Direct guest
+LAN SSH is available only from Beta because of UFW:
+
+```bash
+ssh zero@192.168.1.105
+```
+
+If the guest is unreachable, use the Proxmox console on Beta. Switch to a TTY with
+`Ctrl` + `Alt` + `F3` and log in as `zero`.
+
+Always verify a fresh SSH connection after a reboot or network change; an existing
+session alone is not proof of reachability.
+
+## Restore a missing network lease
+
+These commands are a recovery aid, not the durable configuration:
+
+```bash
+sudo ip link set ens18 up
+sudo ip addr add 192.168.1.105/24 dev ens18
+sudo ip route add default via 192.168.1.1 dev ens18
+printf 'nameserver 192.168.1.1\n' | sudo tee /etc/resolv.conf
+```
+
+The durable source is `/etc/network/interfaces`:
+
+```text
+auto ens18
+allow-hotplug ens18
+iface ens18 inet dhcp
+```
+
+Restore the DHCP client and networking if missing:
+
+```bash
+sudo apt-get update
+sudo apt-get install isc-dhcp-client ifupdown
+sudo systemctl enable --now networking
+```
+
+Do not run broad `apt autoremove --purge`. Preserve networking, SSH, QEMU guest
+agent, Mullvad, UFW, and LightDM.
+
+## Restore graphical login
+
+```text
+Display manager: lightdm
+Greeter:        lightdm-gtk-greeter
+Session:        xfce
+```
+
+Check from the TTY:
+
+```bash
+systemctl is-active lightdm
+systemctl status lightdm --no-pager
+journalctl -u lightdm -b --no-pager -n 80
+```
+
+If the greeter was removed:
+
+```bash
+sudo apt-get install lightdm lightdm-gtk-greeter xfce4 xfce4-terminal
+sudo systemctl enable --now lightdm
+sudo systemctl set-default graphical.target
+```
+
+Keep the Proxmox console open while changing display or network packages.
+
+## qBittorrent recovery
+
+Check the service and profile before restarting:
+
+```bash
+systemctl status media-qbittorrent.service --no-pager
+ls -ld /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent
+sudo install -d -o zero -g zero \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/cache
+sudo chown -R zero:zero \
+  /home/zero/services/media-pipeline/config/qbittorrent
+sudo systemctl restart media-qbittorrent.service
+```
+
+If Mullvad is disconnected, the service should not be considered healthy until
+`wg0-mullvad` exists again. Verify the listener is `192.168.1.105:8080`, not `*:8080`.
+
+## Proxmox emergency isolation
+
+For highly suspicious content, remove or disconnect the VM's virtual NIC in Proxmox.
+This is stronger than guest-side quarantine but removes SSH and requires the Proxmox
+console for recovery. Do not attempt to preserve remote administration during this
+emergency mode.

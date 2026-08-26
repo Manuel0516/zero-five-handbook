@@ -1,0 +1,103 @@
+---
+title: VPN and Network
+description: Mullvad, UFW, operating modes, and network containment for media-vm.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Network identity
+
+```text
+LAN interface:  ens18
+LAN address:    192.168.1.105/24
+LAN gateway:    192.168.1.1
+Mullvad:        wg0-mullvad
+Mesh address:   none
+```
+
+The guest has no Zero Five WireGuard mesh address. Administration uses the LAN path
+through the established Hermes → Delta → Beta → guest SSH chain.
+
+## UFW policy
+
+UFW is active with these effective rules:
+
+```text
+Default incoming: deny
+Default outgoing: allow
+22/tcp inbound:   allow only from 192.168.1.166 (Beta)
+22/tcp outbound:  deny for IPv4 and IPv6
+8080/tcp inbound: allow only from 192.168.1.166 (qBittorrent WebUI)
+```
+
+The guest can still reach other LAN services over non-SSH protocols. Full outbound
+isolation is a separate quarantine mode and is not yet implemented.
+
+Inspect the live state:
+
+```bash
+mullvad status
+mullvad lockdown-mode get
+mullvad auto-connect get
+mullvad lan get
+sudo /usr/sbin/ufw status verbose
+ip -brief address
+ip route
+ss -lntup
+```
+
+## Mullvad policy
+
+```text
+Mullvad:          connected
+Autoconnect:      on
+Lockdown mode:    on
+LAN sharing:      allow
+```
+
+LAN sharing is intentionally allowed so Beta administration survives VPN changes.
+It does not override UFW's outbound SSH denial. Mullvad lockdown must remain enabled
+so a tunnel failure fails closed.
+
+## Normal download mode
+
+- Connect Mullvad before starting download services.
+- Keep lockdown enabled.
+- Bind qBittorrent and related services to `wg0-mullvad`.
+- Keep the VM off the Zero Five mesh.
+- Do not mount Gamma's library or the NAS.
+- Keep outbound SSH denied.
+
+Do not create an automatic VPN-to-direct-internet fallback. If the Mullvad account
+expires or the tunnel fails, media services must stop or become unable to communicate.
+
+## Intentional direct mode
+
+Direct mode is a deliberate privacy downgrade, not normal recovery:
+
+```bash
+mullvad disconnect
+mullvad lockdown-mode set off
+mullvad auto-connect set off
+sudo /usr/sbin/ufw default allow outgoing
+sudo /usr/sbin/ufw reload
+curl -4 https://api.ipify.org; printf '\n'
+```
+
+Keep the outbound TCP/22 denial. Do not start a downloader until the public IP and
+policy have been reviewed. A replacement WireGuard provider should use the same
+fail-closed model; do not merely remove Mullvad and assume the policy adapts.
+
+## Outstanding VPN test
+
+The remaining safety gate is a controlled Mullvad-disconnect test:
+
+1. Pause/stop qBittorrent.
+2. Disconnect Mullvad.
+3. Confirm qBittorrent cannot start without `wg0-mullvad`.
+4. Confirm no torrent traffic can use the ordinary LAN route.
+5. Reconnect Mullvad.
+6. Confirm the service starts again and remains bound to the VPN interface.
+
+Use a freely redistributable Debian test torrent. Do not add real media torrents
+before this test passes.

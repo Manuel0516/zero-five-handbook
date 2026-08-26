@@ -1,0 +1,75 @@
+---
+title: Media VM
+description: Overview and navigation for the hardened media download guest on Beta.
+---
+
+> **Status: hardened base and qBittorrent MVP deployed; VPN disconnect/leak testing and
+> the quarantine/import boundary remain outstanding.**
+
+This section documents the Debian `media-vm` guest on Beta. It separates the
+operational topics so that VPN, downloader, Tor Browser, security boundary, recovery,
+and resource guidance can be maintained independently.
+
+The larger two-VM download/quarantine architecture remains a future design; see
+[Media Pipeline — Design Proposal](/docs/future-projects/media-pipeline).
+
+## Section map
+
+| Page | Use it for |
+| --- | --- |
+| [VPN and network](/docs/laptop-beta/media-vm/vpn) | Mullvad, UFW, normal mode, direct-mode warnings, and network containment |
+| [qBittorrent](/docs/laptop-beta/media-vm/qbittorrent) | Service, WebUI, profile, Mullvad binding, credentials, and leak-test plan |
+| [Tor Browser](/docs/laptop-beta/media-vm/tor) | Installation, signature verification, launch, and Tor-versus-Mullvad policy |
+| [Security boundary](/docs/laptop-beta/media-vm/security) | Quarantine, offline operation, trust boundary, and future two-VM design |
+| [Recovery](/docs/laptop-beta/media-vm/recovery) | SSH, DHCP, LightDM, and bring-up failure recovery |
+| [Resources and incidents](/docs/laptop-beta/media-vm/resources) | RAM budget, package decisions, and documented setup failures |
+
+## Identity and placement
+
+| Property | Verified state |
+| --- | --- |
+| Proxmox host | Beta (`192.168.1.166`, WireGuard `10.8.0.4`) |
+| Guest hostname | `media-vm` |
+| Guest account | `zero` (non-root administration) |
+| LAN address | `192.168.1.105/24` via DHCP reservation/current lease |
+| LAN gateway | `192.168.1.1` |
+| LAN interface | `ens18` |
+| Mullvad interface | `wg0-mullvad` |
+| Guest memory | 4 GiB class; Linux reports 3.8 GiB usable |
+| Guest swap | 1.7 GiB active |
+| Desktop | Minimal XFCE + LightDM GTK greeter |
+| Network stack | Debian `ifupdown` + `isc-dhcp-client`; NetworkManager is not installed |
+| Guest agent | `qemu-guest-agent` active |
+| SSH | Active; inbound firewall rule permits Beta only |
+| VPN | Mullvad connected; autoconnect and lockdown enabled |
+| Media services | qBittorrent-nox MVP active; Docker installed but no media containers deployed |
+| Tor Browser | Tor Browser 15.0.20 installed under `/home/zero/Applications/tor-browser` |
+
+The guest has no Zero Five WireGuard mesh address. Its only WireGuard interface is
+Mullvad's egress tunnel. Administration enters through the LAN path from Beta, with
+the established Hermes → Delta → Beta → guest SSH chain.
+
+## Current verified state
+
+The base guest, Mullvad lockdown, Tor Browser, and qBittorrent MVP are deployed. The
+remaining safety gate is the Mullvad disconnect test using a freely redistributable
+Debian test torrent. Until that succeeds, do not add real media torrents or treat
+files in this single guest as trusted.
+
+Run the [verification checklist](/docs/laptop-beta/media-vm/resources#verification-checklist)
+after reboots or package changes. The guest must be freshly reachable through the
+Delta → Beta administration path; an existing SSH session alone is not sufficient.
+
+## Future build boundary
+
+The intended final flow remains:
+
+```text
+media-vm (dirty download side)
+  → host-owned transfer boundary on Beta
+  → offline quarantine VM
+  → signed pull/import into Gamma
+```
+
+The current one-VM MVP is an operationally contained downloader, not a separate
+trust boundary. Quarantine, signing, and Gamma import are not deployed yet.

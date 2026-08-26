@@ -1,0 +1,57 @@
+---
+title: Security Boundary
+description: Quarantine, offline operation, trust boundaries, and the future two-VM media design.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Current boundary
+
+The one-VM MVP is operationally contained but is not a separate kernel trust boundary.
+The guest must not:
+
+- receive a Zero Five mesh address;
+- mount Gamma's library or the NAS;
+- access Proxmox host files or storage;
+- access mesh private keys;
+- initiate outbound SSH;
+- write directly into the clean Jellyfin library.
+
+The guest currently has a LAN administration path through Beta, Mullvad lockdown for
+internet egress, and a qBittorrent service bound to Mullvad. That is useful containment,
+but a compromised guest kernel or root process could defeat VM-side controls.
+
+## Quarantine/offline procedure
+
+A future `media-net quarantine` helper should implement this policy atomically:
+
+1. Pause qBittorrent and stop download-related services.
+2. Disconnect Mullvad.
+3. Keep SSH from Beta available for administration when safe.
+4. Deny all outbound traffic, not only TCP/22.
+5. Scan only files in a dedicated quarantine directory.
+6. Do not mount Gamma, the NAS, or the clean media library.
+
+For a particularly suspicious file, use Proxmox to disconnect the guest's virtual NIC
+and inspect through the Proxmox console. This removes SSH and requires console recovery,
+but is stronger than any guest-side script.
+
+## Future architecture
+
+The intended final flow is:
+
+```text
+media-vm (dirty download side)
+  → host-owned transfer boundary on Beta
+  → offline quarantine VM
+  → signed pull/import into Gamma
+```
+
+The planned sibling `quarantine-vm` has no NIC, ClamAV/YARA/`ffprobe`, signed manifests,
+and destroy/rebuild on detection. Gamma imports only verified signed bundles. That
+architecture is documented in [Media Pipeline — Design Proposal](/docs/future-projects/media-pipeline)
+and is not deployed yet.
+
+Until the quarantine VM and signed importer exist, a scanner result does not make a
+file trusted. Keep incomplete, downloaded, quarantine, verified, rejected, outbox, and
+manifest areas separate.

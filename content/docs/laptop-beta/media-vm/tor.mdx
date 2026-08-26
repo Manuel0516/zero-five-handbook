@@ -1,0 +1,58 @@
+---
+title: Tor Browser
+description: Tor Browser installation, signature verification, launch, and routing policy.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Installation
+
+Tor Browser 15.0.20 is installed at:
+
+```text
+/home/zero/Applications/tor-browser
+```
+
+Launch it with:
+
+```bash
+/home/zero/Applications/tor-browser/start-tor-browser.desktop
+```
+
+The archive came from the official Tor Project distribution host. The detached
+signature was verified against the Tor Browser Developers primary fingerprint:
+
+```text
+EF6E 286D DA85 EA2A 4BA7 DE68 4E2C 6E87 9329 8290
+```
+
+The documented key-import path was used:
+
+```bash
+gpg --auto-key-locate nodefault,wkd --locate-keys torbrowser@torproject.org
+```
+
+The GPG message saying the key was “not certified with a trusted signature” was a
+local trustdb warning, not a bad signature. The key was independently fingerprint-
+checked and then marked locally trusted. Final verification reported:
+
+```text
+Good signature ... [ultimate]
+```
+
+Stop on `BAD signature` or a different fingerprint. If a failed extraction leaves a
+root-owned partial directory, remove only `/home/zero/Applications/tor-browser` with
+sudo and rerun the verified installer as user `zero`.
+
+## Routing policy
+
+Tor Browser is for web browsing and research only. qBittorrent and bulk media traffic
+remain Mullvad-bound.
+
+Do not route torrents through Tor. Tor is unsuitable for bulk torrent transport: it is
+slow, primarily TCP-oriented, cannot provide a complete all-protocol transparent
+route, and torrent clients can leak outside a SOCKS configuration. A transparent Tor
+proxy is therefore intentionally not enabled.
+
+If Mullvad is unavailable, keep media services stopped. Do not silently fall back to
+Tor or direct internet access.

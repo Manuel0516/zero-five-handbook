@@ -1,0 +1,88 @@
+---
+title: Resources and Incidents
+description: RAM budget, package choices, verification checklist, and documented setup failures.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Resource budget
+
+The guest has approximately 4 GiB assigned, with about 3.8 GiB usable and 1.7 GiB
+swap active.
+
+Before simplification, Cinnamon reported about 1.4 GiB used. The largest contributors
+were Cinnamon/session components, Xorg, Mullvad GUI, GNOME Software, Evolution,
+Blueman, and Nemo. After minimal XFCE and retaining only the Mullvad daemon, Linux
+reported approximately 615 MiB used, 2.9 GiB free, and 3.2 GiB available.
+
+The current qBittorrent service was verified at approximately 29 MiB idle. Firefox,
+Tor Browser, and Tor processes can raise usage substantially. `free` includes kernel
+buffers and filesystem cache, so process percentages do not add exactly to `used`.
+
+Expected future overhead:
+
+- qBittorrent and a small download stack should fit comfortably;
+- Radarr/Sonarr/Prowlarr, Docker, ClamAV, and media probing add overhead;
+- quarantine scans should use bounded concurrency;
+- do not run a second full desktop, model, or unrelated service here;
+- inspect `free -h`, `swapon --show`, and `systemd-cgtop` after each component.
+
+## Package decisions
+
+Installed base tools include qBittorrent-nox, Docker Engine, Docker Compose, ffmpeg,
+ClamAV, YARA, AIDE, debsums, GnuPG, jq, and supporting utilities. Docker is installed
+for the future Gluetun/media stack, but no media containers are deployed yet. The
+first downloader remains native qBittorrent so the VPN boundary can be tested in a
+small, observable configuration.
+
+## Bring-up incidents
+
+### Broad desktop cleanup
+
+The first simplification attempt installed XFCE and then used broad autoremove. It
+removed the DHCP client and broke the original graphical login. After reboot, `ens18`
+had carrier but no IPv4 address or route. Recovery used the Proxmox TTY to bring the
+interface up and add temporary addressing. A repair pass restored `isc-dhcp-client`,
+durable `ifupdown` DHCP, `lightdm-gtk-greeter`, and XFCE.
+
+Future cleanup must preserve the actual network implementation, install replacement
+display packages first, keep the console open, review simulated removals, and test
+DHCP, SSH, Mullvad, UFW, and LightDM independently.
+
+### qBittorrent profile and INI syntax
+
+The first qBittorrent service attempt created profile directories as `root:root`
+while systemd runs qBittorrent as `zero`. Creating the cache directory and recursively
+assigning the profile to `zero:zero` fixed the crash.
+
+A second attempt wrote qBittorrent INI keys with doubled backslashes. qBittorrent
+ignored them and exposed `*:8080`. The config was rewritten with single backslashes,
+the service was stopped before rewriting, and final verification showed the LAN-only
+WebUI, `wg0-mullvad` binding, connected Mullvad, and HTTP 200.
+
+## Verification checklist
+
+Run after reboot or package changes:
+
+```bash
+hostname
+free -h
+swapon --show
+ip -brief address
+ip route
+systemctl is-active networking ssh qemu-guest-agent lightdm
+mullvad status
+mullvad lockdown-mode get
+mullvad auto-connect get
+sudo /usr/sbin/ufw status verbose
+systemctl is-active media-qbittorrent.service
+ss -lntup | grep -E '(:8080|:6881)'
+grep -E '^(WebUI|Connection|Downloads)' \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/config/qBittorrent.conf
+```
+
+From the operator side, verify a fresh SSH connection through Delta and Beta. Do not
+declare the guest healthy from an existing SSH session alone.
+
+The remaining project gate is the Mullvad disconnect test with a freely redistributable
+Debian torrent. Do not add real media torrents until the test passes.

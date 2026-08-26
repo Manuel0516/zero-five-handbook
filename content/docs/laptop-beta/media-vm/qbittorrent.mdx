@@ -15,14 +15,15 @@ Service:       media-qbittorrent.service
 Binary:        /usr/bin/qbittorrent-nox
 User:          zero
 Profile:       /home/zero/services/media-pipeline/config/qbittorrent
-WebUI:         192.168.1.105:8080
+WebUI:         127.0.0.1:8080
 Torrent bind:  wg0-mullvad
 ```
 
 The service is enabled and starts only when `/sys/class/net/wg0-mullvad` exists. Its
 systemd unit uses `NoNewPrivileges`, a private temporary directory, a read-only system
-filesystem, and narrowly scoped write paths. The WebUI is allowed through UFW only
-from Beta's administrative source `192.168.1.166`.
+filesystem, and narrowly scoped write paths. The WebUI is bound to `127.0.0.1` and
+is not exposed on the LAN. Operate it from the VM's graphical session or local VM
+console.
 
 ## Directories
 
@@ -73,13 +74,14 @@ grep -E '^(WebUI|Connection|Downloads)' \
 mullvad status
 ```
 
-The expected WebUI listener is `192.168.1.105:8080`, not `*:8080`. The configuration
-must contain exactly one literal backslash in each key:
+The expected WebUI listener is `127.0.0.1:8080`, not `*:8080`. Open
+`http://127.0.0.1:8080` from the VM graphical session. The configuration must contain
+exactly one literal backslash in each key:
 
 ```text
 Connection\Interface=wg0-mullvad
 Connection\InterfaceName=wg0-mullvad
-WebUI\Address=192.168.1.105
+WebUI\Address=127.0.0.1
 ```
 
 ## Outstanding leak test
@@ -104,5 +106,5 @@ as `zero`. The missing cache directory and recursive ownership were corrected.
 
 The next attempt wrote INI keys with doubled backslashes. qBittorrent ignored them and
 exposed `*:8080`. The profile was rewritten with single backslashes, the service was
-stopped before rewriting, and final verification showed the LAN-specific WebUI,
+stopped before rewriting, and final verification showed the loopback-only WebUI,
 `wg0-mullvad` binding, Mullvad connected, and HTTP 200.

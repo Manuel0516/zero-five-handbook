@@ -1,0 +1,213 @@
+---
+title: Automatic Media Pipeline
+description: Completed-download quarantine, offline scanning, manifests, and the future pull boundary.
+---
+
+[← Media VM overview](/docs/laptop-beta/media-vm)
+
+## Current implementation
+
+The VM has an installed automatic completion pipeline. It watches qBittorrent's completed
+download directory and the browser intake directory, and processes each top-level
+completed item without executing it.
+The installed components are:
+
+```text
+/usr/local/libexec/media-pipeline-process-complete
+/usr/local/libexec/media-pipeline-scan-item
+/etc/systemd/system/media-pipeline-process-complete.service
+/etc/systemd/system/media-pipeline-process-complete.path
+/etc/systemd/system/media-pipeline-process-complete.timer
+```
+
+The pipeline is installed with:
+
+```bash
+sudo bash ~/install-media-pipeline
+```
+
+The installer creates the scan-report directory, installs root-owned control scripts and
+systemd units, runs `systemd-analyze verify`, reloads systemd, and enables the path
+watcher and timer. It does not start or stop qBittorrent and does not change Mullvad or
+UFW policy.
+
+## Processing flow
+
+```text
+qBittorrent completes item
+        ↓
+/home/zero/services/media-pipeline/downloads/complete/
+        ↓
+systemd.path detects directory change
+        ↓
+processor waits for a stable item observation
+        ↓
+atomic move into quarantine/
+        ↓
+network-isolated scanner service
+        ↓
+clean → outbox/
+infected/suspicious/error → rejected/
+```
+
+The processor uses a lock so concurrent path and timer events cannot process the same
+item twice. It ignores qBittorrent's `.unwanted` directory. It waits for the top-level
+item's type, size, and modification time to remain stable for five seconds before
+moving it. Name collisions receive a UTC timestamp and process-ID suffix rather than
+overwriting an existing item.
+
+The timer runs every two minutes as a recovery mechanism if a filesystem event is
+missed. The path watcher handles normal completion promptly.
+
+Inspect the automation:
+
+```bash
+systemctl status media-pipeline-process-complete.path --no-pager
+systemctl status media-pipeline-process-complete.timer --no-pager
+systemctl status media-pipeline-process-complete.service --no-pager
+sudo journalctl -u media-pipeline-process-complete.service -b --no-pager -n 100
+```
+
+## Scanner behavior
+
+The scanner runs as user `zero` inside the systemd service with:
+
+```text
+PrivateNetwork=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/home/zero/services/media-pipeline
+```
+
+It never executes, deletes, approves, or moves a file except for the final controlled
+move into `outbox/` or `rejected/`. It performs:
+
+1. a regular-file inventory without following filesystem boundaries;
+2. SHA-256 hashing;
+3. MIME/file-type identification;
+4. recursive ClamAV scanning;
+5. YARA triage rules for PE/ELF containers and shell/download indicators;
+6. `ffprobe` structural inspection for audio/video files.
+
+A clean result requires:
+
+```text
+ClamAV:    exit 0
+YARA:      no matches
+ffprobe:   no media-structure failures
+```
+
+Any ClamAV detection becomes `infected`. A ClamAV error, YARA match/error, or media
+structure failure becomes `suspicious` or `error`. These are conservative routing
+verdicts, not a claim that a clean item is mathematically malware-free.
+
+## Reports and manifests
+
+Each item receives a private report under:
+
+```text
+/home/zero/services/media-pipeline/manifests/scan-reports/
+```
+
+The report contains:
+
+```text
+files.list
+sha256.txt
+file-types.txt
+clamav.log
+yara-matches.txt
+yara-triage.rules
+ffprobe.txt
+result.txt
+```
+
+`result.txt` records the item path, timestamps, file count, scanner exit codes, verdict,
+reason, and final destination. Clean items also have a SHA-256 manifest before they are
+placed in `outbox/`. The report directories are mode `0700`.
+
+The scanner does not include private keys, browser profiles, passwords, qBittorrent
+credentials, or full process environments in these reports. It does not copy media-file
+contents into reports. A clean item also receives a destination-readable companion
+manifest in `outbox/`; the manifest carries the clean verdict, scanner versions, UTC
+completion time, and SHA-256 values for the item. The manifest is explicitly ACL-readable
+by the restricted `media-outbox` account.
+
+## Destinations
+
+```text
+complete/   qBittorrent output awaiting processing
+quarantine/ item being analyzed
+outbox/     clean items with manifests, future pull source
+rejected/   infected, suspicious, or scanner-error items
+```
+
+The intended clean-transfer rule is strict: only items routed to `outbox/` after a clean
+scan may be exposed to a destination machine. `rejected/` is never part of the transfer
+source.
+
+## Browser downloads
+
+Firefox and Tor Browser use a separate browser intake directory:
+
+```text
+/home/zero/services/media-pipeline/downloads/browser-inbox/
+```
+
+This keeps browser downloads distinct from qBittorrent's `complete/` directory while
+sending both sources through the same processor, quarantine, scanner, manifest, and
+outbox/rejected routing.
+
+After closing **both** Firefox and Tor Browser, apply the profile settings with:
+
+```bash
+bash ~/configure-media-browser-downloads
+```
+
+The helper refuses to change profiles while either browser is running. It backs up an
+existing `user.js` once as `user.js.media-pipeline.bak`, then sets the fixed download
+directory in the existing Firefox default profiles and the Tor Browser profile. Restart
+both browsers after the helper reports:
+
+```text
+BROWSER_DOWNLOAD_INTAKE_CONFIGURED
+```
+
+Browser temporary files such as `.part`, `.crdownload`, `.download`, and `.tmp` are
+ignored. The processor waits for the final browser filename and a stable observation
+before moving it into quarantine.
+
+Tor Browser traffic still uses Tor, and Firefox retains its ordinary explicitly
+controlled browser routing. This intake change does not route qBittorrent through Tor,
+does not make the VM transparently Tor-routed, and does not make browser downloads
+trusted. Browser downloads remain untrusted until the same scanner gives them a clean
+verdict.
+
+## Current limitations
+
+- The pipeline is installed and its path watcher and timer are active. A harmless
+  qBittorrent-source fixture completed the full `complete/` → `quarantine/` → scan →
+  `outbox/` flow with a clean verdict; the test artifact was then removed.
+- A harmless browser-source fixture still needs to be run after downloading through
+  Firefox or Tor Browser.
+- The current implementation has no signed manifest or destination authentication yet.
+- The clean `outbox/` is exposed only through the restricted Delta terminating relay; it is
+  not directly exposed to Gamma, Beta, or arbitrary NAS clients.
+- A clean ClamAV/YARA/ffprobe result is not a replacement for the future quarantine VM
+  trust boundary.
+- A malicious file must not be opened or executed on the media VM during review.
+- The separate full-VM audit is read-only and independent from this completion pipeline.
+
+## Pull-only transfer
+
+The pull-only transfer is deployed through Delta. Delta is the terminating relay and
+holds the upstream media-vm key; enrolled destination clients authenticate only to Delta.
+The `media-pull` command verifies the clean manifest and SHA-256 hashes before publishing
+an item into its selected destination. It does not delete source items.
+
+The stronger future design remains a separate quarantine VM with an independent signing
+key, as described in the [Media Pipeline design](/docs/future-projects/media-pipeline).

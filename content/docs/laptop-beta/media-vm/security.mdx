@@ -21,16 +21,99 @@ The guest currently has a LAN administration path through Beta, Mullvad lockdown
 internet egress, and a qBittorrent service bound to Mullvad. That is useful containment,
 but a compromised guest kernel or root process could defeat VM-side controls.
 
-## Quarantine/offline procedure
+## Quarantine mode
 
-A future `media-net quarantine` helper should implement this policy atomically:
+The VM has a reversible guest-side quarantine helper. Enter it with:
 
-1. Pause qBittorrent and stop download-related services.
-2. Disconnect Mullvad.
-3. Keep SSH from Beta available for administration when safe.
-4. Deny all outbound traffic, not only TCP/22.
-5. Scan only files in a dedicated quarantine directory.
-6. Do not mount Gamma, the NAS, or the clean media library.
+```bash
+sudo bash ~/media-quarantine-enter
+```
+
+Entry performs these actions in order:
+
+1. records the current UFW outgoing policy and whether qBittorrent/Docker were active;
+2. stops qBittorrent and applies a runtime systemd mask;
+3. stops Docker services if they were active;
+4. disconnects Mullvad;
+5. changes UFW's default outgoing policy to `deny`;
+6. preserves the Beta inbound SSH rule so administration can continue when safe;
+7. creates `/run/media-vm-quarantine.active` and a root-owned state file.
+
+The mode is fail-closed for downloading: qBittorrent cannot be started accidentally,
+Mullvad is disconnected, and ordinary outbound traffic is denied. For especially
+suspicious content, disconnect the VM's virtual NIC in Proxmox instead; that is a
+stronger boundary but requires console recovery.
+
+## Malware and machine analysis
+
+The VM has two local-only analysis tools:
+
+```text
+~/media-deep-audit       broad machine/configuration audit
+~/media-malware-scan     offline file and media analysis
+```
+
+Run both only while quarantine mode is active. The deep audit writes a timestamped
+`audit-*` report under:
+
+```text
+/home/zero/services/media-pipeline/audit-reports/
+```
+
+It records host identity, OS/kernel, CPU/RAM/swap/disks, mounts, routes, listening
+sockets, Mullvad/UFW state, failed services, systemd units/timers, process summaries,
+users/groups, SSH effective configuration, qBittorrent and Docker service state,
+installed packages, `debsums`, media-tree metadata and sizes, relevant journal events,
+ClamAV/YARA/FFmpeg availability, and control-file hashes. It deliberately excludes
+private keys, browser profiles, full process environments, credentials, qBittorrent
+password hashes, and media-file contents. Password-related qBittorrent journal lines
+are redacted.
+
+The malware scanner defaults to the quarantine directory:
+
+```bash
+sudo bash ~/media-malware-scan
+```
+
+Additional explicit scopes are available:
+
+```bash
+sudo bash ~/media-malware-scan --scope quarantine
+sudo bash ~/media-malware-scan --scope media
+sudo bash ~/media-malware-scan --scope vm --confirm-full-vm
+```
+
+The scopes mean:
+
+- `quarantine`: only `/home/zero/services/media-pipeline/quarantine`;
+- `media`: the complete `/home/zero/services/media-pipeline` tree;
+- `vm`: the VM root filesystem, without crossing filesystem mounts and excluding
+  `/proc`, `/sys`, `/dev`, and `/run`; it requires the explicit confirmation flag.
+
+Each scan creates a mode-0700 report containing SHA-256 hashes, MIME/type inventory,
+ClamAV output, YARA triage matches, and `ffprobe` structure output for audio/video.
+`REVIEW_REQUIRED` is always printed because the tool reports evidence; it never
+approves, deletes, moves, or executes files. ClamAV exit `0` means no detection, `1`
+means a detection, and `2` or higher indicates a scan error. YARA matches are triage
+signals, not malware verdicts. An empty target can legitimately produce `0.00 MB` and
+zero indexed files.
+
+## Restore mode
+
+Restore only after reviewing the audit and scan reports:
+
+```bash
+sudo bash ~/media-quarantine-restore
+```
+
+The restore helper keeps qBittorrent stopped and runtime-masked while it reconnects
+Mullvad. Because UFW outgoing deny blocks the relay bootstrap, it temporarily changes
+UFW to allow outgoing traffic while qBittorrent remains stopped and masked. Mullvad
+Lockdown Mode remains active during this window and blocks ordinary disconnected
+internet access. After `Connected` is confirmed, it restores
+the saved UFW outgoing policy, removes the quarantine marker, and unmasks qBittorrent.
+It does not start qBittorrent automatically. If reconnection or policy restoration
+fails, it returns to outgoing-deny quarantine.
 
 For a particularly suspicious file, use Proxmox to disconnect the guest's virtual NIC
 and inspect through the Proxmox console. This removes SSH and requires console recovery,

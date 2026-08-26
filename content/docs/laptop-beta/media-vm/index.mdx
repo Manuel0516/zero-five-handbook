@@ -3,8 +3,7 @@ title: Media VM
 description: Overview and navigation for the hardened media download guest on Beta.
 ---
 
-> **Status: hardened base and qBittorrent MVP deployed; VPN disconnect/leak testing and
-> the quarantine/import boundary remain outstanding.**
+> **Status: hardened base and qBittorrent MVP deployed; the Delta terminating pull relay is deployed and verified. VPN disconnect/leak testing, NAS import, and the stronger quarantine/import boundary remain outstanding.**
 
 This section documents the Debian `media-vm` guest on Beta. It separates the
 operational topics so that VPN, downloader, Tor Browser, security boundary, recovery,
@@ -20,6 +19,8 @@ The larger two-VM download/quarantine architecture remains a future design; see
 | [VPN and network](/docs/laptop-beta/media-vm/vpn) | Mullvad, UFW, normal mode, direct-mode warnings, and network containment |
 | [qBittorrent](/docs/laptop-beta/media-vm/qbittorrent) | Service, WebUI, profile, Mullvad binding, credentials, and leak-test plan |
 | [Tor Browser](/docs/laptop-beta/media-vm/tor) | Installation, signature verification, launch, and Tor-versus-Mullvad policy |
+| [Automatic media pipeline](/docs/laptop-beta/media-vm/pipeline) | Completion watcher, quarantine scanner, manifests, and future pull-only transfer |
+| [Pull-only transfer](/docs/laptop-beta/media-vm/pull) | Restricted Gamma pull, manifest verification, staging, and import boundary |
 | [Security boundary](/docs/laptop-beta/media-vm/security) | Quarantine, offline operation, trust boundary, and future two-VM design |
 | [Recovery](/docs/laptop-beta/media-vm/recovery) | SSH, DHCP, LightDM, and bring-up failure recovery |
 | [Resources and incidents](/docs/laptop-beta/media-vm/resources) | RAM budget, package decisions, and documented setup failures |

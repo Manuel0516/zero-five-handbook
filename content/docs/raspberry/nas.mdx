@@ -1,0 +1,733 @@
+---
+title: Delta NAS (Near future implementation)
+description: "Planned simple SMB personal NAS on Delta's 4 TB disk, available only on the home LAN and Zero Five WireGuard network."
+---
+
+> **Status: PARTIALLY DEPLOYED — verified 2026-08-26.**
+>
+> Delta's 4 TB drive is formatted as ext4 and persistently mounted at
+> `/srv/nas`. Samba, the `media` and `shared` read/write shares, the separate
+> `backup-reader` account, and the read-only `backups` share are deployed.
+> Device-by-device access tests, reboot persistence, and future Jellyfin
+> integration remain to be verified. This page continues to document the
+> remaining implementation and migration work.
+
+### Verified live state
+
+The verified Delta deployment currently includes:
+
+| Component | Verified state |
+| --- | --- |
+| Disk | `/dev/sda2`, ext4, mounted at `/srv/nas` |
+| Capacity at deployment | 3.6 TiB total, approximately 3.4 TiB free |
+| Samba | Debian Samba 4.22, `smbd` enabled and active |
+| SMB protocol | SMB 3 minimum, TCP `445` only |
+| Normal shares | `media` and `shared`, read/write for `nas-users` |
+| Backup share | `backups`, read-only for `backup-reader` |
+| Reserved directory | `personal` exists on disk but is not currently exported via SMB |
+| Legacy NetBIOS | `nmbd` disabled |
+| VPN access | Delta WireGuard address `10.8.0.2` |
+| Remote SMB encryption | Disabled; WireGuard supplies encryption for VPN clients |
+| Source configuration | `zero-five-infra/samba/delta/smb.conf.example` |
+
+Samba is intentionally configured with `bind interfaces only = no` plus
+Samba host allow/deny rules. Binding by interface name did not bind reliably to
+Delta's point-to-point `wg0` interface, so this is required for VPN access.
+Delta has no public WAN address and the allowed source ranges remain restricted
+to the home LAN and WireGuard network. The live listener may therefore show
+`0.0.0.0:445`; that does not create a public route by itself.
+
+This page defines the first NAS implementation for Delta. It is intentionally a
+simple transition system rather than a complete NAS appliance. Delta will serve
+ordinary SMB shares from its existing Debian installation. A future dedicated
+NAS can replace Delta without changing the logical directory layout or the
+Jellyfin mount used by clients.
+
+## Goal and boundaries
+
+The goal is a personal file server available from:
+
+- the home LAN;
+- approved Zero Five WireGuard clients;
+- no public internet path.
+
+This phase does **not** deploy Jellyfin, the media downloader, the quarantine
+pipeline, or an importer. The `media` share is created now so that it can later
+become Jellyfin's media source without changing the NAS design.
+
+The chosen protocol is **SMB only**. We are not adding NFS, a NAS web panel,
+Docker-based Samba, WebDAV, or a second file-sharing protocol at this stage.
+
+## Storage layout
+
+The existing drive remains mounted at `/srv/nas`:
+
+```text
+/srv/nas/
+├── media/       # shared media files; all NAS users can modify them
+├── shared/      # general shared files; all NAS users can modify them
+├── personal/    # optional owner- or user-specific files
+└── backups/     # restic repositories; separate access policy
+```
+
+The filesystem path is an implementation detail. The stable interface is the
+SMB share name:
+
+```text
+media
+shared
+backups
+```
+
+`personal` is reserved on disk but is not exported in the current live Samba
+configuration. Export it only after defining its owner/group policy explicitly.
+The future NAS should recreate the active share names even if its internal
+storage path changes from `/srv/nas` to something such as `/data`.
+
+## Access model
+
+Every person who should use the personal NAS receives an individual account.
+Do not share one password between devices or people.
+
+| Account/group | Normal shares | Backup share | Purpose |
+| --- | --- | --- | --- |
+| `nas-users` | Read/write/create/rename/delete | No access by default | Ordinary NAS users |
+| `manuel` | Member of `nas-users`; administration as separately authorized | Administrative access when needed | Owner account |
+| `backup-reader` | No access by default | Read-only | Separate backup inspection/restore account |
+| Future `jellyfin` account | Not created now | No access | Later Gamma SMB mount, limited to `media` |
+
+The normal NAS shares are deliberately collaborative. Members of `nas-users`
+can fully manage the contents of `media` and `shared`.
+
+`personal` is optional and should not automatically be world-readable. It can
+be assigned to one user or a smaller group if private files are needed.
+
+The `backup-reader` account is separate because the restic repository is not a
+normal file collection. It contains encrypted repository data. Read-only SMB
+access allows inspection or a controlled restore, but it prevents accidental
+file creation, renaming, or deletion inside the repository. The restic
+password is not stored in Samba configuration or in this handbook.
+
+The automated Delta backup controller does not use Samba. It writes directly
+to `/srv/nas/backups` and remains governed by the separate backup service and
+its root-only runtime configuration. See [Delta backup controller](/docs/raspberry/backup).
+
+## Reproducible Delta configuration
+
+The secret-free source configuration is maintained in
+`zero-five-infra/samba/delta/smb.conf.example`. It must be copied to Delta
+only after confirming that `/srv/nas` is mounted. The example is intentionally
+not a complete secret store: Samba passwords, Unix account state, filesystem
+ACLs, and live backups remain on Delta.
+
+A fresh installation follows this order:
+
+```bash
+findmnt --mountpoint /srv/nas
+findmnt --mountpoint /srv/nas | grep -q '/dev/sda2'
+sudo apt install samba smbclient cifs-utils acl
+sudo groupadd --system nas-users 2>/dev/null || true
+sudo install -d -o root -g nas-users -m 2775 /srv/nas/media /srv/nas/shared
+sudo install -d -o root -g root -m 0750 /srv/nas/backups
+sudo install -d -o root -g root -m 0750 /srv/nas/personal
+```
+
+Copy the reviewed example from an infra checkout, preserving the old live
+configuration first:
+
+```bash
+sudo cp -a /etc/samba/smb.conf \
+  "/etc/samba/smb.conf.before-nas.$(date +%Y%m%d%H%M%S)"
+sudo cp samba/delta/smb.conf.example /etc/samba/smb.conf
+sudo testparm -s
+sudo systemctl disable --now nmbd 2>/dev/null || true
+sudo systemctl enable --now smbd
+```
+
+The current deployment uses `bind interfaces only = no` because Samba did not
+reliably bind Delta's point-to-point `wg0` interface by name. The Samba
+`hosts allow` and `hosts deny` rules restrict access to `192.168.1.0/24` and
+`10.8.0.0/24`. Verify the resulting listener and service:
+
+```bash
+systemctl is-active smbd
+ss -lnt | grep ':445'
+sudo smbstatus --brief
+```
+
+Do not create the directories or start Samba if `/srv/nas` is not mounted. That
+would risk serving an empty directory from Delta's root filesystem.
+
+## User administration
+
+Create an individual Unix account and Samba account for each ordinary NAS user.
+Run these commands on Delta as an administrator; `smbpasswd` prompts
+interactively so no password appears in shell history or documentation:
+
+```bash
+sudo adduser --disabled-password --gecos '' NEWUSER
+sudo usermod --append --groups nas-users NEWUSER
+sudo smbpasswd --add NEWUSER
+```
+
+The new user must start a new Delta login session before local filesystem group
+permissions are reflected. Confirm membership with:
+
+```bash
+id NEWUSER
+```
+
+The output must include `nas-users`. Existing sessions can refresh membership
+with `newgrp nas-users`, or by logging out and in again. Samba clients may also
+cache old credentials; disconnect the share and remove stale credentials from
+the client before retrying.
+
+To disable a user without deleting files:
+
+```bash
+sudo smbpasswd --disable NEWUSER
+sudo usermod --lock NEWUSER
+```
+
+To remove the account after confirming ownership and active sessions:
+
+```bash
+sudo smbpasswd --delete NEWUSER
+sudo gpasswd --delete NEWUSER nas-users
+sudo userdel NEWUSER
+```
+
+Do not delete the Unix account until its files have been reviewed. Do not add
+`nas-users` to `backups`. The `backup-reader` account is intentionally not a
+member of `nas-users`; it should have only the ACL and Samba share access needed
+for read-only inspection.
+
+To verify the account and share policy without exposing passwords:
+
+```bash
+sudo pdbedit --list
+sudo testparm --s
+sudo smbstatus --brief
+```
+
+The automated backup identity is separate from both Samba accounts. Never turn
+it into an SMB account and never put its restic password in Samba configuration.
+
+### Backup-reader filesystem ACL
+
+The `backup-reader` Unix account must exist before applying a named ACL. The
+restic controller remains the owner and writer; the reader receives traversal
+and read access only:
+
+```bash
+sudo setfacl -m u:backup-reader:rx /srv/nas/backups
+sudo setfacl -m d:u:backup-reader:rx /srv/nas/backups
+getfacl -p /srv/nas/backups
+```
+
+The default ACL applies to newly created repository entries. Verify that the
+result does not grant `nas-users` access. Do not use recursive write ACLs on the
+restic repository and do not make `backup-reader` a Samba member of
+`nas-users`.
+
+## Validation checklist
+
+Run the following after installation, configuration changes, or recovery:
+
+```bash
+findmnt --mountpoint /srv/nas
+sudo testparm -s
+systemctl is-active smbd
+systemctl is-enabled smbd
+systemctl is-enabled nmbd 2>/dev/null || true
+ss -lnt | grep ':445'
+sudo pdbedit --list
+sudo smbstatus --brief
+```
+
+From a LAN and a WireGuard client, test the active shares using a disposable
+fixture. `manuel` must be able to create, modify, rename, and delete a fixture
+in `media` and `shared`; `backup-reader` must be able to list/read backups but
+must not create, modify, rename, or delete anything there. `manuel` must not be
+able to open the `backups` share. Test the IP address first:
+
+```text
+Windows:     \\10.8.0.2\media
+macOS/Linux: smb://10.8.0.2/media
+```
+
+Also verify that a client outside `192.168.1.0/24` and `10.8.0.0/24` cannot
+reach TCP `445`. A successful WireGuard handshake alone is not proof that SMB
+is reachable; test the port and then authenticate to the share.
+
+After a planned Delta reboot, verify the mount before checking Samba:
+
+```bash
+findmnt --mountpoint /srv/nas
+systemctl is-active smbd
+ss -lnt | grep ':445'
+```
+
+Confirm the share path is still `/srv/nas/media` rather than an empty directory
+on the root filesystem, and run a backup-controller health/restore check from
+the separate backup runbook.
+
+## Rollback
+
+To roll back Samba without deleting NAS data:
+
+```bash
+sudo systemctl stop smbd
+sudo cp -a /etc/samba/smb.conf.before-nas.TIMESTAMP /etc/samba/smb.conf
+sudo testparm -s
+sudo systemctl start smbd
+```
+
+Replace `TIMESTAMP` with the actual backup filename. If the old configuration
+is unavailable, stop Samba and restore the last reviewed configuration from
+`zero-five-infra/samba/delta/smb.conf.example`. Leave `/srv/nas` mounted and do
+not delete or reformat its directories. Roll back a firewall change separately
+from the Samba configuration. Never solve a failed login by enabling guest
+access or opening SMB to the public internet.
+
+Samba must be reachable only from the trusted home and VPN networks:
+
+```text
+Home LAN: 192.168.1.0/24
+WireGuard: 10.8.0.0/24
+```
+
+The implementation must not add:
+
+- a Cloudflare record;
+- a public DNS name;
+- a router WAN port-forward;
+- a Traefik route;
+- public SMB access;
+- guest/anonymous SMB access.
+
+SMB uses TCP ports `445` and, only if required by client compatibility, legacy
+NetBIOS ports. The preferred configuration is SMB 3 over TCP `445` with legacy
+protocols disabled. Firewall rules should be scoped to the LAN and WireGuard
+interfaces or source ranges and verified from both an allowed and a non-allowed
+network.
+
+Use the private DNS name `delta` when it resolves correctly through the Zero
+Five LAN/VPN DNS service. The private WireGuard address `10.8.0.2` is the
+fallback. Do not publish the name publicly just to make SMB easier to find.
+
+## Near-future implementation sequence
+
+Implementation should be performed from a LAN session or the physical console
+with a second recovery path available.
+
+### 1. Read-only preflight
+
+Before installing Samba, verify:
+
+- `/srv/nas` is the 4 TB filesystem and is mounted;
+- the UUID-based `fstab` entry still uses `nofail`;
+- enough free space exists;
+- Delta's LAN SSH path works;
+- Delta's WireGuard path works;
+- no existing service already listens on the planned SMB ports;
+- the backup controller's paths remain outside the ordinary shares;
+- the current handbook and infra working trees are understood before any edits.
+
+If `/srv/nas` is not mounted, stop. Never create the NAS directories on Delta's
+root filesystem by accident.
+
+### 2. Create the directory and ownership model
+
+Create the planned directories only after confirming the mount. The normal
+shares should use a shared group with set-group-ID inheritance so new files keep
+the collaborative group. Apply explicit ownership and mode/ACL checks; do not
+assume that creating a directory automatically fixes the ownership of an
+existing directory.
+
+The intended result is:
+
+```text
+media/shared:  root-owned base, collaborative nas-users group, full group access
+personal:     explicit owner or selected group access
+backups:      controller-owned, not writable by nas-users
+```
+
+### 3. Install and configure Samba
+
+Install the distribution Samba packages on Delta and create explicit shares.
+The configuration should:
+
+- require authenticated users;
+- disable guest access;
+- use SMB 3 or the distribution's modern default;
+- expose only the three active planned shares (`media`, `shared`, and `backups`);
+- prevent users from browsing the entire filesystem;
+- make `media` and `shared` read/write for `nas-users`;
+- make `backups` read-only for `backup-reader`;
+- deny `nas-users` access to `backups` unless explicitly required;
+- use a dedicated future account for Gamma rather than `manuel` credentials.
+
+Validate the configuration before restarting Samba. Keep the previous
+configuration available for rollback and restart the service only after the
+configuration check passes.
+
+### 4. Create users
+
+Create the operating-system accounts/groups and Samba passwords separately.
+Samba passwords are credentials, not Linux root passwords. Use a unique
+password for every user and do not put passwords in shell history, Git, the
+handbook, or chat.
+
+The future Gamma account should be created only when Gamma is ready to mount
+`media`. It should not receive access to `backups`, `shared`, or Delta's shell.
+
+### 5. Apply firewall rules
+
+Allow SMB only from the home LAN and WireGuard network. Keep SSH and WireGuard
+rules unchanged. Do not test firewall changes by closing the only active
+administration path.
+
+The first verification should use a known LAN client. The second should use an
+approved WireGuard client. A client outside both networks should fail to
+connect.
+
+### 6. Test permissions and persistence
+
+For each account, test:
+
+- listing a permitted share;
+- creating a directory;
+- writing a file;
+- modifying a file;
+- renaming a file;
+- deleting a test file;
+- inability to access a forbidden share;
+- inability of `backup-reader` to modify or delete backup files.
+
+Then reboot Delta and verify:
+
+- `/srv/nas` is mounted before Samba serves the shares;
+- Samba starts successfully;
+- the shares do not accidentally point to an empty root-filesystem directory;
+- the backup controller still sees `/srv/nas/backups`;
+- LAN and WireGuard clients can reconnect.
+
+Also test a deliberate mount-failure scenario safely, such as stopping before
+mounting the disk in a recovery procedure. Samba must not silently serve empty
+replacement directories from the root filesystem.
+
+## Using SMB from outside the home
+
+Remote SMB access always requires the Zero Five WireGuard tunnel first:
+
+```text
+Mac/Linux/Windows
+        ↓ WireGuard
+10.8.0.2 (Delta)
+        ↓ TCP 445
+SMB share
+```
+
+1. Activate the Zero Five WireGuard profile.
+2. Confirm that the profile routes Delta through the tunnel. Its peer
+   `AllowedIPs` must include either `10.8.0.2/32` or the complete
+   `10.8.0.0/24` network. A profile that routes only `10.8.0.1/32` reaches
+   Alpha but cannot reach Delta's SMB service.
+3. Connect to the share using the private WireGuard address first:
+
+   ```text
+   Windows: \\10.8.0.2\media
+   macOS/Linux: smb://10.8.0.2/media
+   ```
+
+4. Authenticate with the individual Samba account. Use `manuel` for normal
+   NAS shares and `backup-reader` for the read-only backup share.
+
+The private name `delta` may also work:
+
+```text
+Windows: \\delta\media
+macOS/Linux: smb://delta/media
+```
+
+Name resolution depends on the private DNS path being reachable through
+WireGuard. The IP address is the first troubleshooting test. Do not add a
+public DNS record or WAN port-forward for SMB.
+
+### Remote connectivity checks
+
+On macOS or Linux, test the SMB port without exposing credentials:
+
+```bash
+nc -vz 10.8.0.2 445
+```
+
+On Windows PowerShell, use:
+
+```powershell
+Test-NetConnection 10.8.0.2 -Port 445
+```
+
+The connection test should report TCP port `445` as reachable. If it fails,
+check the WireGuard handshake and `AllowedIPs` before investigating Samba
+passwords. If the IP works but `delta` does not, the problem is private DNS,
+not SMB authentication.
+
+### Roaming and the VPS relay
+
+Outside the home, there are two possible WireGuard paths:
+
+```text
+Direct (preferred): MacBook → Delta → SMB
+Relay (fallback):   MacBook → Alpha VPS → Delta → SMB
+```
+
+The direct MacBook peer uses `10.8.0.11`. The relay path uses the relay client
+address `10.8.0.31`. Direct mode has lower latency and avoids using Alpha's
+bandwidth as a bottleneck. Relay mode is useful when the current hotel, office,
+or mobile network cannot reach Delta's direct WireGuard endpoint.
+
+Use the direct profile whenever it handshakes successfully, and use the relay
+profile only when direct mode is unavailable. In either mode, the SMB address
+remains:
+
+```text
+smb://10.8.0.2/media
+```
+
+A MacBook's SMB TCP session normally dies when the Mac changes Wi-Fi networks,
+changes from Wi-Fi to a hotspot, or wakes from sleep. WireGuard may reconnect
+without recreating the old SMB session. Eject the stale Finder mount, toggle or
+wait for the WireGuard profile to reconnect, and connect again to the IP-based
+SMB URL. Do not treat a missing Finder sidebar entry as proof that Delta is
+down.
+
+To distinguish the failure type, check TCP 445 first. If `10.8.0.2:445` works
+but `delta` fails, private DNS is the issue. If TCP 445 fails, check which
+WireGuard profile is active and whether its `AllowedIPs` contains
+`10.8.0.2/32` or `10.8.0.0/24`. If the relay is active, Delta's `wg show` output
+should show recent traffic for `10.8.0.31`; direct mode should show the
+MacBook's `10.8.0.11` peer instead.
+
+SMB payload encryption is disabled in the current deployment because WireGuard
+already encrypts remote traffic. SMB 3 authentication and signing remain
+active. This avoids redundant encryption overhead, but it means SMB itself is
+not an additional encryption layer for trusted LAN traffic.
+
+Remote transfer speed is limited by the slowest part of the path: the
+MacBook's network, the VPN path, Delta's home upload speed, or Delta's USB
+rotating disk. Do not add legacy Samba socket tuning before measuring a direct
+versus relay transfer. A large-file copy is a more useful test than browsing a
+share containing many small files.
+
+## Adding the SMB shares to devices
+
+The examples below use the stable share name `media`. Replace it with `shared`,
+`personal`, or `backups` as appropriate. Prefer the private DNS name `delta`;
+use `10.8.0.2` when private DNS is unavailable but the WireGuard route works.
+
+### Windows
+
+1. Connect to the home LAN or activate the Zero Five WireGuard tunnel.
+2. Open File Explorer.
+3. Enter one of these paths in the address bar:
+
+   ```text
+   \\delta\media
+   \\delta\shared
+   \\10.8.0.2\media
+   ```
+
+4. Enter the individual NAS username and password.
+5. Do not select a permanent credential option on a shared computer.
+6. To make a persistent drive, use **This PC → Map network drive** and enter,
+   for example, `\\delta\media`.
+
+Windows may cache failed credentials. If a correct password is rejected after
+an earlier failed attempt, remove the cached entry in **Credential Manager**
+and reconnect. Do not solve authentication problems by enabling guest access.
+
+### macOS
+
+1. Connect to the home LAN or activate WireGuard.
+2. Open Finder and choose **Go → Connect to Server**.
+3. Enter:
+
+   ```text
+   smb://delta/media
+   ```
+
+   or:
+
+   ```text
+   smb://10.8.0.2/media
+   ```
+
+4. Choose **Registered User** and enter the NAS account.
+5. Select only the shares needed on that Mac.
+6. Eject the share from Finder before changing VPN state or shutting down.
+
+If `delta` does not resolve while roaming, verify that WireGuard is active and
+that the client is using the private DNS path. Do not add a public DNS record
+for Delta.
+
+### Linux desktop
+
+Most file managers support SMB directly. In GNOME Files, KDE Dolphin, or a
+similar file manager, open the network location:
+
+```text
+smb://delta/media
+```
+
+For a temporary command-line mount, use a user-specific mount point and keep
+credentials out of the command line. A persistent system mount should use a
+root-owned credentials file with mode `0600`, a local mount point such as
+`/mnt/delta-media`, and `_netdev` plus systemd automount options so boot does
+not block when the VPN is unavailable.
+
+The credentials file must contain only the account name and password and must
+never be committed. Do not use `chmod 777`, guest mounts, or a credentials file
+in a home directory shared by other users.
+
+### iPhone and iPad
+
+1. Activate WireGuard when away from the home LAN.
+2. Open the Files app.
+3. Choose **Browse → More (…) → Connect to Server**.
+4. Enter:
+
+   ```text
+   smb://delta/media
+   ```
+
+   or `smb://10.8.0.2/media`.
+5. Choose **Registered User** and enter the NAS credentials.
+
+The Files app may not keep a connection across VPN changes. Disconnect and
+reconnect after toggling WireGuard. The NAS remains private; the device must
+have a working LAN or WireGuard route first.
+
+### Android
+
+Android device support depends on the installed file manager. Use a trusted
+file manager with explicit SMB 3 support:
+
+1. Activate WireGuard when outside the home LAN.
+2. Add a new SMB/LAN location.
+3. Set the server to `delta` or `10.8.0.2`.
+4. Select SMB 3 or automatic modern SMB negotiation.
+5. Enter the individual NAS username and password.
+6. Do not enable anonymous/guest access.
+
+If the Android file manager cannot connect, test the same account from a
+laptop first. This separates an Android client limitation from a Delta network
+or Samba problem.
+
+## Future Jellyfin connection
+
+Jellyfin is deliberately not part of the initial implementation. Later,
+Gamma will mount the SMB `media` share as a normal local filesystem path, for
+example:
+
+```text
+Delta SMB share:  //delta/media
+Gamma mount:      /mnt/delta-media
+Jellyfin paths:   /mnt/delta-media/movies
+                  /mnt/delta-media/series
+                  /mnt/delta-media/music
+```
+
+The mount should use a dedicated Gamma service account, not `manuel`'s
+credentials. The credentials file on Gamma must be root-readable only.
+
+Jellyfin's database, metadata, cache, and transcoding workspace should remain
+on Gamma's local disk. Only the large media files should be remote. This
+reduces the impact of a temporary NAS or VPN outage and makes Jellyfin faster
+for metadata operations.
+
+Jellyfin should normally read the media share without modifying it. If a later
+clean importer needs to write media, give that importer the required access
+separately rather than giving the downloader or an untrusted VM direct SMB
+credentials to Delta.
+
+If Delta is offline, Jellyfin will lose access to the media files but its local
+database should remain intact. After Delta returns, reconnect the SMB mount and
+run a library scan.
+
+## Future migration to a proper NAS
+
+The future NAS should preserve:
+
+- the share names `media`, `shared`, `personal`, and `backups`;
+- the directory structure inside each share;
+- individual user accounts or equivalent identities;
+- read/write behavior for normal NAS users;
+- read-only behavior for `backup-reader`;
+- an SMB 3 endpoint reachable from the LAN and WireGuard network.
+
+The migration procedure should be:
+
+1. Stop writes briefly or use a planned maintenance window.
+2. Copy the shares from Delta to the proper NAS with a tool that preserves
+   timestamps and, where supported, ownership/ACL information.
+3. Compare file counts, sizes, and hashes for the media and shared data.
+4. Recreate SMB users and permissions on the new NAS.
+5. Test the new shares from one LAN and one WireGuard client.
+6. Mount the new `media` share on Gamma at the same local path,
+   `/mnt/delta-media` or a later stable alias.
+7. Verify Jellyfin's libraries before decommissioning Delta's share.
+8. Keep Delta's original disk untouched until migration verification and
+   rollback are complete.
+
+A proper NAS may later add snapshots, disk redundancy, SMART monitoring, and a
+second backup destination. Those features are intentionally not simulated by
+this one ext4 disk. The current Delta NAS is convenient storage, not redundant
+storage or disaster recovery.
+
+## Failure modes
+
+### Disk is not mounted
+
+Do not start or expose the shares. Investigate the mount, cable, filesystem,
+and UUID. A missing mount must never result in Samba serving empty directories
+from `/srv/nas` on the root filesystem.
+
+### NAS is unreachable over WireGuard
+
+Check the client tunnel handshake, the route to `10.8.0.2`, and private DNS
+separately. Test `smb://10.8.0.2/media` before debugging the name `delta`.
+
+### Authentication fails
+
+Confirm the account exists in Samba, the password is correct, and the client
+has no stale cached credentials. Never enable guest access as a workaround.
+
+### A user cannot modify files
+
+Check the Unix owner/group, set-group-ID inheritance, Samba share settings, and
+ACLs. Test with a newly created fixture rather than inferring permissions from
+an old file.
+
+### Backup access fails
+
+Do not grant write access to `/srv/nas/backups` as the first response. Check the
+read-only share, the backup account, and whether the requested operation is a
+restic restore rather than ordinary file browsing.
+
+## Completion criteria
+
+This page can move from partially deployed to fully verified only when:
+
+- the live mount and free-space checks pass;
+- SMB configuration validates;
+- LAN and WireGuard access both work;
+- normal NAS users can modify `media` and `shared`;
+- `backup-reader` is read-only;
+- unauthorized network access fails;
+- reboot and mount-failure behavior are tested;
+- the restic controller still works;
+- no public DNS, Cloudflare, Traefik, or WAN exposure was added;
+- the final live configuration and account model are documented without
+  passwords or secret-bearing output.

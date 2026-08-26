@@ -75,7 +75,16 @@ mullvad status
 ```
 
 The expected WebUI listener is `127.0.0.1:8080`, not `*:8080`. Open
-`http://127.0.0.1:8080` from the VM graphical session. The configuration must contain
+`http://127.0.0.1:8080` from the VM graphical session.
+
+If workstation access is ever desired, use an SSH local-forward over the normal jump
+path; this is optional and is not required for the normal workflow:
+
+```bash
+ssh -J delta,beta -L 8080:127.0.0.1:8080 zero@192.168.1.105
+```
+
+Then open `http://127.0.0.1:8080` on the workstation. The configuration must contain
 exactly one literal backslash in each key:
 
 ```text
@@ -83,6 +92,101 @@ Connection\Interface=wg0-mullvad
 Connection\InterfaceName=wg0-mullvad
 WebUI\Address=127.0.0.1
 ```
+
+## Service operations
+
+qBittorrent is managed by:
+
+```text
+media-qbittorrent.service
+```
+
+Stop it before quarantine, maintenance, or any situation where downloading must cease:
+
+```bash
+sudo systemctl stop media-qbittorrent.service
+```
+
+Start it only after confirming Mullvad is connected and `wg0-mullvad` exists:
+
+```bash
+mullvad status
+ip link show wg0-mullvad
+sudo systemctl start media-qbittorrent.service
+```
+
+Restart it after a controlled configuration change:
+
+```bash
+sudo systemctl restart media-qbittorrent.service
+```
+
+Check whether the service is running:
+
+```bash
+systemctl is-active media-qbittorrent.service
+systemctl status media-qbittorrent.service --no-pager
+```
+
+The service has a startup guard and should not start when the Mullvad interface is
+absent. A running process alone is not proof that torrent traffic is contained; check
+the effective configuration and network state too.
+
+Follow the service log during bring-up or troubleshooting:
+
+```bash
+sudo journalctl -u media-qbittorrent.service -f
+```
+
+Review the current boot's recent service events:
+
+```bash
+sudo journalctl -u media-qbittorrent.service -b --no-pager -n 100
+```
+
+## WebUI access
+
+The WebUI is intentionally local-only:
+
+```text
+http://127.0.0.1:8080
+```
+
+Use it from the VM's graphical session or local VM console. The username is `admin`.
+The temporary first-start password must be replaced immediately with a permanent strong
+password under `Tools → Options → Web UI`. Never copy the password into chat,
+handbook pages, scripts, or shell history.
+
+An optional workstation SSH tunnel is documented for reference, but is not required for
+normal operation:
+
+```bash
+ssh -J delta,beta -L 8080:127.0.0.1:8080 zero@192.168.1.105
+```
+
+## Binding verification
+
+Run this before adding a test torrent and after VPN or qBittorrent changes:
+
+```bash
+ss -lntup | grep -E '(:8080|:6881)'
+grep -E '^(WebUI|Connection)' \
+  /home/zero/services/media-pipeline/config/qbittorrent/qBittorrent/config/qBittorrent.conf
+mullvad status
+```
+
+Expected configuration:
+
+```text
+WebUI\Address=127.0.0.1
+Connection\Interface=wg0-mullvad
+Connection\InterfaceName=wg0-mullvad
+```
+
+The WebUI listener should be `127.0.0.1:8080`, never `*:8080`. Torrent traffic must
+remain bound to `wg0-mullvad`; do not add real media torrents until the disconnect
+and leak test has passed. Use only a freely redistributable Debian test torrent for
+that test.
 
 ## Outstanding leak test
 

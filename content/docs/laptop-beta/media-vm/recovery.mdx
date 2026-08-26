@@ -91,7 +91,7 @@ sudo systemctl restart media-qbittorrent.service
 ```
 
 If Mullvad is disconnected, the service should not be considered healthy until
-`wg0-mullvad` exists again. Verify the listener is `192.168.1.105:8080`, not `*:8080`.
+`wg0-mullvad` exists again. Verify the listener is `127.0.0.1:8080`, not `*:8080`.
 
 ## Proxmox emergency isolation
 

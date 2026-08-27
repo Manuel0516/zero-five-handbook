@@ -46,12 +46,12 @@ design.
 
 | Name | What it is |
 | --- | --- |
-| Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.8.0.4). See [Proxmox baseline](/docs/laptop-beta/proxmox). |
+| Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.40.0.4). See [Proxmox baseline](/docs/laptop-beta/proxmox). |
 | `media-dl-vm` | Dirty download VM on Beta. Hosts Gluetun+Mullvad, qBittorrent, Prowlarr, Radarr, Sonarr. |
 | `quarantine-vm` | Hermetic scan VM, **sibling of `media-dl-vm` on Beta** (not nested). No network interfaces at all; files in/out only via the host-owned transfer directory. Holds the signing key. |
 | Transfer directory | Host-owned shared dir on Beta (`/srv/media-transfer`): `inbox` (written by the download VM, read by the quarantine VM) and `outbox` (written by the quarantine VM, pulled by Gamma). |
-| Gamma | Clean box (192.168.1.107, wg0 10.8.0.3). Jellyfin + Jellyseerr + importer agent. See [WireGuard](/docs/laptop-gamma/wireguard). |
-| Alpha | VPS WireGuard hub + Traefik (10.8.0.1). Provides VPN-only remote access to Jellyfin/Jellyseerr on Gamma. |
+| Gamma | Clean box (192.168.1.107, wg0 10.40.0.3). Jellyfin + Jellyseerr + importer agent. See [WireGuard](/docs/laptop-gamma/wireguard). |
+| Alpha | VPS WireGuard hub + Traefik (10.40.0.1). Provides VPN-only remote access to Jellyfin/Jellyseerr on Gamma. |
 
 ## Topology
 
@@ -80,9 +80,9 @@ flowchart LR
     end
 
     outbox -->|"LAN rsync pull — Gamma initiates, via Beta host"| agent["Importer agent<br/>(verify signature, move, ACK)"]
-    agent --> lib["Jellyfin library on Gamma<br/>(192.168.1.107 / 10.8.0.3)"]
+    agent --> lib["Jellyfin library on Gamma<br/>(192.168.1.107 / 10.40.0.3)"]
     jellyfin["Jellyfin + Jellyseerr"] --> lib
-    alpha["Alpha VPS — Traefik 10.8.0.1"] -->|"VPN-only routes (ipWhiteList 10.8.0.0/24)"| jellyfin
+    alpha["Alpha VPS — Traefik 10.40.0.1"] -->|"VPN-only routes (ipWhiteList 10.40.0.0/24)"| jellyfin
     phone["Phone / remote — WireGuard"] --> alpha
 ```
 
@@ -166,12 +166,12 @@ destruction protocol needs.
 | --- | --- | --- | --- |
 | `media-dl-vm` | Mullvad tunnel only | arr/qBittorrent WebUIs, ACK endpoint | WireGuard mesh, Alpha, Gamma-initiated connections out, touching the outbox |
 | `quarantine-vm` | **none** (no NICs) | none (transfer dir via virtiofs only) | anything network |
-| Beta host | as per [baseline](/docs/laptop-beta/proxmox) | LAN admin + Alpha ProxyJump (wg0 10.8.0.4) + restricted rsync pull of outbox | — |
-| Gamma | **none** (default-deny outbound) | mesh (10.8.0.3) + LAN | internet |
+| Beta host | as per [baseline](/docs/laptop-beta/proxmox) | LAN admin + Alpha ProxyJump (wg0 10.40.0.4) + restricted rsync pull of outbox | — |
+| Gamma | **none** (default-deny outbound) | mesh (10.40.0.3) + LAN | internet |
 | Alpha | — | Traefik VPN-only routes | public exposure of Jellyfin/Jellyseerr |
 
 UFW on `media-dl-vm`: default deny; allow the LAN ports above plus the Mullvad
-interface only. The download VM gets **no 10.8.0.x address** — it is an island
+interface only. The download VM gets **no 10.40.0.x address** — it is an island
 that can only crawl out through its own Mullvad tunnel and feed the inbox.
 
 The transfer directory is host-owned with strict permissions: the **inbox** is
@@ -183,10 +183,10 @@ compromised download VM can neither read signed output nor tamper with it.
 
 Same VPN-only pattern as the handbook services:
 
-- DNS: `jellyfin.zero-five.space` and `jellyseerr.zero-five.space` → `10.8.0.1`,
+- DNS: `jellyfin.zero-five.space` and `jellyseerr.zero-five.space` → `10.40.0.1`,
   grey cloud (proxied=false).
-- Alpha Traefik: file-provider routes with `ipWhiteList: 10.8.0.0/24`
-  middleware, forwarding to Gamma at `10.8.0.3`.
+- Alpha Traefik: file-provider routes with `ipWhiteList: 10.40.0.0/24`
+  middleware, forwarding to Gamma at `10.40.0.3`.
 - Phone/remote: WireGuard client → Alpha → Traefik → Gamma. At home the phone
   can hit Gamma's LAN IP directly.
 

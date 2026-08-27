@@ -70,13 +70,13 @@ Host records, pinned to mesh IPs:
 
 | Name | Target |
 |---|---|
-| `alpha.zero-five.space` | 10.8.0.1 |
-| `delta.zero-five.space` | 10.8.0.2 |
-| `macbook.zero-five.space` | 10.8.0.11 |
-| `gamma.zero-five.space` | 10.8.0.3 |
-| `beta.zero-five.space` | 10.8.0.4 |
-| `blackarch.zero-five.space` | 10.8.0.101 |
-| `dns.zero-five.space` | 10.8.0.2 — admin UI via Traefik: **`https://dns.zero-five.space`** (port 80/443 → Traefik → container 3000) |
+| `alpha.zero-five.space` | 10.40.0.1 |
+| `delta.zero-five.space` | 10.40.0.2 |
+| `macbook.zero-five.space` | 10.40.0.11 |
+| `gamma.zero-five.space` | 10.40.0.3 |
+| `beta.zero-five.space` | 10.40.0.4 |
+| `blackarch.zero-five.space` | 10.40.0.101 |
+| `dns.zero-five.space` | 10.40.0.2 — admin UI via Traefik: **`https://dns.zero-five.space`** (port 80/443 → Traefik → container 3000) |
 
 App records follow the service — when `personal-ai`, `minecraft`, or the
 monitor moves to Gamma/Delta, it keeps a stable flat name that points at
@@ -85,7 +85,7 @@ whatever currently hosts it. Adding one is a single AdGuard rewrite
 
 ## Binding / hardening
 
-- Docker publishes **only** on `10.8.0.2:53` (mesh) + `192.168.1.106:53`
+- Docker publishes **only** on `10.40.0.2:53` (mesh) + `192.168.1.106:53`
   (LAN), TCP and UDP; admin UI on `3000` on both. No public interface.
 - Upstream is **encrypted** DoH/DoT: `https://1.1.1.1/dns-query`,
   `https://dns.google/dns-query`, `tls://8.8.8.8` (bootstrap `1.1.1.1`,
@@ -110,11 +110,11 @@ services:
       - /home/manuel/services/adguard/work:/opt/adguardhome/work
       - /home/manuel/services/adguard/conf:/opt/adguardhome/conf
     ports:
-      - "10.8.0.2:53:53/tcp"
-      - "10.8.0.2:53:53/udp"
+      - "10.40.0.2:53:53/tcp"
+      - "10.40.0.2:53:53/udp"
       - "192.168.1.106:53:53/tcp"
       - "192.168.1.106:53:53/udp"
-      - "10.8.0.2:3000:3000/tcp"
+      - "10.40.0.2:3000:3000/tcp"
       - "192.168.1.106:3000:3000/tcp"
     cap_add:
       - NET_ADMIN
@@ -130,18 +130,18 @@ both in trixie) — no third-party Docker repo needed on Delta.
 
 ## Mesh adoption (in progress)
 
-Each WireGuard client peer gains `DNS = 10.8.0.2` so every VPN-connected
+Each WireGuard client peer gains `DNS = 10.40.0.2` so every VPN-connected
 device resolves home names + ad-block automatically.
 
 Status 2026-08-22:
 
-- **MacBook (10.8.0.11)** — on the mesh via `delta-vpn.zero-five.space:51820`
+- **MacBook (10.40.0.11)** — on the mesh via `delta-vpn.zero-five.space:51820`
   roaming endpoint (grey-cloud A record → home WAN IP, router forwards UDP
-  51820 → Delta); `AllowedIPs` includes `10.8.0.2/32` so AdGuard is
-  reachable. **`DNS = 10.8.0.2, 1.1.1.1` applied** (fallback for
+  51820 → Delta); `AllowedIPs` includes `10.40.0.2/32` so AdGuard is
+  reachable. **`DNS = 10.40.0.2, 1.1.1.1` applied** (fallback for
   resilience). See [MacBook WireGuard](/docs/macbook/wireguard).
-- **iPhone (10.8.0.21)** — on the mesh via the home public IP; **`DNS =
-  10.8.0.2, 1.1.1.1` applied**.
+- **iPhone (10.40.0.21)** — on the mesh via the home public IP; **`DNS =
+  10.40.0.2, 1.1.1.1` applied**.
 - **Beta/Gamma/MSI** — not yet adopted; each client edit needs its own
   sudo/confirmation. LAN devices can instead get AdGuard automatically via
   router DHCP (see [home app gateway](/docs/raspberry/home-app-gateway)).
@@ -171,7 +171,7 @@ device must re-trust a new CA (see
   also died. Fix: accept local subnets + docker bridge interfaces in the
   forward chain:
   ```
-  ip saddr 10.8.0.0/24 accept
+  ip saddr 10.40.0.0/24 accept
   ip saddr 192.168.1.0/24 accept
   iifname "br-*" accept
   iifname "docker0" accept
@@ -197,8 +197,8 @@ device must re-trust a new CA (see
 
 ## Open / future
 
-- ~~Apply `DNS = 10.8.0.2` to WireGuard peers~~ — **DONE 2026-08-22**:
-  MacBook + phone use `DNS = 10.8.0.2, 1.1.1.1` (AdGuard + Cloudflare
+- ~~Apply `DNS = 10.40.0.2` to WireGuard peers~~ — **DONE 2026-08-22**:
+  MacBook + phone use `DNS = 10.40.0.2, 1.1.1.1` (AdGuard + Cloudflare
   fallback); Beta/Gamma/MSI pending per-client sudo. LAN devices: router
   DHCP DNS → 192.168.1.106 (user-side).
 - Inventory service names for apps migrating off Alpha (part of the

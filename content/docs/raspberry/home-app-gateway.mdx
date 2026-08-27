@@ -7,14 +7,14 @@ Delta runs a private reverse proxy (**Traefik v2.11**) that routes home app
 names to LAN/mesh backends. Names are private AdGuard rewrites → Delta's mesh
 IP; Traefik terminates TLS and forwards by `Host` header to the machine that
 actually runs the app (Beta, Gamma, …). Clients only ever need Delta
-(`10.8.0.2`) in their WireGuard `AllowedIPs` — **no new peers per app**.
+(`10.40.0.2`) in their WireGuard `AllowedIPs` — **no new peers per app**.
 
 Deployed 2026-08-22, following the AdGuard Home deploy on Delta.
 
 ## The model
 
 ```
-name.zero-five.space ──► AdGuard rewrite → 10.8.0.2 (Delta)
+name.zero-five.space ──► AdGuard rewrite → 10.40.0.2 (Delta)
                               │
                               ▼
                      Traefik :443 on Delta (terminates TLS, *.zero-five.space cert)
@@ -29,7 +29,7 @@ Why this design (user decisions, 2026-08-22):
   want every home app name enumerated in public DNS. AdGuard rewrites keep
   them Zone-2 only. (An alternative — grey-cloud Cloudflare A records like
   the Alpha VPN-only pattern — was offered and rejected for home names.)
-- **No new peers on clients.** Every client already reaches `10.8.0.2`
+- **No new peers on clients.** Every client already reaches `10.40.0.2`
   (Delta). Traefik does the LAN hop, so adding an app never touches client
   WireGuard configs.
 - **Traefik v2.11** — matches the Alpha hub conventions (do NOT bump to v3;
@@ -73,11 +73,11 @@ services:
 ```
 
 **PITFALL — port binding vs host mode.** The original layout published `ports:`
-only on `10.8.0.2` + `192.168.1.106`. That changed 2026-08-23: **host `network_mode`
+only on `10.40.0.2` + `192.168.1.106`. That changed 2026-08-23: **host `network_mode`
 drops the `ports:` block entirely** (it binds `:80`/`:443` on all host IPs), which is what
 lets Traefik reach the LAN router at `192.168.1.1:80` and host services directly —
 the container→host/→LAN bridge isolation made LAN backends unreachable otherwise. VPN-only
-enforcement is done by the **route middleware** (`ipWhitelist 10.8.0.0/24`), not by the
+enforcement is done by the **route middleware** (`ipWhitelist 10.40.0.0/24`), not by the
 bind address. See `references/router-access-and-container-egress.md`.
 
 ## Dual-cert: Let's Encrypt primary + internal-CA fallback
@@ -131,7 +131,7 @@ Full rebuild runbook: [Delta Rebuild & Recovery](/docs/raspberry/delta-rebuild).
 - **Linux**: copy to `/usr/local/share/ca-certificates/zero-five-ca.crt` →
   `sudo update-ca-certificates`
 
-Fetch the cert from the infra repo: `curl -O https://raw.githubusercontent.com/Manuel0516/zero-five-infra/main/proxy/zero-five-ca.pem` (or `scp manuel@10.8.0.2:/home/manuel/services/zero-five-infra/proxy/zero-five-ca.pem .`).
+Fetch the cert from the infra repo: `curl -O https://raw.githubusercontent.com/Manuel0516/zero-five-infra/main/proxy/zero-five-ca.pem` (or `scp manuel@10.40.0.2:/home/manuel/services/zero-five-infra/proxy/zero-five-ca.pem .`).
 
 **PITFALL — serve the full chain.** Traefik's dynamic TLS must point at a
 **fullchain** file (leaf + CA concatenated), not just the leaf. With only the
@@ -146,7 +146,7 @@ certs, subjects leaf + CA.
 
 | Name | Backend | Verified |
 |---|---|---|
-| `dns.zero-five.space` | AdGuard Home UI (`http://10.8.0.2:3000`) | ✅ 302 → login.html, `<title>Login</title>` |
+| `dns.zero-five.space` | AdGuard Home UI (`http://10.40.0.2:3000`) | ✅ 302 → login.html, `<title>Login</title>` |
 | `proxmox.zero-five.space` | `https://192.168.1.166:8006` (Beta) | ✅ 200, Proxmox UI title |
 | `router.zero-five.space` | Home router admin UI (`http://192.168.1.1:80`, GoAhead) | ✅ 200 on `/main.asp` over VPN (2026-08-23), **LE cert** |
 
@@ -176,16 +176,16 @@ tls:
 ```
 
    Re-verify the **issuer** is Let's Encrypt, not `Zero Five Internal CA`, with:
-   `openssl s_client -connect 10.8.0.2:443 -servername router.zero-five.space` → issuer
+   `openssl s_client -connect 10.40.0.2:443 -servername router.zero-five.space` → issuer
    `O=Let's Encrypt`. Diagnosis ordering for any "can't reach `<name>` over VPN" report:
-   (a) AdGuard rewrite → `10.8.0.2`, (b) Traefik serves the route from alpha (`curl
+   (a) AdGuard rewrite → `10.40.0.2`, (b) Traefik serves the route from alpha (`curl
    --resolve`, 200/302), (c) **the cert issuer for that SNI** — before touching
    redirects or proxying.
 
 ## Adding an app (the pattern)
 
 1. **AdGuard rewrite** (Settings → DNS rewrites, or yaml): `app.zero-five.space
-   → 10.8.0.2`
+   → 10.40.0.2`
 2. **Traefik route** in `dynamic/<app>.yml` — for an HTTPS LAN backend with a
    self-signed cert (Proxmox, Jellyfin, …) use the `lan-selfsigned`
    transport:
@@ -237,13 +237,13 @@ http:
 
 ```bash
 # DNS rewrite:
-python3 <raw-socket query for proxmox.zero-five.space via 10.8.0.2> → 10.8.0.2
+python3 <raw-socket query for proxmox.zero-five.space via 10.40.0.2> → 10.40.0.2
 # TLS + route:
-curl -sk --resolve proxmox.zero-five.space:443:10.8.0.2 https://proxmox.zero-five.space/ -o /dev/null -w '%{http_code}'   # 200
+curl -sk --resolve proxmox.zero-five.space:443:10.40.0.2 https://proxmox.zero-five.space/ -o /dev/null -w '%{http_code}'   # 200
 # title check:
-curl -sk https://10.8.0.2:443/ -H "Host: proxmox.zero-five.space" | grep -o '<title>[^<]*</title>'
+curl -sk https://10.40.0.2:443/ -H "Host: proxmox.zero-five.space" | grep -o '<title>[^<]*</title>'
 # which cert layer is serving (LE vs internal CA):
-echo | openssl s_client -connect 10.8.0.2:443 -servername proxmox.zero-five.space 2>/dev/null | grep issuer
+echo | openssl s_client -connect 10.40.0.2:443 -servername proxmox.zero-five.space 2>/dev/null | grep issuer
 #   → O=Let's Encrypt (primary) or CN=Zero Five Internal CA (fallback)
 ```
 
@@ -274,11 +274,11 @@ get ad-blocking out of the box.
 if Delta is down, clients lose resolution (looks like losing internet).
 Configure a **secondary DNS** on every path:
 
-- WG configs: `DNS = 10.8.0.2, 1.1.1.1` (try AdGuard, fall back to Cloudflare)
+- WG configs: `DNS = 10.40.0.2, 1.1.1.1` (try AdGuard, fall back to Cloudflare)
 - Router DHCP: primary `192.168.1.106`, secondary `192.168.1.1` (or `1.1.1.1`)
 
 Applied 2026-08-22: MacBook + iPhone WG configs use
-`DNS = 10.8.0.2, 1.1.1.1`. Private names only resolve when Delta is up
+`DNS = 10.40.0.2, 1.1.1.1`. Private names only resolve when Delta is up
 (unavoidable — only AdGuard knows them); public internet keeps working during
 an outage via the fallback (after a short resolution delay).
 
@@ -295,8 +295,8 @@ Remove the AdGuard rewrite(s). Nothing public changes; clients unaffected.
   device trust install is user-side, one-time (steps above).
 - Set the router DHCP DNS to 192.168.1.106 (automatic LAN adoption) —
   user-side router config.
-- ~~WireGuard `DNS = 10.8.0.2` per roaming client~~ — **DONE 2026-08-22**:
-  MacBook + iPhone use `DNS = 10.8.0.2, 1.1.1.1` (fallback for resilience).
+- ~~WireGuard `DNS = 10.40.0.2` per roaming client~~ — **DONE 2026-08-22**:
+  MacBook + iPhone use `DNS = 10.40.0.2, 1.1.1.1` (fallback for resilience).
   **Note (2026-08-23):** on macOS, Homebrew `wg-quick` leaks those queries to Wi-Fi
   while roaming (see the MacBook WireGuard page) — the WireGuard app's Network
   Extension is the recommended way to bring the tunnel up on the Mac.

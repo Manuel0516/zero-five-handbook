@@ -26,7 +26,7 @@ The verified Delta deployment currently includes:
 | Backup share | `backups`, read-only for `backup-reader` |
 | Reserved directory | `personal` exists on disk but is not currently exported via SMB |
 | Legacy NetBIOS | `nmbd` disabled |
-| VPN access | Delta WireGuard address `10.8.0.2` |
+| VPN access | Delta WireGuard address `10.40.0.2` |
 | Remote SMB encryption | Disabled; WireGuard supplies encryption for VPN clients |
 | Source configuration | `zero-five-infra/samba/delta/smb.conf.example` |
 
@@ -147,7 +147,7 @@ sudo systemctl enable --now smbd
 The current deployment uses `bind interfaces only = no` because Samba did not
 reliably bind Delta's point-to-point `wg0` interface by name. The Samba
 `hosts allow` and `hosts deny` rules restrict access to `192.168.1.0/24` and
-`10.8.0.0/24`. Verify the resulting listener and service:
+`10.40.0.0/24`. Verify the resulting listener and service:
 
 ```bash
 systemctl is-active smbd
@@ -252,11 +252,11 @@ must not create, modify, rename, or delete anything there. `manuel` must not be
 able to open the `backups` share. Test the IP address first:
 
 ```text
-Windows:     \\10.8.0.2\media
-macOS/Linux: smb://10.8.0.2/media
+Windows:     \\10.40.0.2\media
+macOS/Linux: smb://10.40.0.2/media
 ```
 
-Also verify that a client outside `192.168.1.0/24` and `10.8.0.0/24` cannot
+Also verify that a client outside `192.168.1.0/24` and `10.40.0.0/24` cannot
 reach TCP `445`. A successful WireGuard handshake alone is not proof that SMB
 is reachable; test the port and then authenticate to the share.
 
@@ -294,7 +294,7 @@ Samba must be reachable only from the trusted home and VPN networks:
 
 ```text
 Home LAN: 192.168.1.0/24
-WireGuard: 10.8.0.0/24
+WireGuard: 10.40.0.0/24
 ```
 
 The implementation must not add:
@@ -313,7 +313,7 @@ interfaces or source ranges and verified from both an allowed and a non-allowed
 network.
 
 Use the private DNS name `delta` when it resolves correctly through the Zero
-Five LAN/VPN DNS service. The private WireGuard address `10.8.0.2` is the
+Five LAN/VPN DNS service. The private WireGuard address `10.40.0.2` is the
 fallback. Do not publish the name publicly just to make SMB easier to find.
 
 ## Near-future implementation sequence
@@ -424,21 +424,21 @@ Remote SMB access always requires the Zero Five WireGuard tunnel first:
 ```text
 Mac/Linux/Windows
         ↓ WireGuard
-10.8.0.2 (Delta)
+10.40.0.2 (Delta)
         ↓ TCP 445
 SMB share
 ```
 
 1. Activate the Zero Five WireGuard profile.
 2. Confirm that the profile routes Delta through the tunnel. Its peer
-   `AllowedIPs` must include either `10.8.0.2/32` or the complete
-   `10.8.0.0/24` network. A profile that routes only `10.8.0.1/32` reaches
+   `AllowedIPs` must include either `10.40.0.2/32` or the complete
+   `10.40.0.0/24` network. A profile that routes only `10.40.0.1/32` reaches
    Alpha but cannot reach Delta's SMB service.
 3. Connect to the share using the private WireGuard address first:
 
    ```text
-   Windows: \\10.8.0.2\media
-   macOS/Linux: smb://10.8.0.2/media
+   Windows: \\10.40.0.2\media
+   macOS/Linux: smb://10.40.0.2/media
    ```
 
 4. Authenticate with the individual Samba account. Use `manuel` for normal
@@ -460,13 +460,13 @@ public DNS record or WAN port-forward for SMB.
 On macOS or Linux, test the SMB port without exposing credentials:
 
 ```bash
-nc -vz 10.8.0.2 445
+nc -vz 10.40.0.2 445
 ```
 
 On Windows PowerShell, use:
 
 ```powershell
-Test-NetConnection 10.8.0.2 -Port 445
+Test-NetConnection 10.40.0.2 -Port 445
 ```
 
 The connection test should report TCP port `445` as reachable. If it fails,
@@ -483,8 +483,8 @@ Direct (preferred): MacBook → Delta → SMB
 Relay (fallback):   MacBook → Alpha VPS → Delta → SMB
 ```
 
-The direct MacBook peer uses `10.8.0.11`. The relay path uses the relay client
-address `10.8.0.31`. Direct mode has lower latency and avoids using Alpha's
+The direct MacBook peer uses `10.40.0.11`. The relay path uses the relay client
+address `10.40.0.31`. Direct mode has lower latency and avoids using Alpha's
 bandwidth as a bottleneck. Relay mode is useful when the current hotel, office,
 or mobile network cannot reach Delta's direct WireGuard endpoint.
 
@@ -493,7 +493,7 @@ profile only when direct mode is unavailable. In either mode, the SMB address
 remains:
 
 ```text
-smb://10.8.0.2/media
+smb://10.40.0.2/media
 ```
 
 A MacBook's SMB TCP session normally dies when the Mac changes Wi-Fi networks,
@@ -503,12 +503,12 @@ wait for the WireGuard profile to reconnect, and connect again to the IP-based
 SMB URL. Do not treat a missing Finder sidebar entry as proof that Delta is
 down.
 
-To distinguish the failure type, check TCP 445 first. If `10.8.0.2:445` works
+To distinguish the failure type, check TCP 445 first. If `10.40.0.2:445` works
 but `delta` fails, private DNS is the issue. If TCP 445 fails, check which
 WireGuard profile is active and whether its `AllowedIPs` contains
-`10.8.0.2/32` or `10.8.0.0/24`. If the relay is active, Delta's `wg show` output
-should show recent traffic for `10.8.0.31`; direct mode should show the
-MacBook's `10.8.0.11` peer instead.
+`10.40.0.2/32` or `10.40.0.0/24`. If the relay is active, Delta's `wg show` output
+should show recent traffic for `10.40.0.31`; direct mode should show the
+MacBook's `10.40.0.11` peer instead.
 
 SMB payload encryption is disabled in the current deployment because WireGuard
 already encrypts remote traffic. SMB 3 authentication and signing remain
@@ -525,7 +525,7 @@ share containing many small files.
 
 The examples below use the stable share name `media`. Replace it with `shared`,
 `personal`, or `backups` as appropriate. Prefer the private DNS name `delta`;
-use `10.8.0.2` when private DNS is unavailable but the WireGuard route works.
+use `10.40.0.2` when private DNS is unavailable but the WireGuard route works.
 
 ### Windows
 
@@ -536,7 +536,7 @@ use `10.8.0.2` when private DNS is unavailable but the WireGuard route works.
    ```text
    \\delta\media
    \\delta\shared
-   \\10.8.0.2\media
+   \\10.40.0.2\media
    ```
 
 4. Enter the individual NAS username and password.
@@ -561,7 +561,7 @@ and reconnect. Do not solve authentication problems by enabling guest access.
    or:
 
    ```text
-   smb://10.8.0.2/media
+   smb://10.40.0.2/media
    ```
 
 4. Choose **Registered User** and enter the NAS account.
@@ -602,7 +602,7 @@ in a home directory shared by other users.
    smb://delta/media
    ```
 
-   or `smb://10.8.0.2/media`.
+   or `smb://10.40.0.2/media`.
 5. Choose **Registered User** and enter the NAS credentials.
 
 The Files app may not keep a connection across VPN changes. Disconnect and
@@ -616,7 +616,7 @@ file manager with explicit SMB 3 support:
 
 1. Activate WireGuard when outside the home LAN.
 2. Add a new SMB/LAN location.
-3. Set the server to `delta` or `10.8.0.2`.
+3. Set the server to `delta` or `10.40.0.2`.
 4. Select SMB 3 or automatic modern SMB negotiation.
 5. Enter the individual NAS username and password.
 6. Do not enable anonymous/guest access.
@@ -696,8 +696,8 @@ from `/srv/nas` on the root filesystem.
 
 ### NAS is unreachable over WireGuard
 
-Check the client tunnel handshake, the route to `10.8.0.2`, and private DNS
-separately. Test `smb://10.8.0.2/media` before debugging the name `delta`.
+Check the client tunnel handshake, the route to `10.40.0.2`, and private DNS
+separately. Test `smb://10.40.0.2/media` before debugging the name `delta`.
 
 ### Authentication fails
 

@@ -7,7 +7,7 @@ description: LynxHouse Fabric 1.20.1 server — now runs on gamma as a bare-meta
 
 Migrated from alpha **2026-08-23**. LynxHouse is a modded **Fabric 1.20.1**
 server — bare-metal Java under systemd (the deployment never used Docker or a
-git repo). It now runs on gamma, LAN `192.168.1.107` / mesh `10.8.0.3`.
+git repo). It now runs on gamma, LAN `192.168.1.107` / mesh `10.40.0.3`.
 
 | Property | Value |
 |---|---|
@@ -50,7 +50,7 @@ Boot-readiness: server is warm in ~12s (`Done (11.9s)` in logs).
 ## Firewall (gamma)
 
 Gamma's UFW is `ENABLED=no` — effectively not filtering. The install script
-added *scoped* UFW allows (mesh `10.8.0.0/24` + LAN `192.168.1.0/24` → TCP 25565)
+added *scoped* UFW allows (mesh `10.40.0.0/24` + LAN `192.168.1.0/24` → TCP 25565)
 so that if UFW is ever enabled they're already present and scoped.
 
 ## Reachability (verified 2026-08-23)
@@ -58,7 +58,7 @@ so that if UFW is ever enabled they're already present and scoped.
 | Path | Result |
 |---|---|
 | Delta (LAN) → `192.168.1.107:25565` | **OPEN** ✓ |
-| Alpha (mesh) → `10.8.0.3:25565` | **OPEN** ✓ |
+| Alpha (mesh) → `10.40.0.3:25565` | **OPEN** ✓ |
 | External → `46.162.95.145:25565` | **TIMEOUT** (router forward pending) |
 
 DNS is live and dynamic: `mc.zero-five.space` → CNAME → `delta-vpn.zero-five.space`

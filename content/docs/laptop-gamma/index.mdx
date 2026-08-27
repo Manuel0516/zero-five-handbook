@@ -13,12 +13,12 @@ assumed to exist on this installation.
 
 ```mermaid
 flowchart LR
-    mac["MacBook<br/>192.168.1.157<br/>WireGuard 10.8.0.11"]
-    alpha["Alpha VPS<br/>Public SSH :2020<br/>WireGuard 10.8.0.1"]
-    gamma["Gamma<br/>LAN 192.168.1.107<br/>WireGuard 10.8.0.3"]
+    mac["MacBook<br/>192.168.1.157<br/>WireGuard 10.40.0.11"]
+    alpha["Alpha VPS<br/>Public SSH :2020<br/>WireGuard 10.40.0.1"]
+    gamma["Gamma<br/>LAN 192.168.1.107<br/>WireGuard 10.40.0.3"]
 
-    mac -->|"SSH alias: delta"| delta["Delta Raspberry Pi<br/>WireGuard 10.8.0.2"]
-    delta -->|"ProxyJump second hop<br/>10.8.0.3:22"| gamma
+    mac -->|"SSH alias: delta"| delta["Delta Raspberry Pi<br/>WireGuard 10.40.0.2"]
+    delta -->|"ProxyJump second hop<br/>10.40.0.3:22"| gamma
     mac -. "LAN magic packet<br/>192.168.1.255:9" .-> gamma
 ```
 
@@ -41,8 +41,8 @@ The following state was observed live on 2026-07-22:
 | OS | Ubuntu 26.04 LTS, kernel `7.0.0-28-generic` |
 | Hostname | `gamma` |
 | LAN | `enp2s0`, DHCP address `192.168.1.107/24` (DHCP-reserved; previously `.164`) |
-| WireGuard | `wg0` at `10.8.0.3/32`; `wg-quick@wg0` enabled and active |
-| VPN proof | Gamma pinged Alpha at `10.8.0.1`; Alpha pinged Gamma at `10.8.0.3` |
+| WireGuard | `wg0` at `10.40.0.3/32`; `wg-quick@wg0` enabled and active |
+| VPN proof | Gamma pinged Alpha at `10.40.0.1`; Alpha pinged Gamma at `10.40.0.3` |
 | SSH | `ssh gamma` uses `ProxyJump delta`; direct Delta→Gamma SSH verified 2026-08-13 |
 | SSH activation | `ssh.socket` enabled and active; `ssh.service` active through socket activation |
 | Suspend policy | Lid, docked lid, external-power lid, and idle actions all resolve to `ignore` |

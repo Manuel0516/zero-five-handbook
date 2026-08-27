@@ -111,9 +111,9 @@ sudo systemctl reload ssh
 | `from 172.16.0.0/12 to any port 3000 proto tcp` | Traefik (container) → Open WebUI on the host — while public `:3000` stays closed |
 | `from 172.16.0.0/12 to any port 8765 proto tcp` | hub-backend (container) → hub-agent on the host |
 | `from 172.16.0.0/12 to any port 9119 proto tcp` | Traefik (container) → Hermes dashboard on the host (see [Hermes Agent](/docs/vps-alpha/hermes-agent)) |
-| `allow in on wg0` | VPN traffic is trusted (laptop → Ollama `10.8.0.1:11434`) |
+| `allow in on wg0` | VPN traffic is trusted (laptop → Ollama `10.40.0.1:11434`) |
 
-Everything else is denied by default: Open WebUI is **VPN-only** via `https://ai.zero-five.space` (Traefik `ipWhiteList 10.8.0.0/24` + DNS → `10.8.0.1`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)), and hub-agent (`:8765`) and Minecraft RCON (`:25575`) — which listen on all interfaces — are no longer exposed. Services bound to `127.0.0.1` (ollama-router `:11435`, SearXNG `:8081`) were never reachable regardless.
+Everything else is denied by default: Open WebUI is **VPN-only** via `https://ai.zero-five.space` (Traefik `ipWhiteList 10.40.0.0/24` + DNS → `10.40.0.1`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)), and hub-agent (`:8765`) and Minecraft RCON (`:25575`) — which listen on all interfaces — are no longer exposed. Services bound to `127.0.0.1` (ollama-router `:11435`, SearXNG `:8081`) were never reachable regardless.
 
 ### Docker and UFW — two traps
 
@@ -225,9 +225,9 @@ Verified live with `ss -tlnpu`:
 |------|------|---------|---------|
 | 2020 | `0.0.0.0` | sshd | ✅ |
 | 80 / 443 | `0.0.0.0` | Traefik | ✅ |
-| 3000 | `0.0.0.0` | Open WebUI | ❌ VPN only via Traefik (`ai.zero-five.space`, `ipWhiteList 10.8.0.0/24`); Docker subnets allowed through |
+| 3000 | `0.0.0.0` | Open WebUI | ❌ VPN only via Traefik (`ai.zero-five.space`, `ipWhiteList 10.40.0.0/24`); Docker subnets allowed through |
 | 8765 | `0.0.0.0` | hub-agent | ❌ UFW-blocked publicly — Docker subnets allowed through; bearer-token protected |
 | 25565 / 25575 | `*` | Minecraft / RCON | ✅ / ❌ RCON UFW-blocked, reachable from localhost only in practice |
-| 11434 | `10.8.0.1` | Ollama | ❌ VPN only |
+| 11434 | `10.40.0.1` | Ollama | ❌ VPN only |
 | 11435 | `127.0.0.1` | ollama-router | ❌ localhost only |
 | 8081 | `127.0.0.1` | SearXNG | ❌ localhost only |

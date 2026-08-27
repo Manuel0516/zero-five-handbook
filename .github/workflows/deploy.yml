@@ -107,7 +107,7 @@ jobs:
           docker compose exec -T handbook node -e \
             "fetch('http://127.0.0.1:3000/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
           curl --fail --silent --show-error --head \
-            --resolve docs.zero-five.space:443:10.8.0.1 \
+            --resolve docs.zero-five.space:443:10.40.0.1 \
             https://docs.zero-five.space/
 
           docker compose ps

@@ -6,28 +6,28 @@ description: The MSI's dual-hub WireGuard configuration, direct Delta failover, 
 ## Design
 
 The MSI is represented by the legacy-named `cachyos-laptop` template in
-`zero-five-infra`. Its address is `10.8.0.12/32`. It has three WireGuard
-peers: Alpha at `10.8.0.1`, Delta at `10.8.0.2`, and **Gamma at `10.8.0.3`
+`zero-five-infra`. Its address is `10.40.0.12/32`. It has three WireGuard
+peers: Alpha at `10.40.0.1`, Delta at `10.40.0.2`, and **Gamma at `10.40.0.3`
 (mutual peer, added 2026-08-24)**.
 
 ```mermaid
 flowchart LR
-    msi["MSI laptop<br/>10.8.0.12/32"] -->|"Primary peer<br/>10.8.0.1/32"| alpha["Alpha VPS<br/>10.8.0.1/24<br/>UDP 51820"]
-    msi -->|"Direct peer<br/>10.8.0.2/32"| delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>UDP 51820"]
-    msi <-->|"Mutual peer<br/>10.8.0.3/32<br/>LAN 192.168.1.110:51820 ⇄ .107:51820"| gamma["Gamma<br/>10.8.0.3/32<br/>AI host"]
-    gamma -->|"Ollama 10.8.0.12:11434"| msi
+    msi["MSI laptop<br/>10.40.0.12/32"] -->|"Primary peer<br/>10.40.0.1/32"| alpha["Alpha VPS<br/>10.40.0.1/24<br/>UDP 51820"]
+    msi -->|"Direct peer<br/>10.40.0.2/32"| delta["Delta Raspberry Pi<br/>10.40.0.2/32<br/>UDP 51820"]
+    msi <-->|"Mutual peer<br/>10.40.0.3/32<br/>LAN 192.168.1.110:51820 ⇄ .107:51820"| gamma["Gamma<br/>10.40.0.3/32<br/>AI host"]
+    gamma -->|"Ollama 10.40.0.12:11434"| msi
 ```
 
 The narrow route means ordinary internet, LAN traffic, and local desktop
 traffic remain outside WireGuard. The laptop is not a default-route VPN and
 does not become a bridge to other clients. The gamma peer exists **only** to
 carry Ollama traffic to the gamma router — its `AllowedIPs` is the single
-`10.8.0.3/32`.
+`10.40.0.3/32`.
 
 ## Current state
 
 The MSI-side reciprocal Delta peer is active. The direct MSI↔Delta handshake,
-the `10.8.0.2/32` route, and bidirectional ping were verified on 2026-08-13.
+the `10.40.0.2/32` route, and bidirectional ping were verified on 2026-08-13.
 The persistent reboot check remains open.
 
 Delta already contains the MSI public identity and current observed endpoint,
@@ -38,8 +38,8 @@ The secret-free sources are:
 
 | Source | Purpose |
 | --- | --- |
-| `zero-five-infra/wireguard/cachyos-laptop.conf.example` | Legacy-named MSI peer template at `10.8.0.12/32`; private key remains a placeholder |
-| `zero-five-infra/wireguard/vps.conf.example` | Alpha peer model and `10.8.0.12/32` ownership |
+| `zero-five-infra/wireguard/cachyos-laptop.conf.example` | Legacy-named MSI peer template at `10.40.0.12/32`; private key remains a placeholder |
+| `zero-five-infra/wireguard/vps.conf.example` | Alpha peer model and `10.40.0.12/32` ownership |
 | `zero-five-infra/scripts/validate_wireguard.py` | Local topology and placeholder validation |
 
 Do not rename the template or change the address until the live Alpha peer,
@@ -53,7 +53,7 @@ address is a connectivity change.
 systemctl is-enabled wg-quick@wg0
 systemctl is-active wg-quick@wg0
 ip -brief address show wg0
-ip route get 10.8.0.1
+ip route get 10.40.0.1
 sudo wg show wg0
 ```
 
@@ -62,7 +62,7 @@ On Alpha:
 ```bash
 ip -brief address show wg0
 sudo wg show wg0
-ping -c 3 10.8.0.12
+ping -c 3 10.40.0.12
 ```
 
 `wg show` reveals public peer metadata, handshake time, endpoint, and byte
@@ -93,7 +93,7 @@ the private key.
    # Peer: delta
    PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
    Endpoint = delta-vpn.zero-five.space:51820
-   AllowedIPs = 10.8.0.2/32
+   AllowedIPs = 10.40.0.2/32
    PersistentKeepalive = 25
    ```
 
@@ -109,9 +109,9 @@ the private key.
 4. Confirm both paths:
 
    ```bash
-   ping -c 3 10.8.0.1
-   ping -c 3 10.8.0.2
-   ssh manuel@10.8.0.2
+   ping -c 3 10.40.0.1
+   ping -c 3 10.40.0.2
+   ssh manuel@10.40.0.2
    ```
 
 5. Confirm the Delta peer has a recent handshake. The direct handshake and
@@ -138,7 +138,7 @@ key remains a placeholder because the MSI identity must stay on the laptop.
 - The MSI's peer routes are narrow `/32`s, not `0.0.0.0/0`.
 - Delta's direct peer is a backup path, not a replacement for Alpha's service
   routes or firewall policy.
-- The Ollama API should bind to `10.8.0.12`, never the public interface.
+- The Ollama API should bind to `10.40.0.12`, never the public interface.
 - The VPS firewall must continue to reject general client-to-client forwarding.
 - A WireGuard handshake authenticates the peer; it does not prove that Ollama,
   SSH, or LocalDrop is healthy.
@@ -150,12 +150,12 @@ Two changes on this date (see [gamma AI stack](/docs/laptop-gamma/ai-stack)):
 1. **Delta peer endpoint → LAN IP.** The home router's hairpin NAT is broken
    for WireGuard, so `Endpoint = delta-vpn.zero-five.space:51820` (public
    DDNS) failed from inside the LAN — the direct Delta handshake died and DNS
-   via AdGuard (`10.8.0.2`) broke. Fix: `Endpoint = 192.168.1.106:51820`.
+   via AdGuard (`10.40.0.2`) broke. Fix: `Endpoint = 192.168.1.106:51820`.
    Roaming: swap back to the DDNS name away from home.
 2. **Gamma mutual peer** (default port 51820, LAN endpoint `192.168.1.107`),
    so the personal-ai router on gamma can reach the MSI's Ollama
    (`deepseek-r1:7b`, `qwen2.5-coder:7b`). MSI UFW now allows `11434` from
-   `10.8.0.3/32` in addition to `10.8.0.1/32` (alpha).
+   `10.40.0.3/32` in addition to `10.40.0.1/32` (alpha).
 
 ## Rollback
 

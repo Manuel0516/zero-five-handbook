@@ -154,7 +154,7 @@ public record: delta-vpn.zero-five.space -> 46.162.95.145
 > **The firewall drop that broke roaming (2026-08-23, fixed):** Delta's gateway
 > `forward` chain has `policy drop` and only accepted `br-*` (Docker container)
 > egress to mullvad/eth0. An inbound WAN WireGuard handshake (public source IP)
-> destined `10.8.0.2:51820` matched no accept → dropped *before* reaching
+> destined `10.40.0.2:51820` matched no accept → dropped *before* reaching
 > WireGuard. Fix: `sudo nft add rule ip gateway forward udp dport 51820 accept`
 > (accept only the WG port; no general egress opened). The mesh always worked
 > because it rides the `wg0` tunnel interface, which never crosses the forward

@@ -107,7 +107,7 @@ available and validate with `ifquery --check vmbr0` before any reload.
 | WireGuard directory | `/etc/wireguard/` | `root:root`, `0700` | Protects the interface configuration |
 | Package service template | `/usr/lib/systemd/system/wg-quick@.service` | Package-owned | Do not edit; the `wg0` instance resolves to this template |
 | Boot enablement | `/etc/systemd/system/multi-user.target.wants/wg-quick@wg0.service` | Symlink to `/usr/lib/systemd/system/wg-quick@.service` | systemd-managed; created by `systemctl enable wg-quick@wg0` |
-| Runtime interface | Kernel interface `wg0` | Runtime state, not a file | `10.8.0.4/32`; inspect with `wg show wg0` and `ip address show wg0` |
+| Runtime interface | Kernel interface `wg0` | Runtime state, not a file | `10.40.0.4/32`; inspect with `wg show wg0` and `ip address show wg0` |
 
 Beta has no `/etc/wireguard/private.key` or
 `/etc/wireguard/public.key`. The private key exists only inside `wg0.conf`; the
@@ -118,7 +118,7 @@ Tracked, secret-free review sources:
 | Repository path | Deployed relationship |
 | --- | --- |
 | `zero-five-infra/wireguard/beta.conf.example` | Reviewed model for Beta's `/etc/wireguard/wg0.conf`; `BETA_PRIVATE_KEY` must remain a placeholder |
-| `zero-five-infra/wireguard/vps.conf.example` | Reviewed model for Alpha's `/etc/wireguard/wg0.conf`, including Beta's public key and `10.8.0.4/32` route |
+| `zero-five-infra/wireguard/vps.conf.example` | Reviewed model for Alpha's `/etc/wireguard/wg0.conf`, including Beta's public key and `10.40.0.4/32` route |
 | `zero-five-infra/scripts/validate_wireguard.py` | Local-only topology and secret-placeholder validator; does not deploy |
 
 ## SSH client and server state
@@ -157,7 +157,7 @@ identity and will trigger known-host warnings on clients.
 | Personal client private key | `~/.ssh/id_ed25519` | Sensitive | Stays on the Mac; never copy it to Alpha or Beta |
 | Trusted host identities | `~/.ssh/known_hosts` | `manuel:staff`, `0600` | Already contains Beta under `192.168.1.166`; `HostKeyAlias` reuses that pin for the VPN address |
 
-The `Host beta` block resolves to `root@10.8.0.4:22`, uses
+The `Host beta` block resolves to `root@10.40.0.4:22`, uses
 `ProxyJump delta`, and sets `HostKeyAlias 192.168.1.166`. The alias prevents
 the same physical Beta host from being treated as a new identity merely because
 the second hop uses its WireGuard address.

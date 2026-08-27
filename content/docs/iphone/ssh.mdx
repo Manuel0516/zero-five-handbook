@@ -1,10 +1,10 @@
 ---
 title: SSH — Phone to Alpha and Delta
-description: "Planned 2026-08-14, not yet configured. Steps to add the iPhone (10.8.0.21) as an SSH client for Alpha (port 2020) and Delta (port 22) over the WireGuard mesh."
+description: "Planned 2026-08-14, not yet configured. Steps to add the iPhone (10.40.0.21) as an SSH client for Alpha (port 2020) and Delta (port 22) over the WireGuard mesh."
 ---
 
 > **Status: PLANNED — not yet configured (2026-08-14).** The iPhone already
-> exists in the mesh as `10.8.0.21/32` (see the
+> exists in the mesh as `10.40.0.21/32` (see the
 > [WireGuard page](/docs/iphone/wireguard)); this page logs the SSH client
 > setup steps to run when the user configures the phone.
 
@@ -12,8 +12,8 @@ description: "Planned 2026-08-14, not yet configured. Steps to add the iPhone (1
 
 From the iPhone, over the WireGuard mesh, SSH to:
 
-- **Alpha** (VPS): `manuel@10.8.0.1 -p 2020`
-- **Delta** (Raspberry Pi): `manuel@10.8.0.2`
+- **Alpha** (VPS): `manuel@10.40.0.1 -p 2020`
+- **Delta** (Raspberry Pi): `manuel@10.40.0.2`
 
 The phone's private key stays on the phone; only its public key is added to
 `~/.ssh/authorized_keys` on Alpha and Delta.
@@ -29,9 +29,9 @@ The phone's private key stays on the phone; only its public key is added to
    - Alpha: `/home/manuel/.ssh/authorized_keys`
    - Delta: `/home/manuel/.ssh/authorized_keys`
 5. **Create hosts in the app**:
-   - Alpha: host `10.8.0.1`, port `2020`, user `manuel`, key `iphone`
-   - Delta: host `10.8.0.2`, port `22`, user `manuel`, key `iphone`
-6. **Test**: `ssh manuel@10.8.0.1 -p 2020` then `ssh manuel@10.8.0.2` from the
+   - Alpha: host `10.40.0.1`, port `2020`, user `manuel`, key `iphone`
+   - Delta: host `10.40.0.2`, port `22`, user `manuel`, key `iphone`
+6. **Test**: `ssh manuel@10.40.0.1 -p 2020` then `ssh manuel@10.40.0.2` from the
    app, while the iPhone WireGuard tunnel is up.
 
 ## Security notes
@@ -41,7 +41,7 @@ The phone's private key stays on the phone; only its public key is added to
 - Both Alpha and Delta already enforce public-key-only SSH
   (`PasswordAuthentication no`), so the key addition is the whole
   authentication story.
-- The phone's WireGuard `AllowedIPs` remains `10.8.0.1/32` — SSH to Delta
-  (`10.8.0.2`) requires an explicit route addition on the phone peer, or a
+- The phone's WireGuard `AllowedIPs` remains `10.40.0.1/32` — SSH to Delta
+  (`10.40.0.2`) requires an explicit route addition on the phone peer, or a
   second peer entry, or routing via Alpha. **Verify reachability of
-  `10.8.0.2` from the phone before relying on it.**
+  `10.40.0.2` from the phone before relying on it.**

@@ -31,11 +31,11 @@ services:
       - "traefik.http.routers.handbook.rule=Host(`docs.zero-five.space`)"
       - "traefik.http.routers.handbook.entrypoints=websecure"
       - "traefik.http.routers.handbook.tls.certresolver=letsencrypt"
-      # docs.zero-five.space resolves to 10.8.0.1, so legitimate clients arrive
-      # over wg0 with a 10.8.0.x source address. This middleware rejects anyone
-      # who instead connects to the public IP with the right Host header.
+      # docs.zero-five.space resolves to the VPN address, so legitimate clients
+      # arrive over wg0 with a source from one of the transition VPN ranges.
+      # This middleware rejects anyone connecting to the public IP directly.
       - "traefik.http.routers.handbook.middlewares=handbook-vpn-only"
-      - "traefik.http.middlewares.handbook-vpn-only.ipwhitelist.sourcerange=10.8.0.0/24"
+      - "traefik.http.middlewares.handbook-vpn-only.ipwhitelist.sourcerange=10.40.0.0/24"
       - "traefik.http.services.handbook.loadbalancer.server.port=3000"
       - "hub.enable=true"
       - "hub.name=Handbook"

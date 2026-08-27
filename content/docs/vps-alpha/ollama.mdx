@@ -12,7 +12,7 @@ Ollama runs **natively on the host** (not in Docker) so every project on the ser
 The defining configuration choice: **Ollama binds to the VPN address, not localhost and not the public interface.**
 
 ```text
-OLLAMA_HOST=10.8.0.1:11434
+OLLAMA_HOST=10.40.0.1:11434
 ```
 
 This makes it reachable from the [WireGuard](/docs/vps-alpha/wireguard) network (the laptop) and from Docker containers on the host, while being completely invisible to the internet.
@@ -26,12 +26,12 @@ This makes it reachable from the [WireGuard](/docs/vps-alpha/wireguard) network 
 ```ini
 [Service]
 Environment="OLLAMA_KEEP_ALIVE=10m"
-Environment="OLLAMA_HOST=10.8.0.1:11434"
+Environment="OLLAMA_HOST=10.40.0.1:11434"
 ```
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `OLLAMA_HOST` | `10.8.0.1:11434` | VPN-only binding — never public |
+| `OLLAMA_HOST` | `10.40.0.1:11434` | VPN-only binding — never public |
 | `OLLAMA_KEEP_ALIVE` | `10m` | Models unload after 10 minutes idle; the box only has 8 GB RAM |
 
 Edit the override with `sudo systemctl edit ollama`, then `sudo systemctl restart ollama`.
@@ -47,7 +47,7 @@ Verified with `ollama list` (2026-08-24, post-migration):
 `qwen2.5:3b` and `nomic-embed-text` moved to gamma on 2026-08-24 (see
 [gamma AI stack](/docs/laptop-gamma/ai-stack)). The MSI laptop was historically
 intended to host heavier models such as `deepseek-r1:7b` and
-`qwen2.5-coder:7b` at `10.8.0.12:11434`; the 2026-08-07 MSI inventory found no
+`qwen2.5-coder:7b` at `10.40.0.12:11434`; the 2026-08-07 MSI inventory found no
 local Ollama models or model blobs, so that laptop inventory is currently
 planned/stale rather than verified deployed state.
 
@@ -58,7 +58,7 @@ planned/stale rather than verified deployed state.
 Because Ollama isn't on the default `127.0.0.1:11434`, the CLI needs `OLLAMA_HOST` set (the `manuel` user is in the `ollama` group):
 
 ```bash
-export OLLAMA_HOST=10.8.0.1:11434   # add to ~/.bashrc for convenience
+export OLLAMA_HOST=10.40.0.1:11434   # add to ~/.bashrc for convenience
 
 ollama list          # installed models
 ollama ps            # currently loaded models
@@ -70,15 +70,15 @@ ollama stop qwen2.5:3b   # force-unload before the 10m keep-alive
 Or query the API directly:
 
 ```bash
-curl http://10.8.0.1:11434/api/tags
+curl http://10.40.0.1:11434/api/tags
 ```
 
 ## Consumers
 
 | Consumer | How it connects |
 |----------|-----------------|
-| [Telegram bot](/docs/vps-alpha/telegram-bot) | `OLLAMA_URL=http://10.8.0.1:11434/api/chat` |
-| Laptop (any tool) | `http://10.8.0.1:11434` over WireGuard |
+| [Telegram bot](/docs/vps-alpha/telegram-bot) | `OLLAMA_URL=http://10.40.0.1:11434/api/chat` |
+| Laptop (any tool) | `http://10.40.0.1:11434` over WireGuard |
 
 The ollama-router and Open WebUI no longer consume alpha's Ollama — they moved
 to gamma with the AI stack (2026-08-24).
@@ -91,7 +91,7 @@ to gamma with the AI stack (2026-08-24).
 
 ### Bring up WireGuard first
 
-Ollama binds to `10.8.0.1`, which only exists once [wg0 is up](/docs/vps-alpha/wireguard). Otherwise the service fails to bind.
+Ollama binds to `10.40.0.1`, which only exists once [wg0 is up](/docs/vps-alpha/wireguard). Otherwise the service fails to bind.
 
 ### Install with the official script
 
@@ -112,7 +112,7 @@ sudo systemctl edit ollama
 ```ini
 [Service]
 Environment="OLLAMA_KEEP_ALIVE=10m"
-Environment="OLLAMA_HOST=10.8.0.1:11434"
+Environment="OLLAMA_HOST=10.40.0.1:11434"
 ```
 
 ```bash
@@ -122,14 +122,14 @@ sudo systemctl daemon-reload && sudo systemctl restart ollama
 ### Pull the models
 
 ```bash
-export OLLAMA_HOST=10.8.0.1:11434
+export OLLAMA_HOST=10.40.0.1:11434
 ollama pull translategemma:4b   # the only model alpha hosts post-migration
 ```
 
 ### Verify
 
 ```bash
-curl http://10.8.0.1:11434/api/tags
+curl http://10.40.0.1:11434/api/tags
 systemctl status ollama
 ```
 

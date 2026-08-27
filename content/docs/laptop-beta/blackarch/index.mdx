@@ -14,13 +14,13 @@ progress.
 | Proxmox host | Beta (`192.168.1.166`) |
 | VM name | `blackarch` |
 | LAN address | `192.168.1.104` |
-| WireGuard address | `10.8.0.101/32` |
+| WireGuard address | `10.40.0.101/32` |
 | Login user | `zero` |
 | Password | Stored in Bitwarden; never document it here |
 | SSH path | `MSI → Alpha/contabo → WireGuard → blackarch` |
 | SSH alias | `ssh blackarch` |
 
-VMs use the three-digit WireGuard range beginning at `10.8.0.101`. Physical
+VMs use the three-digit WireGuard range beginning at `10.40.0.101`. Physical
 devices and infrastructure keep their existing lower addresses.
 
 ## Verified base state
@@ -32,7 +32,7 @@ Verified on 2026-08-12:
 - User `zero` authenticates with the MSI SSH key.
 - SSH password and root logins are disabled.
 - `sshd` and `wg-quick@wg0` are active.
-- WireGuard routes only `10.8.0.1/32` through Alpha.
+- WireGuard routes only `10.40.0.1/32` through Alpha.
 - `ssh blackarch` works through Alpha's `ProxyJump contabo` path.
 - The temporary passwordless-sudo rule and its timer were removed after setup.
 - User `zero` has a small Bash terminal view with colors, Git branch display,
@@ -47,7 +47,7 @@ tools only—no shell framework or graphical desktop is required.
 
 ```text
 Host blackarch
-  HostName 10.8.0.101
+  HostName 10.40.0.101
   User zero
   IdentityFile ~/.ssh/id_ed25519
   IdentitiesOnly yes
@@ -65,7 +65,7 @@ scp ./file blackarch:/home/zero/
 ## WireGuard model
 
 BlackArch is a direct peer of Alpha, not a peer routed through Beta's host.
-Alpha owns the persistent route `10.8.0.101/32`; the VM owns the corresponding
+Alpha owns the persistent route `10.40.0.101/32`; the VM owns the corresponding
 private key and `wg0.conf`. The VM configuration is modeled in
 `zero-five-infra/wireguard/blackarch.conf.example`.
 

@@ -27,18 +27,18 @@ Records (subdomains are **DNS-only / grey cloud** so non-HTTP traffic works):
 | Record | Type | Target |
 |--------|------|--------|
 | `*` | A | `95.111.229.142` — wildcard, covers every subdomain |
-| `docs` | A | `10.8.0.1` — WireGuard hub IP, so the handbook only resolves usefully on the VPN |
-| `hub` | A | `10.8.0.1` — VPN only (hub dashboard) |
-| `ai` | A | `10.8.0.1` — VPN only (Open WebUI) |
-| `brain` | A | `10.8.0.1` — VPN only (second-brain) |
-| `hermes` | A | `10.8.0.1` — VPN only (Hermes dashboard) |
+| `docs` | A | `10.40.0.1` — WireGuard hub IP, so the handbook only resolves usefully on the VPN |
+| `hub` | A | `10.40.0.1` — VPN only (hub dashboard) |
+| `ai` | A | `10.40.0.1` — VPN only (Open WebUI) |
+| `brain` | A | `10.40.0.1` — VPN only (second-brain) |
+| `hermes` | A | `10.40.0.1` — VPN only (Hermes dashboard) |
 | `mc` | A | `95.111.229.142` |
 | `ssh` | A | `95.111.229.142` |
 | `_minecraft._tcp.mc` | SRV | `mc.zero-five.space:25565` |
 
-> **Warning:** Grey cloud (DNS-only) is required for records carrying SSH or Minecraft — Cloudflare's orange-cloud proxy only passes HTTP/HTTPS. The apex `zero-five.space` currently resolves to Cloudflare proxy IPs, while all VPN-only subdomains (`docs`, `hub`, `ai`, `brain`, `hermes`) resolve to `10.8.0.1`; keep any record used for TCP/UDP services grey.
+> **Warning:** Grey cloud (DNS-only) is required for records carrying SSH or Minecraft — Cloudflare's orange-cloud proxy only passes HTTP/HTTPS. The apex `zero-five.space` currently resolves to Cloudflare proxy IPs, while all VPN-only subdomains (`docs`, `hub`, `ai`, `brain`, `hermes`) resolve to `10.40.0.1`; keep any record used for TCP/UDP services grey.
 
-Because of the wildcard record, **adding a new *public* subdomain requires no DNS work** — just a Traefik route. **VPN-only subdomains are the exception**: they need an explicit grey-cloud A record pointing at `10.8.0.1` (see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)).
+Because of the wildcard record, **adding a new *public* subdomain requires no DNS work** — just a Traefik route. **VPN-only subdomains are the exception**: they need an explicit grey-cloud A record pointing at `10.40.0.1` (see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)).
 
 ---
 
@@ -97,12 +97,12 @@ http:
       tls:
         certResolver: letsencrypt
       middlewares:
-        - open-webui-vpn-only   # ipWhiteList 10.8.0.0/24 — see The VPN-only pattern
+        - open-webui-vpn-only   # ipWhiteList 10.40.0.0/24 — see The VPN-only pattern
   middlewares:
     open-webui-vpn-only:
       ipWhiteList:
         sourceRange:
-          - 10.8.0.0/24
+          - 10.40.0.0/24
   services:
     open-webui:
       loadBalancer:
@@ -118,11 +118,11 @@ http:
 
 | URL | Backend | Method |
 |-----|---------|--------|
-| `https://hub.zero-five.space` | hub-frontend container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)) | labels |
+| `https://hub.zero-five.space` | hub-frontend container — **VPN only** (`ipWhiteList 10.40.0.0/24`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)) | labels |
 | `https://brain.zero-five.space` | secondbrain web container — **VPN only** | labels |
-| `https://ai.zero-five.space` | Open WebUI on **gamma** `10.8.0.3:3000` (mesh backend; since 2026-08-24) — **VPN only** | file provider |
+| `https://ai.zero-five.space` | Open WebUI on **gamma** `10.40.0.3:3000` (mesh backend; since 2026-08-24) — **VPN only** | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
-| `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.8.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |
+| `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.40.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |
 | `https://hermes.zero-five.space` | Hermes dashboard on host `:9119` — **VPN only** (same `ipWhiteList` pattern, see [Hermes Agent](/docs/vps-alpha/hermes-agent)) | file provider |
 
 The dashboard is protected by basic auth. The credentials hash lives in `~/services/hub/traefik/.htpasswd` (never committed):

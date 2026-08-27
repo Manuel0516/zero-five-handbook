@@ -38,8 +38,8 @@ for the container inventory — these two are native units, not containers).
 The dashboard holds every API key, all sessions, config, memory, and cron
 jobs — the most sensitive surface on the box. It follows the same
 [VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern) as the
-handbook: DNS points `hermes.zero-five.space` at `10.8.0.1` (WireGuard), and a
-Traefik `ipWhiteList 10.8.0.0/24` middleware rejects anyone reaching the public
+handbook: DNS points `hermes.zero-five.space` at `10.40.0.1` (WireGuard), and a
+Traefik `ipWhiteList 10.40.0.0/24` middleware rejects anyone reaching the public
 IP with the right Host header. On top of that, the dashboard itself requires a
 login (the `accounts` provider). Two independent gates.
 
@@ -106,12 +106,12 @@ hermes-dashboard:
 middlewares:
   hermes-vpn-only:
     ipWhiteList:
-      sourceRange: [10.8.0.0/24]
+      sourceRange: [10.40.0.0/24]
 ```
 
 ### DNS
 
-Cloudflare A record `hermes` → `10.8.0.1` (grey cloud / DNS-only), overriding
+Cloudflare A record `hermes` → `10.40.0.1` (grey cloud / DNS-only), overriding
 the wildcard — same as `docs`. No DNS work needed for new subdomains (wildcard
 covers them), but VPN-only subdomains need the explicit record.
 
@@ -243,7 +243,7 @@ breakdown, aux-task summary, aggregate totals). Costs come from
 
 | Symptom | Check |
 |---------|-------|
-| 403 from Traefik | You are not on WireGuard (`dig hermes.zero-five.space` should return `10.8.0.1`) |
+| 403 from Traefik | You are not on WireGuard (`dig hermes.zero-five.space` should return `10.40.0.1`) |
 | Login page shows no form | `curl -s http://127.0.0.1:9119/api/status` — `auth_providers` must include `accounts`; if empty, the plugin failed to load (`journalctl --user -u hermes-dashboard`) |
 | 401 on Accounts API | Session expired or cookie missing — log in again |
 | 403 on Accounts API | The logged-in user is not `role: admin` |

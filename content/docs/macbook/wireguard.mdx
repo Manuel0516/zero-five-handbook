@@ -4,8 +4,8 @@ description: "The MacBook WireGuard CLI, mesh peers (VPS + Delta), roaming endpo
 ---
 
 The MacBook joins the [WireGuard mesh](/docs/raspberry/vpn-gateway) as
-`10.8.0.11/32` with two peers: the **VPS** (`10.8.0.1`) for Alpha-hosted
-services, and **Delta** (`10.8.0.2`) for the home resolver and future
+`10.40.0.11/32` with two peers: the **VPS** (`10.40.0.1`) for Alpha-hosted
+services, and **Delta** (`10.40.0.2`) for the home resolver and future
 home-hosted apps. The Delta peer uses a public DNS endpoint so it works both
 at home and roaming; ordinary internet traffic stays outside the tunnel.
 
@@ -15,11 +15,11 @@ at home and roaming; ordinary internet traffic stays outside the tunnel.
 | --- | --- |
 | Installation | Homebrew `wireguard-tools` with userspace `wireguard-go` + **WireGuard macOS app** (adopted 2026-08-23, see below) |
 | Commands | `/opt/homebrew/bin/wg` and `/opt/homebrew/bin/wg-quick` |
-| VPN address | `10.8.0.11/32` direct; `10.8.0.31/32` Alpha relay |
+| VPN address | `10.40.0.11/32` direct; `10.40.0.31/32` Alpha relay |
 | Deployed config | `/opt/homebrew/etc/wireguard/zero-five.conf`, mode `0600` |
-| Peers | VPS `10.8.0.1/32` (95.111.229.142:51820) + Delta `10.8.0.2/32` (`delta-vpn.zero-five.space:51820`) |
+| Peers | VPS `10.40.0.1/32` (95.111.229.142:51820) + Delta `10.40.0.2/32` (`delta-vpn.zero-five.space:51820`) |
 | Delta endpoint | Public A record `delta-vpn.zero-five.space` → home WAN IP (grey cloud, NOT proxied) |
-| DNS | `DNS = 10.8.0.2, 1.1.1.1` in `[Interface]` (AdGuard first, Cloudflare fallback) |
+| DNS | `DNS = 10.40.0.2, 1.1.1.1` in `[Interface]` (AdGuard first, Cloudflare fallback) |
 | Runtime | VPS reachable; Delta handshake + AdGuard UI verified 2026-08-22 |
 | Mac startup | Activation after reboot or login remains unverified |
 
@@ -65,15 +65,15 @@ interface. The number may change and must never be hard-coded.
 
 ```text
 MacBook                              VPS / Delta
-10.8.0.11/32  -------------------->  10.8.0.1/32   (VPS,   95.111.229.142:51820)
-             -------------------->  10.8.0.2/32   (Delta, delta-vpn.zero-five.space:51820)
+10.40.0.11/32  -------------------->  10.40.0.1/32   (VPS,   95.111.229.142:51820)
+             -------------------->  10.40.0.2/32   (Delta, delta-vpn.zero-five.space:51820)
 
-              no WireGuard route for 10.8.0.12+ or internet (default route untouched)
+              no WireGuard route for 10.40.0.12+ or internet (default route untouched)
 ```
 
-`AllowedIPs` covers only `10.8.0.1/32` and `10.8.0.2/32` — macOS installs two
+`AllowedIPs` covers only `10.40.0.1/32` and `10.40.0.2/32` — macOS installs two
 host routes; the default route stays on the normal interface. Other mesh nodes
-(MSI `10.8.0.12`, etc.) are not routed through this tunnel, matching the
+(MSI `10.40.0.12`, etc.) are not routed through this tunnel, matching the
 gateway design where only Beta/Gamma use Delta as egress.
 
 ## Direct and externally relayed identities
@@ -85,10 +85,10 @@ separate WireGuard profiles:
 flowchart LR
     mac["MacBook"]
     subgraph path1["Connection type 1 — DIRECT (normal)"]
-        d1["10.8.0.11/32 → delta-vpn.zero-five.space:51820"]
+        d1["10.40.0.11/32 → delta-vpn.zero-five.space:51820"]
     end
     subgraph path2["Connection type 2 — THROUGH THE VPS (relay)"]
-        r1["10.8.0.31/32 → 95.111.229.142:51820 (Alpha) → Delta"]
+        r1["10.40.0.31/32 → 95.111.229.142:51820 (Alpha) → Delta"]
     end
     mac --> d1
     mac --> r1
@@ -96,11 +96,11 @@ flowchart LR
 
 | Path | Address | Profile endpoint | Purpose |
 | --- | --- | --- | --- |
-| Direct Delta | `10.8.0.11/32` | `delta-vpn.zero-five.space:51820` | Primary path to Delta |
-| Alpha relay | `10.8.0.31/32` | `95.111.229.142:51820` | Fallback path through Alpha |
+| Direct Delta | `10.40.0.11/32` | `delta-vpn.zero-five.space:51820` | Primary path to Delta |
+| Alpha relay | `10.40.0.31/32` | `95.111.229.142:51820` | Fallback path through Alpha |
 
 Import `wireguard/macbook-alpha-relay.conf.example` as a separate profile. Its
-`AllowedIPs` are `10.8.0.1/32, 10.8.0.2/32`, so the fallback reaches both
+`AllowedIPs` are `10.40.0.1/32, 10.40.0.2/32`, so the fallback reaches both
 Alpha-hosted services and Delta services. Enable only one MacBook profile while
 testing failover; WireGuard does not automatically switch between these
 identities.
@@ -168,7 +168,7 @@ for recovery or an intentional identity replacement.
 4. Add the Mac public key to the running interface first:
 
 ```bash
-sudo wg set wg0 peer MACBOOK_PUBLIC_KEY allowed-ips 10.8.0.11/32
+sudo wg set wg0 peer MACBOOK_PUBLIC_KEY allowed-ips 10.40.0.11/32
 ```
 
 5. Start the Mac tunnel and validate both machines.
@@ -184,27 +184,27 @@ removed without disrupting the established laptop peer.
 ```bash
 sudo wg-quick up zero-five
 sudo wg show
-route -n get 10.8.0.1
-route -n get 10.8.0.2
+route -n get 10.40.0.1
+route -n get 10.40.0.2
 route -n get default
-scutil --dns | grep -A2 "resolver #1" | head -5   # confirm DNS = 10.8.0.2, 1.1.1.1 applied
-ping -c 3 10.8.0.1
-ping -c 3 10.8.0.2
+scutil --dns | grep -A2 "resolver #1" | head -5   # confirm DNS = 10.40.0.2, 1.1.1.1 applied
+ping -c 3 10.40.0.1
+ping -c 3 10.40.0.2
 # AdGuard UI via Delta (mesh):
-curl --fail --show-error --max-time 5 http://10.8.0.2:80/ -o /dev/null -w '%{http_code}\n'
+curl --fail --show-error --max-time 5 http://10.40.0.2:80/ -o /dev/null -w '%{http_code}\n'
 ```
 
 Expected results:
 
-- `10.8.0.1` and `10.8.0.2` use the dynamic `utunN` interface;
-- `10.8.0.2` handshakes with Delta through the home router (hairpin NAT at
+- `10.40.0.1` and `10.40.0.2` use the dynamic `utunN` interface;
+- `10.40.0.2` handshakes with Delta through the home router (hairpin NAT at
   home) or the public WAN IP (roaming) — `sudo wg show` reports a recent
   handshake for both peers;
-- `scutil --dns` shows the tunnel resolver with `10.8.0.2` + `1.1.1.1`
+- `scutil --dns` shows the tunnel resolver with `10.40.0.2` + `1.1.1.1`
   (AdGuard first, Cloudflare fallback);
 - the default route remains on the normal network interface;
 - the VPS responds to ping and the private Ollama API; Delta responds to
-  ping and `http://10.8.0.2:80/` returns 302 (AdGuard login redirect).
+  ping and `http://10.40.0.2:80/` returns 302 (AdGuard login redirect).
 
 On Delta, also confirm the mesh peer, nftables, and `wg0` remain in their
 previous state. A handshake alone does not prove route or application policy.
@@ -218,18 +218,18 @@ the Mac did not — with the *same* name through the *same* tunnel. That asymmet
 trap: it points the finger at the machine, not the network.
 
 Root cause is a **macOS-specific wg-quick DNS leak**, not routing or a broken service.
-The Homebrew `wg-quick` CLI applies the tunnel's `DNS = 10.8.0.2` line by writing that
+The Homebrew `wg-quick` CLI applies the tunnel's `DNS = 10.40.0.2` line by writing that
 address onto macOS's **Wi-Fi (en0) resolver — not onto the tunnel's `utunN` interface.**
-So `10.8.0.2:53` (AdGuard) is allowed through the tunnel (the tunnel is a path, not a DNS-server bearer), but the resolver macOS is actually asking lives on en0 and its
+So `10.40.0.2:53` (AdGuard) is allowed through the tunnel (the tunnel is a path, not a DNS-server bearer), but the resolver macOS is actually asking lives on en0 and its
 queries travel **out the Wi-Fi carrier**, never entering the tunnel:
 
 Verified:
-- A DNS query sent **from the tunnel IP `10.8.0.11`** → works (AdGuard answers).
+- A DNS query sent **from the tunnel IP `10.40.0.11`** → works (AdGuard answers).
 - The **same query from the Wi-Fi IP `192.168.1.109`** → times out.
-- `curl` uses macOS's resolver on Wi-Fi, so it fails — even though `curl -k https://10.8.0.2/` with a `Host:` header reached the router directly (that used the routed IP directly, not DNS).
+- `curl` uses macOS's resolver on Wi-Fi, so it fails — even though `curl -k https://10.40.0.2/` with a `Host:` header reached the router directly (that used the routed IP directly, not DNS).
 
 So the name was never failing to *route* — it was failing to *resolve*, because the
-resolver sits on the wrong interface. `curl` to the raw IP `http://10.8.0.2:8006`-style
+resolver sits on the wrong interface. `curl` to the raw IP `http://10.40.0.2:8006`-style
 worked; `curl https://router.zero-five.space`-style ("server not found") failed.
 
 **Do NOT "fix" this by adding a public Cloudflare A record for `router.zero-five.space`**
@@ -271,7 +271,7 @@ the fresh tunnel attach takes cleanly. If you're using the CLI, this is the reli
 before every tunnel up — the WireGuard app (Option A) avoids needing it.
 
 **Verify after switching:** `curl https://<name>.zero-five.space` must resolve; if it
-still says server-not-found, `scutil --dns` shows whether `10.8.0.2` ended up on a
+still says server-not-found, `scutil --dns` shows whether `10.40.0.2` ended up on a
 tunnel-scoped resolver or got dropped to en0.
 
 | Symptom | Check |
@@ -280,10 +280,10 @@ tunnel-scoped resolver or got dropped to en0.
 | No handshake with VPS | VPS endpoint, UDP firewall, public-key match, internet access |
 | No handshake with Delta | `delta-vpn.zero-five.space` resolves to the current home WAN IP; record must be **grey cloud** (proxied=false); router port-forward UDP 51820 → 192.168.1.106; Delta's public key matches |
 | Handshake but no VPS access | `AllowedIPs`, macOS route, VPS UFW, service binding |
-| Handshake but no Delta access | `AllowedIPs` must include `10.8.0.2/32`; Delta's `sport 51820 lookup main` rule (else the Mullvad tunnel swallows replies) |
-| Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.8.0.1/32` + `10.8.0.2/32` |
+| Handshake but no Delta access | `AllowedIPs` must include `10.40.0.2/32`; Delta's `sport 51820 lookup main` rule (else the Mullvad tunnel swallows replies) |
+| Internet unexpectedly uses VPN | `AllowedIPs` is broader than `10.40.0.1/32` + `10.40.0.2/32` |
 | Works manually but not after reboot | No verified startup service yet |
-| Private names "Server Not Found" only while roaming (works on phone/LAN) | Homebrew wg-quick attaches `DNS=` to Wi-Fi (en0), not the tunnel → queries leak out the carrier and never reach `10.8.0.2`. Use the WireGuard macOS app (Network Extension) instead; do NOT add a public Cloudflare A record for the private name |
+| Private names "Server Not Found" only while roaming (works on phone/LAN) | Homebrew wg-quick attaches `DNS=` to Wi-Fi (en0), not the tunnel → queries leak out the carrier and never reach `10.40.0.2`. Use the WireGuard macOS app (Network Extension) instead; do NOT add a public Cloudflare A record for the private name |
 
 ## Rollback
 

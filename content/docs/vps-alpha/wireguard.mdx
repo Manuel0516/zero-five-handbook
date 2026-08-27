@@ -3,15 +3,15 @@ title: WireGuard VPN
 description: The VPS-centered private network, its routing and security model, operational source, inspection, recovery, and trade-offs.
 ---
 
-WireGuard creates Zero Five's private `10.8.0.0/24` network. The VPS is the
+WireGuard creates Zero Five's private `10.40.0.0/24` network. The VPS is the
 stable public hub and primary path. Delta is now a second infrastructure node
 with a public UDP endpoint and direct peer definitions for registered clients.
 Gamma and the iPhone also connect as deployed clients.
 Beta is registered as a deployed client.
-Delta is deployed as the infrastructure peer at `10.8.0.2/32`. Its direct
+Delta is deployed as the infrastructure peer at `10.40.0.2/32`. Its direct
 roaming endpoint is configured separately from the optional Alpha relay
 fallback. The BlackArch VM on Beta is registered as a direct VM client at
-`10.8.0.101/32`.
+`10.40.0.101/32`.
 Ollama traffic can therefore cross the internet inside an encrypted tunnel
 without exposing the Ollama API publicly.
 
@@ -20,25 +20,25 @@ without exposing the Ollama API publicly.
 ```mermaid
 flowchart LR
     subgraph clients["Trusted clients"]
-        msi["MSI laptop<br/>10.8.0.12/32<br/>AI backend (Ollama)<br/>peers: Alpha + Delta + Gamma"]
-        macbook["MacBook<br/>10.8.0.11/32 direct<br/>10.8.0.31/32 VPS relay"]
-        gamma["Gamma<br/>10.8.0.3/32<br/>AI host + Minecraft<br/>peers: Alpha + Delta + MSI"]
-        beta["Beta / Proxmox<br/>10.8.0.4/32<br/>peers: Alpha + Delta"]
-        delta["Delta Raspberry Pi<br/>10.8.0.2/32<br/>Infra node + Mullvad gateway"]
-        blackarch["BlackArch VM<br/>10.8.0.101/32"]
-        iphone["iPhone<br/>10.8.0.21/32 direct<br/>10.8.0.32/32 VPS relay"]
+        msi["MSI laptop<br/>10.40.0.12/32<br/>AI backend (Ollama)<br/>peers: Alpha + Delta + Gamma"]
+        macbook["MacBook<br/>10.40.0.11/32 direct<br/>10.40.0.31/32 VPS relay"]
+        gamma["Gamma<br/>10.40.0.3/32<br/>AI host + Minecraft<br/>peers: Alpha + Delta + MSI"]
+        beta["Beta / Proxmox<br/>10.40.0.4/32<br/>peers: Alpha + Delta"]
+        delta["Delta Raspberry Pi<br/>10.40.0.2/32<br/>Infra node + Mullvad gateway"]
+        blackarch["BlackArch VM<br/>10.40.0.101/32"]
+        iphone["iPhone<br/>10.40.0.21/32 direct<br/>10.40.0.32/32 VPS relay"]
     end
 
     subgraph vps["VPS hub (Alpha)"]
-        wg["WireGuard wg0<br/>10.8.0.1/24<br/>UDP 51820"]
-        ollama["Ollama<br/>10.8.0.1:11434<br/>translategemma only"]
+        wg["WireGuard wg0<br/>10.40.0.1/24<br/>UDP 51820"]
+        ollama["Ollama<br/>10.40.0.1:11434<br/>translategemma only"]
     end
 
     subgraph ai["AI mesh (2026-08-24)"]
-        gwui["Open WebUI on gamma<br/>10.8.0.3:3000"]
+        gwui["Open WebUI on gamma<br/>10.40.0.3:3000"]
         router["ollama-router on gamma<br/>127.0.0.1:11435"]
-        gm["gamma Ollama<br/>10.8.0.3:11434<br/>qwen2.5:3b, nomic-embed"]
-        msm["MSI Ollama<br/>10.8.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"]
+        gm["gamma Ollama<br/>10.40.0.3:11434<br/>qwen2.5:3b, nomic-embed"]
+        msm["MSI Ollama<br/>10.40.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"]
     end
 
     msi -->|"tunnel 51820"| wg
@@ -59,14 +59,14 @@ flowchart LR
 
 | Machine | Address | Role | Peers |
 | --- | --- | --- | --- |
-| Alpha VPS | `10.8.0.1/24` | WireGuard hub, Traefik edge, translation bot | all clients |
-| Delta Pi | `10.8.0.2/32` | Infra node: AdGuard DNS, app gateway, backup controller, Mullvad gateway | Alpha + registered clients |
-| Gamma | `10.8.0.3/32` | AI host (Open WebUI, ollama-router, SearXNG, Ollama qwen2.5:3b/nomic-embed-text), Minecraft | Alpha + Delta + **MSI** |
-| Beta / Proxmox | `10.8.0.4/32` | Proxmox VE host, BlackArch VM parent | Alpha + Delta |
-| MacBook | `10.8.0.11/32` direct; `10.8.0.31/32` VPS relay | Admin + dev box | Alpha + Delta |
-| MSI | `10.8.0.12/32` | **AI backend** (Ollama deepseek-r1:7b, qwen2.5-coder:7b), personal desktop | Alpha + Delta + **Gamma** |
-| iPhone | `10.8.0.21/32` direct; `10.8.0.32/32` VPS relay | Mobile access | Alpha + Delta |
-| BlackArch VM | `10.8.0.101/32` | Security research VM (on Beta) | Alpha + Delta |
+| Alpha VPS | `10.40.0.1/24` | WireGuard hub, Traefik edge, translation bot | all clients |
+| Delta Pi | `10.40.0.2/32` | Infra node: AdGuard DNS, app gateway, backup controller, Mullvad gateway | Alpha + registered clients |
+| Gamma | `10.40.0.3/32` | AI host (Open WebUI, ollama-router, SearXNG, Ollama qwen2.5:3b/nomic-embed-text), Minecraft | Alpha + Delta + **MSI** |
+| Beta / Proxmox | `10.40.0.4/32` | Proxmox VE host, BlackArch VM parent | Alpha + Delta |
+| MacBook | `10.40.0.11/32` direct; `10.40.0.31/32` VPS relay | Admin + dev box | Alpha + Delta |
+| MSI | `10.40.0.12/32` | **AI backend** (Ollama deepseek-r1:7b, qwen2.5-coder:7b), personal desktop | Alpha + Delta + **Gamma** |
+| iPhone | `10.40.0.21/32` direct; `10.40.0.32/32` VPS relay | Mobile access | Alpha + Delta |
+| BlackArch VM | `10.40.0.101/32` | Security research VM (on Beta) | Alpha + Delta |
 
 The VPS uses `wg-quick@wg0.service`, which is enabled and active. Its UFW policy
 allows UDP `51820` and traffic arriving on `wg0`, while the default routed
@@ -83,9 +83,9 @@ DNS-only name `delta-vpn.zero-five.space`, UDP `51820` forwarded to
 
 The redundancy model is:
 
-1. Clients connect to Alpha at `10.8.0.1` as the primary path.
+1. Clients connect to Alpha at `10.40.0.1` as the primary path.
 2. Clients with Delta's reciprocal peer block can connect directly to
-   `10.8.0.2` when Alpha is unavailable.
+   `10.40.0.2` when Alpha is unavailable.
 3. Delta can administer peers after its dedicated SSH public key is authorized
    on their target accounts.
 
@@ -106,8 +106,8 @@ reserved at `.30+` so transport identity is obvious:
 
 | Device | Direct Delta identity | Alpha-relay identity |
 | --- | --- | --- |
-| MacBook | `10.8.0.11/32` | `10.8.0.31/32` |
-| iPhone | `10.8.0.21/32` | `10.8.0.32/32` |
+| MacBook | `10.40.0.11/32` | `10.40.0.31/32` |
+| iPhone | `10.40.0.21/32` | `10.40.0.32/32` |
 
 For networks that cannot reach Delta's residential public endpoint, optional
 second profiles are prepared in the infra repository:
@@ -117,11 +117,11 @@ wireguard/iphone-alpha-relay.conf.example
 wireguard/macbook-alpha-relay.conf.example
 ```
 
-They use `10.8.0.32/32` for the iPhone and `10.8.0.31/32` for the MacBook, and connect to Alpha
-at `95.111.229.142:51820`. Their `AllowedIPs` include both Alpha (`10.8.0.1/32`)
-and Delta (`10.8.0.2/32`), so VPS-hosted services remain reachable while Alpha
+They use `10.40.0.32/32` for the iPhone and `10.40.0.31/32` for the MacBook, and connect to Alpha
+at `95.111.229.142:51820`. Their `AllowedIPs` include both Alpha (`10.40.0.1/32`)
+and Delta (`10.40.0.2/32`), so VPS-hosted services remain reachable while Alpha
 forwards the fallback addresses to Delta over the
-existing `10.8.0.1 ↔ 10.8.0.2` mesh peer. Delta's Alpha peer must include both
+existing `10.40.0.1 ↔ 10.40.0.2` mesh peer. Delta's Alpha peer must include both
 fallback addresses so replies return through Alpha. This address separation
 preserves the direct routes and allows the user to enable the relay only when
 needed; WireGuard does not perform automatic failover between duplicate
@@ -142,19 +142,19 @@ Add this peer to MSI first, then Gamma, Beta, MacBook, BlackArch, and iPhone:
 # Peer: delta
 PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
 Endpoint = delta-vpn.zero-five.space:51820
-AllowedIPs = 10.8.0.2/32
+AllowedIPs = 10.40.0.2/32
 PersistentKeepalive = 25
 ```
 
-After each client, verify `ping -c 3 10.8.0.2`, a recent `wg show` handshake,
+After each client, verify `ping -c 3 10.40.0.2`, a recent `wg show` handshake,
 SSH where authorized, and reboot persistence. Never copy Delta's private key.
 Gamma is complete for the runtime portion: direct ping and Delta→Gamma SSH
 passed on 2026-08-13. Its reboot persistence remains open.
 
 > **Persistence incident — 2026-07-21:** Runtime WireGuard state worked before
 > reboot, but the root-only file contained an invalid iPhone route (`10.0.10`).
-> Boot activation therefore failed, and Ollama could not bind to `10.8.0.1`.
-> The route was corrected to the modeled `10.8.0.21/32`, the complete file was
+> Boot activation therefore failed, and Ollama could not bind to `10.40.0.1`.
+> The route was corrected to the modeled `10.40.0.21/32`, the complete file was
 > validated with `wg-quick strip`, and WireGuard, Ollama, and the private
 > Handbook route recovered. This is why every persistent network edit needs a
 > syntax check and an eventual reboot test: a live interface alone does not
@@ -295,9 +295,9 @@ after reboot.
 - Alpha and Delta expose WireGuard on UDP `51820`; Delta uses a DNS-only Cloudflare record.
 - Ollama binds to WireGuard addresses and receives no public Traefik route.
 - New clients peer with Alpha first; direct Delta peers are an explicit backup path.
-- Beta routes only `10.8.0.1/32`; its normal LAN and internet traffic do not
+- Beta routes only `10.40.0.1/32`; its normal LAN and internet traffic do not
   cross the tunnel.
-- The iPhone has only a `10.8.0.1/32` client route; the VPS's routed deny keeps
+- The iPhone has only a `10.40.0.1/32` client route; the VPS's routed deny keeps
   it isolated from the laptop and MacBook.
 - The current broad UFW permission for traffic arriving on `wg0` should be
   narrowed before adding less-trusted peers or limiting a peer to selected VPS

@@ -21,8 +21,8 @@ The site is Next.js + Fumadocs with two dynamic API routes — `/api/chat` (AI s
 
 Two layers make the site private:
 
-1. **DNS points into the tunnel.** `docs.zero-five.space` has an explicit A record → `10.8.0.1` (grey cloud), overriding the wildcard that points at the public IP. Every WireGuard peer routes `10.8.0.1/32` through `wg0`, so on the VPN the name just works; off the VPN it resolves to an unreachable private address.
-2. **Traefik rejects non-VPN sources.** Anyone can still connect to the *public* IP and send `Host: docs.zero-five.space`, so the router carries an `ipWhiteList` middleware allowing only `10.8.0.0/24`. Docker's NAT preserves source addresses, so requests arriving through `wg0` show their real `10.8.0.x` origin and everything else gets a 403.
+1. **DNS points into the tunnel.** `docs.zero-five.space` has an explicit A record → `10.40.0.1` (grey cloud), overriding the wildcard that points at the public IP. Every WireGuard peer routes `10.40.0.1/32` through `wg0`, so on the VPN the name just works; off the VPN it resolves to an unreachable private address.
+2. **Traefik rejects non-VPN sources.** Anyone can still connect to the *public* IP and send `Host: docs.zero-five.space`, so the router carries an `ipWhiteList` middleware allowing only `10.40.0.0/24`. Docker's NAT preserves source addresses, so requests arriving through `wg0` show their real `10.40.0.x` origin and everything else gets a 403.
 
 HTTPS still works because certificates come from the **DNS-01 challenge** (see [Traefik](/docs/vps-alpha/traefik)) — Let's Encrypt never connects to the address the record points at.
 
@@ -37,7 +37,7 @@ HTTPS still works because certificates come from the **DNS-01 challenge** (see [
 1. GitHub Actions **SSHes into the VPS** using a dedicated deploy key and a pinned host key. Its `authorized_keys` entry uses `restrict` and a forced dispatcher.
 2. The dispatcher ignores workflow-provided shell text and accepts only the connection check or the fixed Handbook deployment procedure. The VPS then runs **`git pull --ff-only`** in `~/services/zero-five-handbook/`, whose own read-only key authenticates to GitHub.
 3. Compose validates its resolved model, rebuilds the image, recreates the container, and waits for its `/docs` health check.
-4. The job proves that Docker published no handbook host port, checks `/docs` inside the container, and checks HTTPS through Traefik at `10.8.0.1` before pruning dangling images.
+4. The job proves that Docker published no handbook host port, checks `/docs` inside the container, and checks HTTPS through Traefik at `10.40.0.1` before pruning dangling images.
 
 | Piece | Location |
 |-------|----------|
@@ -112,14 +112,14 @@ rollback.
 
 | Symptom | Check |
 |---------|-------|
-| 403 from Traefik | You are not on WireGuard, or the request reached the public IP — `dig docs.zero-five.space` should return `10.8.0.1` |
-| Name doesn't resolve to `10.8.0.1` | The explicit A record is missing/edited in Cloudflare; the wildcard would take over |
-| Site unreachable on VPN | `ping 10.8.0.1` first (tunnel up?), then `docker ps` on the VPS for the `handbook` container |
+| 403 from Traefik | You are not on WireGuard, or the request reached the public IP — `dig docs.zero-five.space` should return `10.40.0.1` |
+| Name doesn't resolve to `10.40.0.1` | The explicit A record is missing/edited in Cloudflare; the wildcard would take over |
+| Site unreachable on VPN | `ping 10.40.0.1` first (tunnel up?), then `docker ps` on the VPS for the `handbook` container |
 | AI search fails | `docker logs handbook` — usually a missing/invalid `OPENROUTER_API_KEY` in `~/services/zero-five-handbook/.env` |
 | Deploy job fails at SSH | Key mismatch: repo secret `VPS_SSH_KEY` vs `~/.ssh/authorized_keys` on the VPS |
 | `Host key verification failed` | `VPS_SSH_KNOWN_HOSTS` does not contain the verified `[host]:2020` host-key line, or the VPS host key genuinely changed |
 | `docker compose ... --wait` fails | Run `docker compose ps` and `docker compose logs --tail=200 handbook`; the app health check did not become healthy within three minutes |
-| HTTPS verification returns 403 | The VPS-local request did not arrive with a `10.8.0.0/24` source; inspect Traefik access logs before changing the allowlist |
+| HTTPS verification returns 403 | The VPS-local request did not arrive with a `10.40.0.0/24` source; inspect Traefik access logs before changing the allowlist |
 
 The workflow proves the allowed path from the VPS, but it cannot prove the
 outside-VPN denial from a GitHub-hosted runner because public DNS intentionally

@@ -34,7 +34,7 @@ appropriate place to make durable edits.
 
 | Machine | Path | Purpose |
 | --- | --- | --- |
-| Alpha | `/etc/wireguard/wg0.conf` | Persistent hub config containing Gamma's public key and `AllowedIPs = 10.8.0.3/32`; also contains Alpha's secret private key |
+| Alpha | `/etc/wireguard/wg0.conf` | Persistent hub config containing Gamma's public key and `AllowedIPs = 10.40.0.3/32`; also contains Alpha's secret private key |
 | MacBook | `~/.ssh/config` | Defines `alpha`, `delta`, `gamma`, `beta`, and the Delta `ProxyJump` paths |
 | MacBook | `~/.ssh/id_ed25519` | Private SSH identity; never copy it to Alpha or Gamma |
 | MacBook | `~/.ssh/known_hosts` | Pins the SSH host identities encountered for Alpha and Gamma |
@@ -76,8 +76,8 @@ Run on Gamma:
 systemctl is-enabled wg-quick@wg0
 systemctl is-active wg-quick@wg0
 ip -brief address show wg0
-ip route show 10.8.0.1
-ping -c 3 10.8.0.1
+ip route show 10.40.0.1
+ping -c 3 10.40.0.1
 command -v gamma-suspend
 stat -c '%n owner=%U:%G mode=%a' \
   /usr/local/sbin/gamma-suspend \
@@ -117,7 +117,7 @@ Do not run `cat /etc/wireguard/private.key`, `wg showconf`, or an unredirected
 | Suspend after closing remote sessions | `sudo gamma-suspend` |
 | Shut down when physical power-on is acceptable | `sudo systemctl poweroff` |
 | Reboot | `sudo systemctl reboot` |
-| Verify Alpha over WireGuard | `ping -c 3 10.8.0.1` |
+| Verify Alpha over WireGuard | `ping -c 3 10.40.0.1` |
 | Check WireGuard boot state | `systemctl is-enabled wg-quick@wg0 && systemctl is-active wg-quick@wg0` |
 | Check WoL | `sudo ethtool enp2s0 \| grep -E 'Supports Wake-on\|Wake-on\|Link detected'` |
 | Check manual-only suspend policy | `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch HandleLidSwitchExternalPower HandleLidSwitchDocked IdleAction` |
@@ -128,8 +128,8 @@ Do not run `cat /etc/wireguard/private.key`, `wg showconf`, or an unredirected
 
 | Goal | Command |
 | --- | --- |
-| Verify Gamma route | `ip route show 10.8.0.3` |
-| Verify Gamma reachability | `ping -c 3 10.8.0.3` |
+| Verify Gamma route | `ip route show 10.40.0.3` |
+| Verify Gamma reachability | `ping -c 3 10.40.0.3` |
 | Inspect safe WireGuard metadata | `sudo wg show wg0` |
 
 Commands that print secrets are intentionally absent. If a diagnostic requires

@@ -69,7 +69,7 @@ The wake timeout, WoL target names, and suspend commands are configuration in
 
 - **The suspend command must use the ssh **alias** (e.g. `beta`), not the raw
   IP.** The `IdentityFile` for the `backup@delta` key lives in
-  `/root/.ssh/config` matched on the alias, so `root@10.8.0.4 …` gets
+  `/root/.ssh/config` matched on the alias, so `root@10.40.0.4 …` gets
   `Permission denied (publickey)` while `root@beta …` works.
 - **The controller unquotes `$suspend_cmd`** so ssh word-splits it into
   `user@host` + the command. It must be an unquoted, untrusted-position-free
@@ -88,7 +88,7 @@ Delta reaches the sources as **root** (the systemd service runs as root,
 | Delta → Beta | `ssh beta` | user `root`, port 22 |
 | Delta → Gamma | `ssh gamma` | user `manuel`, port 22 |
 
-Delta's `/etc/hosts` aliases: `alpha`→10.8.0.1, `beta`→10.8.0.4, `gamma`→10.8.0.3.
+Delta's `/etc/hosts` aliases: `alpha`→10.40.0.1, `beta`→10.40.0.4, `gamma`→10.40.0.3.
 This is **required** — Delta has no other resolution, and Alpha's SSH is on
 2020 not 22.
 

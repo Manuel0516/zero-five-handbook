@@ -91,7 +91,7 @@ On Delta, list only clean items that have manifests:
 
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity /home/manuel/.ssh/zero-five-media-relay \
   --list
 ```
@@ -116,7 +116,7 @@ Choose a destination directory on the computer running `media-pull`:
 
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity /home/manuel/.ssh/zero-five-media-relay \
   --item relay-manifest-test.txt \
   --destination /home/manuel/services/media-pull/staging
@@ -139,7 +139,7 @@ below it. The folder structure is preserved at the destination:
 
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity ~/.ssh/zero-five-media-relay \
   --item movies \
   --destination /chosen/folder
@@ -163,7 +163,7 @@ nested subfolder directly is not currently supported; select its top-level paren
 ## Pull several selected files or folders
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity /home/manuel/.ssh/zero-five-media-relay \
   --item movie-one.mkv \
   --item movie-two.mp4 \
@@ -174,7 +174,7 @@ With no `--item`, the client retains an all-eligible-items mode:
 
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity /home/manuel/.ssh/zero-five-media-relay \
   --destination /chosen/folder
 ```
@@ -194,7 +194,7 @@ Do not guess the NAS path. Confirm that the chosen directory is mounted and writ
 
 ```bash
 media-pull \
-  --delta 10.8.0.2 \
+  --delta 10.40.0.2 \
   --identity /home/manuel/.ssh/zero-five-media-relay \
   --item relay-manifest-test.txt \
   --destination /actual/mounted/nas/media

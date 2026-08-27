@@ -14,7 +14,7 @@ asleep.
 | --- | --- |
 | Hostname | `delta` |
 | LAN role | Always-on home services, private DNS, app gateway, backup controller |
-| WireGuard address | `10.8.0.2/32` |
+| WireGuard address | `10.40.0.2/32` |
 | LAN address | `192.168.1.106` (static/reserved by owner) |
 | Private DNS zone | flat `zero-five.space` names (no `home.` sub-zone) |
 | Docker services | `adguard` (DNS) + `proxy` (Traefik app gateway) |
@@ -32,7 +32,7 @@ only its public key and `/32` route.
 | SSH authentication | Key-only; password authentication disabled |
 | Alpha SSH key | Authorized for `manuel` on Delta |
 | WireGuard package and interface | Installed; `wg0` enabled and active |
-| WireGuard address | `10.8.0.2/32` |
+| WireGuard address | `10.40.0.2/32` |
 | WireGuard listen port | UDP `51820` |
 | Alpha peer and handshake | Verified: active handshake |
 | Delta SSH key on Alpha | Authorized for `manuel`; direct SSH verified over WireGuard |
@@ -117,7 +117,7 @@ Validate it before activation:
 sudo wg-quick strip wg0
 sudo systemctl enable --now wg-quick@wg0
 sudo wg show
-ping -c 3 10.8.0.1
+ping -c 3 10.40.0.1
 ```
 
 Do not restrict Delta's LAN SSH path until `ssh delta` succeeds from a second
@@ -155,10 +155,10 @@ firmware does not preserve Wake-on-LAN after full shutdown.
 Delta will answer private names for VPN and LAN clients, for example:
 
 ```text
-delta.home.zero-five.space       10.8.0.2
-gamma.home.zero-five.space       10.8.0.3
-beta.home.zero-five.space        10.8.0.4
-blackarch.home.zero-five.space   10.8.0.100
+delta.home.zero-five.space       10.40.0.2
+gamma.home.zero-five.space       10.40.0.3
+beta.home.zero-five.space        10.40.0.4
+blackarch.home.zero-five.space   10.40.0.100
 ```
 
 The DNS service must listen only on the LAN and WireGuard interfaces. It must
@@ -199,20 +199,20 @@ chosen. Do not install a backup stack speculatively.
 
 ## VPN address convention
 
-**Delta is the keeper of the `10.8.0.0/24` numbering plan** — this table is
+**Delta is the keeper of the `10.40.0.0/24` numbering plan** — this table is
 the single source of truth for who owns which WireGuard address. New devices
 pick the next free number **inside their role's range**; never reuse a number
 from another role.
 
 | Range | Assignment | Destined for |
 | --- | --- | --- |
-| `10.8.0.1` | Alpha VPS | WireGuard hub — the public entry point (UDP 51820) |
-| `10.8.0.2` | Delta Raspberry Pi | Infrastructure: AdGuard DNS, app gateway, backup controller, Mullvad gateway |
-| `10.8.0.3 – 10.8.0.9` | Trusted infrastructure & servers | Gamma (`.3`), Beta (`.4`); `.5-.9` free for future always-on nodes |
-| `10.8.0.11 – 10.8.0.19` | Personal computers (direct) | MacBook (`.11`), MSI (`.12`); `.13-.19` free |
-| `10.8.0.20 – 10.8.0.29` | Mobile devices (direct) | iPhone (`.21`); `.20, .22-.29` free |
-| `10.8.0.30 – 10.8.0.39` | **Relayed / tunneled identities** | Always `.30 + direct number`: MacBook relay `.31`, iPhone relay `.32`. These are the *through-the-VPS* identities, never assigned as direct |
-| `10.8.0.100 – 10.8.0.199` | VMs and virtual guests | BlackArch VM (`.101`); `.100, .102+` free for future VMs |
+| `10.40.0.1` | Alpha VPS | WireGuard hub — the public entry point (UDP 51820) |
+| `10.40.0.2` | Delta Raspberry Pi | Infrastructure: AdGuard DNS, app gateway, backup controller, Mullvad gateway |
+| `10.40.0.3 – 10.40.0.9` | Trusted infrastructure & servers | Gamma (`.3`), Beta (`.4`); `.5-.9` free for future always-on nodes |
+| `10.40.0.11 – 10.40.0.19` | Personal computers (direct) | MacBook (`.11`), MSI (`.12`); `.13-.19` free |
+| `10.40.0.20 – 10.40.0.29` | Mobile devices (direct) | iPhone (`.21`); `.20, .22-.29` free |
+| `10.40.0.30 – 10.40.0.39` | **Relayed / tunneled identities** | Always `.30 + direct number`: MacBook relay `.31`, iPhone relay `.32`. These are the *through-the-VPS* identities, never assigned as direct |
+| `10.40.0.100 – 10.40.0.199` | VMs and virtual guests | BlackArch VM (`.101`); `.100, .102+` free for future VMs |
 
 **Direct vs relay numbering rule (iPhone + MacBook):** each mobile/laptop
 device has TWO identities — a **direct** number in its role range (`.11`, `.21`)
@@ -224,16 +224,16 @@ exactly so the two paths are visually distinct and never collide.
 ### Reserved assignments (current)
 
 ```text
-10.8.0.1    Alpha VPS                  (hub)
-10.8.0.2    Delta Raspberry Pi         (infra)
-10.8.0.3    Gamma                      (AI host + Minecraft)
-10.8.0.4    Beta Proxmox               (VM host)
-10.8.0.11   MacBook                    (direct)
-10.8.0.12   MSI laptop                 (direct, AI backend)
-10.8.0.21   iPhone                     (direct)
-10.8.0.31   MacBook via VPS relay      (through Alpha)
-10.8.0.32   iPhone via VPS relay       (through Alpha)
-10.8.0.101  BlackArch VM               (on Beta)
+10.40.0.1    Alpha VPS                  (hub)
+10.40.0.2    Delta Raspberry Pi         (infra)
+10.40.0.3    Gamma                      (AI host + Minecraft)
+10.40.0.4    Beta Proxmox               (VM host)
+10.40.0.11   MacBook                    (direct)
+10.40.0.12   MSI laptop                 (direct, AI backend)
+10.40.0.21   iPhone                     (direct)
+10.40.0.31   MacBook via VPS relay      (through Alpha)
+10.40.0.32   iPhone via VPS relay       (through Alpha)
+10.40.0.101  BlackArch VM               (on Beta)
 ```
 
 ## Migration gate
@@ -244,11 +244,11 @@ WireGuard addresses until each migration is separately verified.
 Migrate in this order:
 
 1. Install Delta on the LAN and reserve `192.168.1.106`.
-2. Add Delta as the Alpha peer at `10.8.0.2`.
+2. Add Delta as the Alpha peer at `10.40.0.2`.
 3. Deploy private DNS and verify records from Alpha and one VPN client.
 4. Move Gamma, Beta, MacBook, MSI, and iPhone one at a time, updating both
    runtime and persistent Alpha state.
-5. Move BlackArch from `10.8.0.101` to `10.8.0.100`.
+5. Move BlackArch from `10.40.0.101` to `10.40.0.100`.
 6. Update SSH aliases, Ollama binding, firewall rules, QR templates, and all
    handbook/infra references.
 7. Reboot-test every migrated peer before removing old routes.

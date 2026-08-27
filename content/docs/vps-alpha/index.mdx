@@ -58,8 +58,8 @@ and unresolved risks.
       │
       ├─ ai.zero-five.space ───→ Open WebUI (host :3000)        (VPN-only)
       │                                └─→ ollama-router (127.0.0.1:11435)
-      │                                        ├─→ Ollama VPS    10.8.0.1:11434
-      │                                        └─→ Ollama laptop 10.8.0.12:11434
+      │                                        ├─→ Ollama VPS    10.40.0.1:11434
+      │                                        └─→ Ollama laptop 10.40.0.12:11434
       │                                                  ▲
       │                                       WireGuard tunnel (UDP 51820)
       │
@@ -67,7 +67,7 @@ and unresolved risks.
       │
       └─ traefik.zero-five.space → Traefik dashboard (basic auth)
 
-  Telegram translation bot (container) ──→ Ollama VPS 10.8.0.1:11434
+  Telegram translation bot (container) ──→ Ollama VPS 10.40.0.1:11434
 
   Hermes Agent (native systemd user units)
       ├─ Telegram bot @ZeroFive_OpenClaw_Bot (long-polling)
@@ -79,7 +79,7 @@ Three kinds of workloads coexist:
 
 1. **Docker Compose stacks** behind Traefik — the hub, second-brain, and the AI stack. See [Docker](/docs/vps-alpha/docker).
 2. **Native systemd services** — Ollama, the Minecraft server, and the hub-agent bridge.
-3. **A WireGuard VPN** (`wg0`) connecting the VPS (`10.8.0.1`) to the Linux laptop (`10.8.0.12`) so Ollama traffic never touches the public internet. See [WireGuard](/docs/vps-alpha/wireguard).
+3. **A WireGuard VPN** (`wg0`) connecting the VPS (`10.40.0.1`) to the Linux laptop (`10.40.0.12`) so Ollama traffic never touches the public internet. See [WireGuard](/docs/vps-alpha/wireguard).
 
 ---
 
@@ -113,7 +113,7 @@ Three kinds of workloads coexist:
   />
   <Card
     title="WireGuard — VPN to the laptop"
-    description="The private 10.8.0.0/24 network that carries all Ollama traffic"
+    description="The private 10.40.0.0/24 network that carries all Ollama traffic"
     href="/docs/vps-alpha/wireguard"
   />
   <Card
@@ -193,7 +193,7 @@ To recreate the server on a fresh Ubuntu VPS, follow the pages in this order:
 1. **[Security](/docs/vps-alpha/security)** — Create the user, harden SSH, enable UFW and fail2ban first
 2. **[Docker](/docs/vps-alpha/docker)** — Install Docker Engine and create the external `traefik` network
 3. **[WireGuard](/docs/vps-alpha/wireguard)** — Bring up the VPN before Ollama, which binds to it
-4. **[Ollama](/docs/vps-alpha/ollama)** — Install natively, bind to `10.8.0.1`, pull models
+4. **[Ollama](/docs/vps-alpha/ollama)** — Install natively, bind to `10.40.0.1`, pull models
 5. **[Traefik + Hub](/docs/vps-alpha/hub)** — Clone the hub repo; its compose file starts Traefik and the dashboard
 6. **[Second Brain](/docs/vps-alpha/second-brain)** — Clone, configure `.env`, deploy
 7. **[Telegram Bot](/docs/vps-alpha/telegram-bot)** — Build and run the container

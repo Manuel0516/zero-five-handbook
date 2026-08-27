@@ -25,7 +25,7 @@ YouTube-style personalized recommendation profile from listening history.
 
 ```text
 VPN client browser
-  → AdGuard rewrite: music.zero-five.space → 10.8.0.2
+  → AdGuard rewrite: music.zero-five.space → 10.40.0.2
   → Delta Traefik :443
   → Gamma Beatbump :8080
   → Gamma invidious-companion :8282
@@ -97,7 +97,7 @@ Beatbump is registered in Hub as a simple manual `web` service:
 | URL | `https://music.zero-five.space` |
 | Node | Gamma |
 | Visibility | Admin/VPN users |
-| Health URL | `http://10.8.0.3:8080/` |
+| Health URL | `http://10.40.0.3:8080/` |
 | Source | Manual |
 
 This is deliberately independent of the planned future Hub redesign.
@@ -113,8 +113,8 @@ curl -I https://music.zero-five.space/
 From Alpha or Delta, verify the Gamma backend directly:
 
 ```bash
-curl -I http://10.8.0.3:8080/
-curl -sk --resolve music.zero-five.space:443:10.8.0.2 \
+curl -I http://10.40.0.3:8080/
+curl -sk --resolve music.zero-five.space:443:10.40.0.2 \
   https://music.zero-five.space/
 ```
 

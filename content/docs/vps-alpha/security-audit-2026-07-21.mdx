@@ -59,7 +59,7 @@ here. The incident and the owner's rotation decision are recorded below.
 | SSH authentication | Port `2020`; effective `AuthenticationMethods publickey`; root, password, and keyboard-interactive login disabled; a fresh external key login succeeded after reload |
 | Key files | `~/.ssh` is mode `700`; `authorized_keys` and the outbound private key are mode `600` |
 | Firewall boundary | UFW and fail2ban services are enabled and active; IPv6 handling is enabled; outside tests reached only intended SSH/HTTP/HTTPS ports among the tested management and application ports |
-| Private services | Ollama listens on `10.8.0.1`; ollama-router and SearXNG listen on loopback; Docker publishes only Traefik `80/443` and loopback-only SearXNG `8081` |
+| Private services | Ollama listens on `10.40.0.1`; ollama-router and SearXNG listen on loopback; Docker publishes only Traefik `80/443` and loopback-only SearXNG `8081` |
 | Docker privilege | No running container is privileged and no container adds Linux capabilities |
 | Docker socket | Traefik has no direct socket mount; separate digest-pinned proxies allow required GET endpoints and deny POST for Traefik and the Hub backend |
 | Host protections | AppArmor, time synchronization, unattended upgrades, protected links/FIFOs, restricted kernel pointers/dmesg, and unprivileged-BPF restrictions are active |
@@ -208,7 +208,7 @@ services, and rebooted with the provider console retained as recovery access.
 The reboot exposed a pre-existing typo in persistent WireGuard state:
 `10.0.10` could not be parsed as a peer address. Runtime state before reboot had
 masked the invalid file. The single malformed occurrence was corrected to the
-modeled iPhone route `10.8.0.21/32`; `wg-quick strip` validated the full
+modeled iPhone route `10.40.0.21/32`; `wg-quick strip` validated the full
 root-only file before activation. WireGuard, Ollama, and the VPN-only Handbook
 then recovered. Final checks found kernel `6.8.0-136-generic`, no reboot-required
 marker, active SSH/Docker/fail2ban/WireGuard/Ollama/hub-agent services, a clean

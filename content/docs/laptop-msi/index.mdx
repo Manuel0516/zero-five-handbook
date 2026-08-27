@@ -19,25 +19,25 @@ restorable source files.
 ```mermaid
 flowchart LR
     msi["MSI Alpha 15<br/>laptop-msi<br/>CachyOS + Hyprland"]
-    gamma["Gamma<br/>10.8.0.3<br/>AI host"]
+    gamma["Gamma<br/>10.40.0.3<br/>AI host"]
     router["ollama-router on gamma<br/>127.0.0.1:11435"]
     webui["Open WebUI<br/>ai.zero-five.space"]
-    alpha["Alpha VPS<br/>10.8.0.1<br/>WireGuard hub"]
+    alpha["Alpha VPS<br/>10.40.0.1<br/>WireGuard hub"]
     mac["MacBook<br/>administration"]
     localdrop["LocalDrop<br/>clipboard + files"]
 
-    msi <-->|"mutual WG peer<br/>10.8.0.12 ⇄ 10.8.0.3<br/>LAN 51820"| gamma
-    msi -->|"Ollama 10.8.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"| router
+    msi <-->|"mutual WG peer<br/>10.40.0.12 ⇄ 10.40.0.3<br/>LAN 51820"| gamma
+    msi -->|"Ollama 10.40.0.12:11434<br/>deepseek-r1:7b, qwen2.5-coder:7b"| router
     gamma --> router
     router --> webui
     webui -. "Traefik on Alpha" .-> alpha
-    msi -->|"peer 10.8.0.12"| alpha
+    msi -->|"peer 10.40.0.12"| alpha
     mac -->|"local network"| localdrop
     msi -->|"local network"| localdrop
 ```
 
 The MSI is a personal Linux desktop **and a live AI backend**. It runs
-Ollama (`10.8.0.12:11434`) with `deepseek-r1:7b` and `qwen2.5-coder:7b`, and
+Ollama (`10.40.0.12:11434`) with `deepseek-r1:7b` and `qwen2.5-coder:7b`, and
 since 2026-08-24 it is wired to gamma through a **mutual WireGuard peer**
 (default port 51820, LAN endpoints) so gamma's ollama-router merges the MSI
 models into Open WebUI — the laptop branch is fully deployed and verified
@@ -50,7 +50,7 @@ models into Open WebUI — the laptop branch is fully deployed and verified
 | Hostname | `msi` (renamed from `alpha` on 2026-08-12) |
 | Operating system | CachyOS Linux, rolling release |
 | LAN address | Not yet verified |
-| WireGuard | MSI migration target at `10.8.0.12/32`; live cutover pending |
+| WireGuard | MSI migration target at `10.40.0.12/32`; live cutover pending |
 | Role | Personal Linux desktop and prospective laptop AI backend |
 
 ## Naming convention
@@ -74,7 +74,7 @@ hostname and handbook title can be updated in one reviewed change.
 | --- | --- |
 | [Configuration reference](/docs/laptop-msi/configuration-reference) | Ownership and exact paths for captured settings and excluded state |
 | [Desktop](/docs/laptop-msi/desktop) | Hyprland, Caelestia, monitors, keybinds, themes, and session environment |
-| [WireGuard](/docs/laptop-msi/wireguard) | MSI peer migration to `10.8.0.12`, narrow routing, verification, and rollback |
+| [WireGuard](/docs/laptop-msi/wireguard) | MSI peer migration to `10.40.0.12`, narrow routing, verification, and rollback |
 | [Ollama](/docs/laptop-msi/ollama) | Native service, VPN binding, model inventory, and AI-stack relationship |
 | [LocalDrop](/docs/laptop-msi/localdrop) | Clipboard/file sync project, secret-bearing config, systemd, and recovery |
 | [Tools](/docs/laptop-msi/tools) | Packages, terminals, editors, and reproducible user tooling |

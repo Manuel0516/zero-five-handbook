@@ -19,20 +19,20 @@ interface that transparently uses models on different machines over
 ```text
 Browser (on VPN) → https://ai.zero-five.space (Traefik on alpha, VPN-only)
              │
-        Open WebUI — NOW ON GAMMA host :3000 (10.8.0.3)
+        Open WebUI — NOW ON GAMMA host :3000 (10.40.0.3)
              │
         ollama-router — NOW ON GAMMA (127.0.0.1:11435)
-             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, nomic-embed-text
-             └──→ MSI Ollama     10.8.0.12:11434  → no models yet
+             ├──→ gamma Ollama  10.40.0.3:11434  → qwen2.5:3b, nomic-embed-text
+             └──→ MSI Ollama     10.40.0.12:11434  → no models yet
 ```
 
 ## What still runs on alpha
 
 | Piece | Detail |
 |-------|--------|
-| Traefik edge | `ai.zero-five.space` router → `http://10.8.0.3:3000` (mesh) — see `traefik/dynamic/host-services.yml` |
-| Ollama daemon | native systemd, `10.8.0.1:11434`, **only `translategemma:4b`** |
-| Translation bot | `~/services/telegram-translation-bot`, calls `10.8.0.1:11434` |
+| Traefik edge | `ai.zero-five.space` router → `http://10.40.0.3:3000` (mesh) — see `traefik/dynamic/host-services.yml` |
+| Ollama daemon | native systemd, `10.40.0.1:11434`, **only `translategemma:4b`** |
+| Translation bot | `~/services/telegram-translation-bot`, calls `10.40.0.1:11434` |
 
 The Open WebUI, ollama-router, and SearXNG containers were removed from alpha;
 `qwen2.5:3b` and `nomic-embed-text` were deleted from alpha's Ollama.
@@ -44,13 +44,13 @@ current full picture), the stack ran entirely on alpha:
 
 - Open WebUI at `host :3000` (`network_mode: host`), data in volume
   `server_open-webui`
-- ollama-router merging VPS (`10.8.0.1:11434`) + laptop (`10.8.0.12:11434`)
+- ollama-router merging VPS (`10.40.0.1:11434`) + laptop (`10.40.0.12:11434`)
 - SearXNG at `127.0.0.1:8081` as Open WebUI's web-search backend
-- Ollama bound to `10.8.0.1:11434` with `qwen2.5:3b`, `translategemma:4b`,
+- Ollama bound to `10.40.0.1:11434` with `qwen2.5:3b`, `translategemma:4b`,
   `nomic-embed-text`
 
 ## URL and access (unchanged)
 
-- **https://ai.zero-five.space** — VPN only (`ipWhiteList 10.8.0.0/24`), DNS →
-  `10.8.0.1` (alpha), Traefik proxies over the mesh to gamma.
+- **https://ai.zero-five.space** — VPN only (`ipWhiteList 10.40.0.0/24`), DNS →
+  `10.40.0.1` (alpha), Traefik proxies over the mesh to gamma.
 - Port 3000 is not opened in alpha's UFW; the mesh path needs no extra rule.

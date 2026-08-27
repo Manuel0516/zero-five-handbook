@@ -3,11 +3,11 @@ title: WireGuard
 description: Gamma's primary Alpha WireGuard path, direct Delta fallback, routing, and verification.
 ---
 
-Gamma is a distinct peer at `10.8.0.3/32`. It does not replace the MSI
-laptop at `10.8.0.12` or the MacBook at `10.8.0.11`.
+Gamma is a distinct peer at `10.40.0.3/32`. It does not replace the MSI
+laptop at `10.40.0.12` or the MacBook at `10.40.0.11`.
 
-Gamma has **three** narrow WireGuard peers: Alpha at `10.8.0.1/32`, Delta at
-`10.8.0.2/32`, and **MSI at `10.8.0.12/32` (mutual peer, added 2026-08-24 —
+Gamma has **three** narrow WireGuard peers: Alpha at `10.40.0.1/32`, Delta at
+`10.40.0.2/32`, and **MSI at `10.40.0.12/32` (mutual peer, added 2026-08-24 —
 LAN endpoints `192.168.1.107:51820` ⇄ `192.168.1.110:51820`, default ports)**.
 Gamma's ordinary internet and package downloads continue to use the home
 router. `PersistentKeepalive = 25` keeps each NAT mapping usable while Gamma
@@ -15,22 +15,22 @@ is quiet.
 
 ## Verified current state
 
-On 2026-07-22, Gamma's `wg0` interface was present at `10.8.0.3/32`, its route
-to `10.8.0.1` used `wg0`, and `wg-quick@wg0` was both enabled and active after
-a Wake-on-LAN resume. Gamma reached Alpha at `10.8.0.1`, Alpha reached Gamma at
-`10.8.0.3`, and the MacBook completed `ssh gamma` through Alpha.
+On 2026-07-22, Gamma's `wg0` interface was present at `10.40.0.3/32`, its route
+to `10.40.0.1` used `wg0`, and `wg-quick@wg0` was both enabled and active after
+a Wake-on-LAN resume. Gamma reached Alpha at `10.40.0.1`, Alpha reached Gamma at
+`10.40.0.3`, and the MacBook completed `ssh gamma` through Alpha.
 
 On 2026-08-13, the reciprocal Delta peer was added to Gamma's persistent and
-live configuration. Gamma's route to `10.8.0.2` uses `wg0`; Delta pinged
+live configuration. Gamma's route to `10.40.0.2` uses `wg0`; Delta pinged
 Gamma successfully with 0% packet loss and Delta logged in to Gamma as
 `manuel` over the direct tunnel.
 
 On 2026-08-24, the **MSI mutual peer** was added: Gamma's `wg0` listens on
 `51820` (default, was 51822) and the MSI peer (`PublicKey EY6Hvumu…`,
-`AllowedIPs 10.8.0.12/32`, endpoint `192.168.1.110:51820`) was applied live
+`AllowedIPs 10.40.0.12/32`, endpoint `192.168.1.110:51820`) was applied live
 and persisted in `/etc/wireguard/wg0.conf`. This peer exists so the
-ollama-router on gamma can reach the MSI's Ollama (`10.8.0.12:11434`) — the
-MSI UFW opens `11434` only to `10.8.0.3` and `10.8.0.1` on `wg0`.
+ollama-router on gamma can reach the MSI's Ollama (`10.40.0.12:11434`) — the
+MSI UFW opens `11434` only to `10.40.0.3` and `10.40.0.1` on `wg0`.
 
 The direct Delta peer is a fallback path, not broad client-to-client
 forwarding: Gamma still routes only Alpha, Delta, and MSI's `/32`s through
@@ -90,7 +90,7 @@ an erased or untrusted installation.
 
 ## Activate runtime state first
 
-Before adding Gamma, verify that `10.8.0.3/32` is absent from the live VPS:
+Before adding Gamma, verify that `10.40.0.3/32` is absent from the live VPS:
 
 ```bash
 sudo wg show wg0 allowed-ips
@@ -104,11 +104,11 @@ then verify both directions:
 # On Alpha
 sudo wg set wg0 \
   peer '4+S25E4bN2naE00/N44R78RqvUxCzINGlCn4C2rMllg=' \
-  allowed-ips 10.8.0.3/32
+  allowed-ips 10.40.0.3/32
 
 # On Gamma
 sudo wg-quick up wg0
-ping -c 3 10.8.0.1
+ping -c 3 10.40.0.1
 sudo wg show
 ```
 
@@ -119,11 +119,11 @@ For the direct Delta fallback, Gamma's peer is:
 # Peer: delta
 PublicKey = Z/6DvFn45OIUQqngXhdSUJn03WVsaCS1htuJP4PKhw4=
 Endpoint = delta-vpn.zero-five.space:51820
-AllowedIPs = 10.8.0.2/32
+AllowedIPs = 10.40.0.2/32
 PersistentKeepalive = 25
 ```
 
-On the VPS, verify a recent Gamma handshake and ping `10.8.0.3`. Only after
+On the VPS, verify a recent Gamma handshake and ping `10.40.0.3`. Only after
 runtime success should the same peer block be saved in the VPS's root-owned
 `/etc/wireguard/wg0.conf`, and Gamma enabled at boot:
 
@@ -145,10 +145,10 @@ On Gamma:
 systemctl is-enabled wg-quick@wg0
 systemctl is-active wg-quick@wg0
 ip -brief address show wg0
-ip route show 10.8.0.1
-ip route show 10.8.0.2
-ping -c 3 10.8.0.1
-ping -c 3 10.8.0.2
+ip route show 10.40.0.1
+ip route show 10.40.0.2
+ping -c 3 10.40.0.1
+ping -c 3 10.40.0.2
 sudo wg show wg0
 ```
 
@@ -156,17 +156,17 @@ On Alpha:
 
 ```bash
 ip -brief address show wg0
-ip route show 10.8.0.3
-ping -c 3 10.8.0.3
+ip route show 10.40.0.3
+ping -c 3 10.40.0.3
 sudo wg show wg0
 ```
 
 On Delta, verify Gamma's reciprocal peer and direct path:
 
 ```bash
-ip route get 10.8.0.3
-ping -c 3 10.8.0.3
-ssh manuel@10.8.0.3
+ip route get 10.40.0.3
+ping -c 3 10.40.0.3
+ssh manuel@10.40.0.3
 ```
 
 `wg show` exposes public peer metadata, handshake times, endpoints, and byte
@@ -182,7 +182,7 @@ If `ssh gamma` initially fails, wait briefly and check:
 
 ```bash
 systemctl is-active wg-quick@wg0
-ping -c 3 10.8.0.1
+ping -c 3 10.40.0.1
 ```
 
 ## Rollback

@@ -18,7 +18,7 @@ Gamma uses systemd socket activation: `ssh.socket` is enabled and active, while
 connection and starts the service when needed.
 
 Direct LAN SSH to `manuel@192.168.1.107` is the recovery path. On 2026-08-13,
-Delta successfully pinged `10.8.0.3` and logged in as `manuel` over the direct
+Delta successfully pinged `10.40.0.3` and logged in as `manuel` over the direct
 Delta↔Gamma WireGuard path. Alpha's equivalent SSH check still needs a local
 host-key verification refresh; this is not a WireGuard failure.
 
@@ -26,10 +26,10 @@ host-key verification refresh; this is not a WireGuard failure.
 
 ```text
 MacBook -> delta:22       (Delta over WireGuard)
-        -> 10.8.0.3:22   (Gamma over WireGuard)
+        -> 10.40.0.3:22   (Gamma over WireGuard)
 
-Delta  -> 10.8.0.2:443 (direct WireGuard peer)
-        -> 10.8.0.3:22   (Gamma SSH)
+Delta  -> 10.40.0.2:443 (direct WireGuard peer)
+        -> 10.40.0.3:22   (Gamma SSH)
 ```
 
 The hub denies general client-to-client forwarding. `ProxyJump` avoids opening
@@ -65,7 +65,7 @@ Host alpha
   IdentitiesOnly yes
 
 Host gamma
-  HostName 10.8.0.3
+  HostName 10.40.0.3
   User manuel
   Port 22
   IdentityFile ~/.ssh/id_ed25519
@@ -88,7 +88,7 @@ ssh -G gamma | grep -E \
 Expected values include:
 
 ```text
-hostname 10.8.0.3
+hostname 10.40.0.3
 user manuel
 port 22
 identitiesonly yes
@@ -109,8 +109,8 @@ On Gamma, inspect the source of the current SSH connection:
 printf '%s\n' "$SSH_CONNECTION"
 ```
 
-The first field should be Alpha's VPN address, `10.8.0.1`, for the primary
-path, or Delta's VPN address, `10.8.0.2`, for the direct fallback path.
+The first field should be Alpha's VPN address, `10.40.0.1`, for the primary
+path, or Delta's VPN address, `10.40.0.2`, for the direct fallback path.
 
 ## Verify host identity
 
@@ -192,7 +192,7 @@ ssh gamma 'shasum -a 256 /home/manuel/local-file'
 Work in hop order:
 
 1. `ssh alpha` proves the public Alpha connection.
-2. On Alpha, `ping -c 3 10.8.0.3` proves its WireGuard route to Gamma.
+2. On Alpha, `ping -c 3 10.40.0.3` proves its WireGuard route to Gamma.
 3. On Gamma's console, `systemctl status ssh.socket --no-pager` proves the SSH
    listener.
 4. `ssh -vv gamma` shows jump-host, host-key, and authentication failures

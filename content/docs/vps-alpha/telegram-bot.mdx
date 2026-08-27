@@ -28,14 +28,14 @@ Emoji-only messages, photos, videos, and stickers are ignored, and each chat can
 
 ## Deployment on the VPS
 
-Runs as a **standalone container** (built from the repo's Dockerfile, started with `docker run` — not Compose, which is why `docker ps` shows a random name like `blissful_darwin`). It publishes no ports; it only makes outbound calls to Telegram and to Ollama at `10.8.0.1:11434`.
+Runs as a **standalone container** (built from the repo's Dockerfile, started with `docker run` — not Compose, which is why `docker ps` shows a random name like `blissful_darwin`). It publishes no ports; it only makes outbound calls to Telegram and to Ollama at `10.40.0.1:11434`.
 
 Configuration in `.env` (see `.env.example`):
 
 | Variable | Value on the VPS | Notes |
 |----------|------------------|-------|
 | `TELEGRAM_BOT_TOKEN` | secret | From [@BotFather](https://t.me/BotFather) |
-| `OLLAMA_URL` | `http://10.8.0.1:11434/api/chat` | The VPN-bound host Ollama |
+| `OLLAMA_URL` | `http://10.40.0.1:11434/api/chat` | The VPN-bound host Ollama |
 | `OLLAMA_MODEL` | `translategemma:4b` | Purpose-built translation model |
 | `MAX_CONTEXT_MESSAGES` | `6` (default) | Context window for better translations |
 | `REQUEST_TIMEOUT` | `60` (default) | Seconds per Ollama request |
@@ -64,6 +64,6 @@ docker run -d --restart unless-stopped --name translation-bot --env-file .env te
 
 | Symptom | Check |
 |---------|-------|
-| No replies | `docker logs -f translation-bot`; is Ollama up? `curl http://10.8.0.1:11434/api/tags` |
+| No replies | `docker logs -f translation-bot`; is Ollama up? `curl http://10.40.0.1:11434/api/tags` |
 | Slow replies | `translategemma:4b` may be cold-loading (first request after 10-min keep-alive) |
 | Wrong language detected | lingua struggles with very short messages — expected behavior |

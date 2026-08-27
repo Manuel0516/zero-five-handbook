@@ -18,9 +18,9 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
         Open WebUI (gamma host :3000)   <- backend 127.0.0.1:11435 (router)
              │
         ollama-router (gamma 127.0.0.1:11435)
-             ├──→ gamma Ollama  10.8.0.3:11434  → qwen2.5:3b, qwen2.5:1.5b, nomic-embed-text, openbmb/minicpm5
-             ├──→ alpha Ollama  10.8.0.1:11434  → translategemma:4b
-             └──→ MSI Ollama     10.8.0.12:11434  → deepseek-r1:7b, qwen2.5-coder:7b
+             ├──→ gamma Ollama  10.40.0.3:11434  → qwen2.5:3b, qwen2.5:1.5b, nomic-embed-text, openbmb/minicpm5
+             ├──→ alpha Ollama  10.40.0.1:11434  → translategemma:4b
+             └──→ MSI Ollama     10.40.0.12:11434  → deepseek-r1:7b, qwen2.5-coder:7b
 ```
 
 ## What lives where (post-migration, verified 2026-08-24)
@@ -28,15 +28,15 @@ Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)
 | Piece | Machine | Detail |
 |-------|---------|--------|
 | Open WebUI | gamma | `~/services/personal-ai/server`, volume `server_open-webui` (migrated from alpha) |
-| ollama-router | gamma | `~/services/personal-ai/router`, `SERVER_OLLAMA_URL=http://10.8.0.3:11434` |
+| ollama-router | gamma | `~/services/personal-ai/router`, `SERVER_OLLAMA_URL=http://10.40.0.3:11434` |
 | SearXNG | gamma | `~/services/personal-ai/web-search`, `127.0.0.1:8081` only |
-| Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.8.0.3:11434` |
+| Ollama daemon | gamma | native systemd, `OLLAMA_HOST=10.40.0.3:11434` |
 | `qwen2.5:3b`, `qwen2.5:1.5b`, `nomic-embed-text`, `openbmb/minicpm5:latest` | gamma | chat + embeddings (Server leg). MiniCPM5 uses a router-injected 8192-token context and has tools stripped. |
 
-| Ollama daemon | MSI | native, `OLLAMA_HOST=10.8.0.12:11434` |
+| Ollama daemon | MSI | native, `OLLAMA_HOST=10.40.0.12:11434` |
 | `deepseek-r1:7b` + `qwen2.5-coder:7b` | MSI | the "laptop leg" — reachable via the gamma↔MSI WG peer |
-| `translategemma:4b` + Ollama | **alpha** | served to the WebUI via the router's **alpha leg** (`10.8.0.1:11434`); also still used directly by the translation bot |
-| translation-bot container | alpha | untouched, calls `10.8.0.1:11434` |
+| `translategemma:4b` + Ollama | **alpha** | served to the WebUI via the router's **alpha leg** (`10.40.0.1:11434`); also still used directly by the translation bot |
+| translation-bot container | alpha | untouched, calls `10.40.0.1:11434` |
 
 **Router health check** (all three legs live):
 ```bash
@@ -48,7 +48,7 @@ curl http://127.0.0.1:11435/health
 
 ## The MSI laptop leg — mutual WireGuard peer (2026-08-24)
 
-The router's laptop backend points at `10.8.0.12:11434`, but gamma's wg0
+The router's laptop backend points at `10.40.0.12:11434`, but gamma's wg0
 originally had **no route to the MSI** — the router used to live on alpha,
 which (as the WG hub) could reach every peer. Fix: a **mutual peer** between
 gamma and MSI, both on the home LAN, both using **default port 51820** (gamma
@@ -56,11 +56,11 @@ was on 51822; moved to 51820 to keep things simple).
 
 - **Gamma** `/etc/wireguard/wg0.conf`: `ListenPort = 51820` + MSI peer
   (`PublicKey EY6Hvumu…`, `Endpoint 192.168.1.110:51820`, `AllowedIPs
-  10.8.0.12/32`, `PersistentKeepalive 25`)
+  10.40.0.12/32`, `PersistentKeepalive 25`)
 - **MSI** `/etc/wireguard/wg0.conf`: gamma peer (`PublicKey 4+S25E4b…`,
-  `Endpoint 192.168.1.107:51820`, `AllowedIPs 10.8.0.3/32`, `PersistentKeepalive
+  `Endpoint 192.168.1.107:51820`, `AllowedIPs 10.40.0.3/32`, `PersistentKeepalive
   25`)
-- **MSI UFW**: `sudo ufw allow in on wg0 from 10.8.0.3 to any port 11434 proto
+- **MSI UFW**: `sudo ufw allow in on wg0 from 10.40.0.3 to any port 11434 proto
   tcp` (previously only alpha was allowed)
 
 LAN endpoints (not the DDNS name) are deliberate: the home router's hairpin
@@ -68,14 +68,14 @@ NAT is broken for WireGuard, so home-to-home peers must use LAN IPs — same
 pattern as the MSI→delta and beta→delta fixes. Roaming caveat: the LAN
 endpoints only work while both machines are at home.
 
-Verify: `ping 10.8.0.12` from gamma, `curl http://10.8.0.12:11434/api/tags`
+Verify: `ping 10.40.0.12` from gamma, `curl http://10.40.0.12:11434/api/tags`
 from gamma, and the router `/health` above.
 
 ## Gamma-specific configuration
 
 Ollama follows the same pattern as alpha but binds to gamma's mesh address:
 `/etc/systemd/system/ollama.service.d/override.conf` sets
-`OLLAMA_HOST=10.8.0.3:11434` and `OLLAMA_KEEP_ALIVE=10m`.
+`OLLAMA_HOST=10.40.0.3:11434` and `OLLAMA_KEEP_ALIVE=10m`.
 
 The router's `src/ollama_router/` was patched locally on gamma (not pushed to
 the repo — deployment-specific):
@@ -149,7 +149,7 @@ Verify the stack in dependency order:
 
 ```bash
 systemctl is-active ollama
-curl --fail http://10.8.0.3:11434/api/tags
+curl --fail http://10.40.0.3:11434/api/tags
 curl --fail http://127.0.0.1:11435/health
 cd ~/services/personal-ai/server && docker compose ps
 cd ~/services/personal-ai/router && docker compose ps
@@ -167,7 +167,7 @@ intentionally deleting persistent data.
 |------|---------|
 | Check router + backends | `curl http://127.0.0.1:11435/health` |
 | Restart Open WebUI | `cd ~/services/personal-ai/server && docker compose restart` |
-| Models | `export OLLAMA_HOST=10.8.0.3:11434 && ollama list` |
+| Models | `export OLLAMA_HOST=10.40.0.3:11434 && ollama list` |
 
 ## Notes
 

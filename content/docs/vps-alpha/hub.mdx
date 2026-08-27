@@ -5,7 +5,7 @@ description: The self-hosted control panel at hub.zero-five.space — architectu
 
 [Project Hub](https://github.com/Manuel0516/hub) is the dashboard at **[hub.zero-five.space](https://hub.zero-five.space)** that monitors and controls every VPS service. FastAPI + React + SQLite, served behind [Traefik](/docs/vps-alpha/traefik). Deployed at `~/services/hub`.
 
-> **Access:** The dashboard is **VPN-only** — `hub.zero-five.space` resolves to `10.8.0.1` and its Traefik router carries the `ipWhiteList 10.8.0.0/24` middleware, exactly the [VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern) used by the handbook. Off the VPN it is unreachable (DNS points into the tunnel and the public IP answers 403).
+> **Access:** The dashboard is **VPN-only** — `hub.zero-five.space` resolves to `10.40.0.1` and its Traefik router carries the `ipWhiteList 10.40.0.0/24` middleware, exactly the [VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern) used by the handbook. Off the VPN it is unreachable (DNS points into the tunnel and the public IP answers 403).
 
 ## Features (v2)
 
@@ -29,10 +29,10 @@ service list:
 
 | Node | Mesh address | Relay role |
 |---|---:|---|
-| Alpha VPS | `10.8.0.1` | Existing Docker socket-proxy and Alpha host-agent |
-| Delta Raspberry | `10.8.0.2` | Sole on-premises relay, telemetry collector, service discovery, and LAN WoL relay |
-| Gamma laptop | `10.8.0.3` | Telemetry and services collected/controlled through Delta |
-| Beta laptop | `10.8.0.4` | Telemetry and services collected/controlled through Delta |
+| Alpha VPS | `10.40.0.1` | Existing Docker socket-proxy and Alpha host-agent |
+| Delta Raspberry | `10.40.0.2` | Sole on-premises relay, telemetry collector, service discovery, and LAN WoL relay |
+| Gamma laptop | `10.40.0.3` | Telemetry and services collected/controlled through Delta |
+| Beta laptop | `10.40.0.4` | Telemetry and services collected/controlled through Delta |
 
 The Hub database now has a `nodes` table and associates each service with a
 hosting node. The dashboard can display RAM, configured storage, load/uptime,

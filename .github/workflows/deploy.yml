@@ -109,6 +109,7 @@ jobs:
           for attempt in $(seq 1 30); do
             if curl --fail --silent --show-error --head \
               --connect-timeout 5 --max-time 15 \
+              --interface 10.40.0.1 \
               --resolve docs.zero-five.space:443:10.40.0.1 \
               https://docs.zero-five.space/; then
               break

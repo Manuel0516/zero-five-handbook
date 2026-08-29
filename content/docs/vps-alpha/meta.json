@@ -12,6 +12,7 @@
     "second-brain",
     "crypto-ledger",
     "telegram-bot",
-    "hermes-agent"
+    "hermes-agent",
+    "pancakeswap-lp-manager"
   ]
 }

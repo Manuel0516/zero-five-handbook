@@ -1,98 +1,76 @@
 ---
-title: PancakeSwap LP Manager
-description: Guarded Hermes Agent service for one isolated PancakeSwap V3 BNB/USDC position — read-only until the wallet and exact NFT are verified.
+title: PancakeSwap LP Market Observer
+description: Read-only Hermes analysis service for one PancakeSwap V3 BNB/USDC position.
 ---
 
-> **Status: installed and read-only — 2026-08-29.** The service is deployed locally on Alpha, but no wallet, position NFT, contract addresses, RPC credentials, or signer are configured yet. This page describes the verified installation and the remaining operator gates; it does not claim that live trading is enabled.
+> **Status: deployed read-only observer — 2026-09-02.** This service reads and analyses one existing PancakeSwap V3 BNB/USDC LP on BNB Smart Chain. It cannot sign, pair a wallet, submit transactions, transfer assets, collect fees, swap, mint, burn, or rebalance.
 
 ## Purpose
 
-`pancakeswap-lp-manager` is a deliberately restricted Hermes Agent skill and companion MCP service for one experimental PancakeSwap V3 BNB/USDC position on BNB Smart Chain (chain ID `56`). Hermes may analyse verified observations, compare waiting with candidate ranges, and produce a hashed proposal. The deterministic service remains the enforcement boundary for every eventual mutation.
+`pancakeswap-lp-manager` is a local read-only market-observation and research service. It helps the owner decide how to manage their own LP over a multi-year horizon by reporting live position state, fee estimates, range risk, historical observations, and candidate range analysis.
 
-The first operating mode is **approval required**. Automatic mode is disabled. The owner’s primary MetaMask seed phrase is never required or accepted.
+The owner remains the only person who can act on the position in their own wallet. Hermes provides analysis, not execution or authorization.
 
 ## Verified deployment
 
 | Property | Value |
 |---|---|
 | Source | `~/services/pancakeswap-lp-manager` |
-| Repository | Local Git repository, branch `main` (not yet published) |
 | Container | `pancakeswap-lp-manager` |
 | HTTP health | `127.0.0.1:8788/health` |
 | MCP transport | Hermes native stdio MCP |
-| Hermes MCP key | `pancakeswap-lp-manager` |
-| State | Docker-managed `lp-data` volume |
+| Current mode | Read-only; `mutations_enabled: false` |
+| State | Docker-managed `lp-data` audit/history volume |
 | Container user | Non-root `lpmanager` |
 | Root filesystem | Read-only; all Linux capabilities dropped |
-| Current mode | Approval-required, mutation-disabled |
-| Position NFT | Not configured or locked |
 
-The health check currently returns `mutations_enabled: false` and `position_locked: false`. MCP discovery exposes only the bounded position-management tool set; it does not expose arbitrary calls, arbitrary signing, seed export, native BNB sending, or unrestricted shell execution.
+The observer only exposes position reads, history export, market-metric calculation, and range-analysis tools. There is no wallet connector, signer, transaction decoder/constructor, execution route, approval registry, or public LP hostname.
 
 ## Architecture
 
 ```text
-Hermes reasoning loop
+Hermes reasoning / scheduled analysis
         │ native stdio MCP
         ▼
-pancakeswap-lp-manager
-  ├─ deterministic policy guard
-  ├─ market-analysis primitives
-  ├─ SQLite audit store
-  └─ mutation boundary (currently hard-denied)
-        │
-        └─ future: verified MetaMask Agent Wallet / BSC RPC
+PancakeSwap LP Market Observer
+  ├─ fresh read-only BSC RPC position reads
+  ├─ read-only pending-fee collect quote
+  ├─ range, trend and volatility analysis
+  └─ SQLite observation/history store
 ```
 
-The service is loopback-only and is not routed through Traefik or exposed publicly. This is intentional: it has no user-facing dashboard or remote API requirement at this stage.
+## What reports provide
 
-## Tomorrow’s activation gates
+The scheduled reports show, where live data is available:
 
-Do not enable live management until all of these are evidenced:
+- LP value and USDC/BNB composition in USD;
+- current price, ticks, opening range, normalized boundary distance, and range status;
+- pending fees as a **read-only quote**, not collected income;
+- measured fee samples and explicit data-history limits;
+- range-risk, BNB exposure, volatility/trend evidence, and alternatives such as waiting, wider ranges, or recentering;
+- a research conclusion such as `WAIT`, `WATCH`, or `REBALANCE REVIEW`—never an instruction or transaction proposal.
 
-1. A fresh MetaMask Agent Wallet exists in server-wallet mode, Guard Mode, BNB Smart Chain, chain ID `56`.
-2. The wallet contains only the experimental position’s tokens/NFT and a deliberately limited BNB gas reserve.
-3. Official PancakeSwap V3 position-manager, pool, token addresses, and fee tier are independently verified.
-4. The new approximately-$10 position is confirmed on-chain.
-5. The exact NFT token ID is read from the confirmed receipt and independently checked for owner, pool, pair, fee tier, ticks, and balances.
-6. The NFT ID is locked by an administrative configuration revision and becomes immutable during normal operation.
-7. Every transaction path decodes calldata and validates the exact NFT ID, chain, contracts, tokens, limits, nonce, expiry, simulation, and expected movements.
-8. MetaMask approval delivery works through the configured mobile/QR workflow.
-9. Read-only RPC redundancy and valuation provenance for USD, EUR, and SEK are configured.
-
-Until these gates pass, the service must remain read-only. No long observation period is required, but no technical gate may be skipped.
+No projection is presented as a guaranteed return. Fee, volatility, impermanent-loss, and compounding estimates must state their data window, assumptions, and limitations.
 
 ## Operations
-
-Inspect the running service:
 
 ```bash
 cd ~/services/pancakeswap-lp-manager
 docker compose ps
 curl -fsS http://127.0.0.1:8788/health
+curl -fsS http://127.0.0.1:8788/v1/managed-position
 hermes mcp test pancakeswap-lp-manager
 ```
 
-Stop it immediately:
-
-```bash
-cd ~/services/pancakeswap-lp-manager
-docker compose stop lp-guard-mcp
-```
-
-The full service runbook, security model, accounting requirements, and recovery procedure are in the repository’s `docs/` directory.
-
-## Rollback
-
-This installation can be stopped without touching the wallet or any blockchain position:
+To stop the observer without affecting the wallet or LP:
 
 ```bash
 cd ~/services/pancakeswap-lp-manager
 docker compose down
 ```
 
-Do not use `docker compose down -v` unless the audit volume has been exported and the owner explicitly wants the audit history removed. Re-enabling the service returns it to the safe read-only state.
+Do not run `docker compose down -v` unless the owner explicitly wants observation/audit history removed.
 
-## Repository and publication status
+## Repository status
 
-The service repository was initialized locally under `~/services/pancakeswap-lp-manager`. It has not been committed or pushed. Handbook changes are intentionally left uncommitted for review. No secrets, wallet keys, addresses, or account identifiers are included here.
+The service repository and this handbook documentation remain uncommitted pending explicit owner approval. No wallet keys, addresses, seed phrases, or account identifiers are documented here.

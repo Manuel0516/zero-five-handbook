@@ -106,16 +106,13 @@ jobs:
           test "$(docker inspect handbook --format '{{json .HostConfig.PortBindings}}')" = "{}"
           docker compose exec -T handbook node -e \
             "fetch('http://127.0.0.1:3000/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-          # Traefik can take longer than the container health check to observe
-          # a replacement container on its Docker provider. Keep the deploy
-          # successful only after the VPN-routed public path is reachable.
-          # Resolving directly to Alpha's WireGuard address naturally selects
-          # the correct local route; forcing curl to bind that same address is
-          # unnecessary and has made this post-deploy probe flaky.
+          # Verify the Traefik ingress path through Alpha's loopback. Traefik
+          # sees that request as its local Docker bridge gateway, which is
+          # explicitly allowlisted alongside the mesh.
           for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error --head \
               --connect-timeout 5 --max-time 15 \
-              --resolve docs.zero-five.space:443:10.40.0.1 \
+              --resolve docs.zero-five.space:443:127.0.0.1 \
               https://docs.zero-five.space/; then
               break
             fi

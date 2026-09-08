@@ -32,10 +32,11 @@ services:
       - "traefik.http.routers.handbook.entrypoints=websecure"
       - "traefik.http.routers.handbook.tls.certresolver=letsencrypt"
       # docs.zero-five.space resolves to the VPN address, so legitimate clients
-      # arrive over wg0 with a source from one of the transition VPN ranges.
+      # arrive over wg0 with a source from the mesh. Alpha's loopback ingress
+      # probe reaches Traefik through the local Docker bridge gateway.
       # This middleware rejects anyone connecting to the public IP directly.
       - "traefik.http.routers.handbook.middlewares=handbook-vpn-only"
-      - "traefik.http.middlewares.handbook-vpn-only.ipwhitelist.sourcerange=10.40.0.0/24"
+      - "traefik.http.middlewares.handbook-vpn-only.ipwhitelist.sourcerange=10.40.0.0/24,172.19.0.1/32"
       - "traefik.http.services.handbook.loadbalancer.server.port=3000"
       - "hub.enable=true"
       - "hub.name=Handbook"

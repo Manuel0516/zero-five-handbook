@@ -4,6 +4,8 @@ description: Read-only Hermes analysis service for one PancakeSwap V3 BNB/USDC p
 ---
 
 > **Status: deployed read-only observer — 2026-09-02.** This service reads and analyses one existing PancakeSwap V3 BNB/USDC LP on BNB Smart Chain. It cannot sign, pair a wallet, submit transactions, transfer assets, collect fees, swap, mint, burn, or rebalance.
+>
+> **Mobile approval-review route: partially prepared, execution disabled.** The Alpha route and grey-cloud DNS record are installed. Traefik already serves a Let's Encrypt certificate for the hostname and rejects the forced public-IP path with HTTP 403; the approval page itself is pending because its private state directory still needs owner-run `sudo` ownership provisioning and the service has not been started.
 
 ## Purpose
 
@@ -70,6 +72,47 @@ docker compose down
 ```
 
 Do not run `docker compose down -v` unless the owner explicitly wants observation/audit history removed.
+
+## Mobile approval-review route (Alpha)
+
+### Verified now
+
+- `lp.zero-five.space` has a Cloudflare **grey-cloud A record** to `10.40.0.1`; the record was read back from the Cloudflare API after creation.
+- Alpha's running Traefik uses its established built-in Let's Encrypt DNS-01 resolver with the Cloudflare provider. No external certbot installation is present on Alpha, so this route uses `tls.certResolver: letsencrypt`; it does not add a certbot job or internal-CA certificate.
+- The live file-provider route is `~/services/hub/traefik/dynamic/lp-approval-review.yml`: `websecure`, host rule for `lp.zero-five.space`, `ipWhiteList` source `10.40.0.0/24`, and backend `http://10.40.0.1:8789`. Existing routes were preserved.
+- `approval.env` was prepared from the reviewed mobile template with `APP_BIND_ADDRESS=10.40.0.1`, `APP_PRIVATE_HOST=lp.zero-five.space`, exact HTTPS origin/host restrictions, placeholders for unverified position metadata, and `APP_KILL_SWITCH=1`. It is ignored and mode `0600`; no signer secret, seed phrase, raw signature, WalletConnect secret, or bearer token was added.
+- Compose interpolation and the repository's private-package verifier pass. The approval application constructs `execution_requested=False` and has no signer/pairing capability in this disabled service path.
+
+### Pending owner action
+
+The state directory exists but is currently owned by the login user. Run this exact command on Alpha, then start and verify the service:
+
+```bash
+cd ~/services/pancakeswap-lp-manager
+sudo ./scripts/verify-approval-private.sh --provision-state /home/manuel/services/pancakeswap-lp-manager/private-state
+docker compose --env-file approval.env -f docker-compose.approval.private.yml up -d --build approval-review
+```
+
+The provisioning gate must report UID/GID `10001:10001` and mode `0700`. The Compose service must remain bound only to `10.40.0.1:8789` and `APP_KILL_SWITCH=1`; do not substitute `0.0.0.0` or enable execution.
+
+After the service is running, verify from Alpha:
+
+```bash
+curl --resolve lp.zero-five.space:443:10.40.0.1 -fsS https://lp.zero-five.space/
+openssl s_client -connect 10.40.0.1:443 -servername lp.zero-five.space </dev/null 2>/dev/null | openssl x509 -noout -issuer
+curl --resolve lp.zero-five.space:443:95.111.229.142 -sS -o /dev/null -w '%{http_code}\n' https://lp.zero-five.space/
+```
+
+The certificate and edge policy have been checked from Alpha: SNI `lp.zero-five.space` returns a Let's Encrypt issuer, and the forced public-IP request returns HTTP `403`. The VPN-target request currently returns Traefik `504 Gateway Timeout`, which is expected until the backend is started; the approval page has therefore not yet been verified.
+
+### Remaining mobile actions
+
+No software needs to be installed on the phone. The owner must still:
+
+1. On Delta's AdGuard Home, add the VPN-client rewrite `lp.zero-five.space` → `10.40.0.1` under **Settings → DNS rewrites**, or use the authenticated AdGuard API `POST /control/rewrite/add` with JSON `{ "domain": "lp.zero-five.space", "answer": "10.40.0.1" }`. Verify it with the existing private DNS query procedure.
+2. Connect MetaMask Mobile over the Zero Five VPN and open the HTTPS review URL. Wallet connection, if later enabled by a separately reviewed change, must remain owner-initiated; this deployment does not enable execution.
+
+Rollback is reversible: remove `/home/manuel/services/hub/traefik/dynamic/lp-approval-review.yml`, touch a file in that directory to trigger the file-provider reload, and stop/remove the approval-review Compose service. Remove the DNS record only if the owner wants the hostname retired.
 
 ## Repository status
 

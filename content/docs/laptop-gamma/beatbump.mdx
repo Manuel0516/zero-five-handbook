@@ -9,10 +9,15 @@ Beatbump is a SvelteKit/Go alternative frontend for YouTube Music. It runs on
 Gamma with the upstream `invidious-companion` service and is available only
 through the Zero Five VPN at **`https://music.zero-five.space`**.
 
-**Ready state verified 2026-08-25:** both containers are running, the companion
+**Ready state verified 2026-08-30:** both containers are running, the companion
 is healthy, the Gamma backend returns HTTP 200, Delta Traefik returns HTTP 200,
 and the live SNI certificate is Let's Encrypt. The Hub card is registered against
 Gamma's backend health URL.
+
+On 2026-08-30, Beatbump was restored after Gamma's live Compose file was found
+still binding the service to the retired `10.8.0.3` mesh address. The live binding
+now uses Gamma's current `10.40.0.3` address; the LAN binding remains
+`192.168.1.107`.
 
 It does not require a personal YouTube/Google account. Beatbump uses anonymous
 server-side YouTube access; personal subscriptions, history, and recommendations

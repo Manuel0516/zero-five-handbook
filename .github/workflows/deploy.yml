@@ -106,7 +106,10 @@ jobs:
           test "$(docker inspect handbook --format '{{json .HostConfig.PortBindings}}')" = "{}"
           docker compose exec -T handbook node -e \
             "fetch('http://127.0.0.1:3000/docs').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-          for attempt in $(seq 1 30); do
+          # Traefik can take longer than the container health check to observe
+          # a replacement container on its Docker provider. Keep the deploy
+          # successful only after the VPN-routed public path is reachable.
+          for attempt in $(seq 1 60); do
             if curl --fail --silent --show-error --head \
               --connect-timeout 5 --max-time 15 \
               --interface 10.40.0.1 \
@@ -114,8 +117,8 @@ jobs:
               https://docs.zero-five.space/; then
               break
             fi
-            if [ "$attempt" -eq 30 ]; then
-              echo "HTTPS verification did not succeed after 30 attempts"
+            if [ "$attempt" -eq 60 ]; then
+              echo "HTTPS verification did not succeed after 60 attempts"
               exit 1
             fi
             sleep 5

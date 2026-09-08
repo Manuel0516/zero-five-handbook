@@ -1,0 +1,63 @@
+---
+title: University Wi-Fi from the Terminal
+description: Connect an Arch/CachyOS laptop to eduroam or another enterprise Wi-Fi network with NetworkManager's terminal client.
+---
+
+Caelestia's Wi-Fi panel only handles a single WPA password; it cannot collect
+an 802.1X identity and EAP password. Use NetworkManager's `nmcli` client
+instead. It is already installed on the MSI as `networkmanager`.
+
+## Prerequisites
+
+Obtain the EAP method, inner authentication method, server-name/domain rule,
+and CA certificate from the university's official eduroam guide or installer.
+Do not disable certificate validation: without it, a malicious access point can
+collect the account password.
+
+For Lund University, the identity is the student account name followed by
+`@lu.se`; use the normal student-account password. The university must provide
+the certificate validation values for the current service.
+
+## Create and connect
+
+Replace the placeholders with the university-provided values. This creates a
+profile without placing the password in shell history, then prompts for it in
+the terminal:
+
+```bash
+nmcli connection add type wifi ifname wlan0 con-name eduroam ssid eduroam \
+  wifi-sec.key-mgmt wpa-eap \
+  802-1x.eap peap \
+  802-1x.identity 'USERNAME@university.example' \
+  802-1x.phase2-auth mschapv2 \
+  802-1x.ca-cert '/path/to/university-ca.pem' \
+  802-1x.domain-suffix-match 'radius.university.example'
+
+nmcli --ask connection up eduroam
+```
+
+`--ask` reads the password from the terminal without displaying it. The
+profile is then reusable from NetworkManager; it does not depend on Caelestia
+being able to show an enterprise-credential dialog.
+
+## Verify and troubleshoot
+
+```bash
+nmcli connection show --active
+nmcli device show wlan0
+journalctl -u NetworkManager -b | rg -i 'eduroam|802\\.1x|eap|auth|secret'
+```
+
+`no secrets: No agents were available for this request` means a graphical
+shell has no NetworkManager secret agent. Run `nmcli --ask connection up
+eduroam` again in a real terminal. An authentication failure after the prompt
+usually means a wrong account password, EAP setting, or certificate/domain
+rule; re-check the university guide rather than weakening certificate checks.
+
+## Remove the profile
+
+```bash
+nmcli connection delete eduroam
+```
+
+This removes only the local Wi-Fi profile and its stored credentials.

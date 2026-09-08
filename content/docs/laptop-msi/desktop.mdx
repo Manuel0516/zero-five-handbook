@@ -80,11 +80,19 @@ overlay starts the display helpers and calls the authored scripts under
 
 The display helper uses the laptop's `eDP-1` and external `DP-1` names, moves
 workspaces before disabling the laptop panel, and skips lid-triggered layout
-changes while the session is locked. If a dock exposes a different output
-name, inspect `hyprctl monitors` before using a layout mode. The scripts do not
-replace systemd/logind's own suspend policy.
+changes while the session is locked. The MSI also installs
+`systemd/logind.conf.d/10-msi-lid-display-only.conf`, so closing the lid does
+not suspend the session before the watcher switches the desktop to `DP-1`.
+The helper uses Hyprland's Lua `eval` API for runtime monitor changes because
+Hyprland 0.55+ no longer accepts the legacy `hyprctl keyword monitor` command.
+Opening the lid restores the selected layout. If a dock exposes a different
+output name, inspect `hyprctl monitors` before using a layout mode.
 
 ## Suspend and resume
+
+Lid close is display-only on the MSI: logind ignores lid actions and the
+Hyprland watcher selects the external monitor when `DP-1` is connected. Manual
+suspend remains available through the tracked `safe-suspend` helper.
 
 The Quickshell process behind Caelestia can crash when its Wayland layer-shell
 panels survive a suspend/resume cycle. The tracked

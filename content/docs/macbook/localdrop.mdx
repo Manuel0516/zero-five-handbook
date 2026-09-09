@@ -1,16 +1,16 @@
 ---
 title: LocalDrop — Shared Clipboard
-description: Self-built clipboard sync and file transfer between this MacBook and the Linux desktop, over the local network. Covers config, auto-start, and the file-picker shortcut.
+description: Self-built clipboard sync and file transfer between this MacBook and the Linux desktop over the WireGuard mesh.
 ---
 
-[LocalDrop](https://github.com/Manuel0516/localdrop) is a self-built tool that syncs the clipboard bidirectionally between this MacBook and the Linux desktop (CachyOS + Hyprland), and sends files between them. No cloud, no accounts — two small Python daemons talking over the local network.
+[LocalDrop](https://github.com/Manuel0516/localdrop) is a self-built tool that syncs the clipboard bidirectionally between this MacBook and the Linux desktop (CachyOS + Hyprland), and sends files between them. No cloud, no accounts — two small Python daemons talking directly over WireGuard.
 
 - **Bidirectional clipboard sync** — copy on one device, paste on the other
 - **File transfer** — `send` command plus a file-picker shortcut on both devices
 - **Zero third-party dependencies** — pure Python standard library (3.11+)
-- **Token authentication** — plain HTTP with a shared token, for trusted LANs only
+- **Token authentication** — plain HTTP with a shared token inside WireGuard
 
-> **Warning:** LocalDrop is designed for trusted local networks. Never expose port `8765` to the internet.
+> **Warning:** LocalDrop is designed for the trusted LAN and WireGuard mesh. Never expose port `8765` to the internet.
 
 ---
 
@@ -45,8 +45,7 @@ cp examples/config.example.toml config.toml
 ## Configuration
 
 One file per device: `~/projects/localdrop/config.toml`. This machine's config
-uses a **static private IP** as the peer address (reliable because it never
-changes, unlike a DHCP lease):
+uses the MSI's **WireGuard mesh IP** as the peer address:
 
 ```toml
 [device]
@@ -59,7 +58,7 @@ port = 8765
 
 [peer]
 name = "linux"
-host = "192.168.1.110"    # the MSI Linux desktop's static private IP
+host = "10.40.0.12"       # the MSI Linux desktop's WireGuard mesh IP
 port = 8765
 
 [clipboard]
@@ -80,15 +79,14 @@ enabled = true
 
 The Linux config is identical except `device.name`/`device.platform`/`peer.*` are swapped. The `shared_token` value is not documented here on purpose — read it from the config on either machine when setting up a new device.
 
-> **Reliability (2026-08):** the MacBook and MSI use **static private IPs** —
-> MacBook `192.168.1.109`, MSI `192.168.1.110` — reserved in the router's DHCP.
-> Because they never change, LocalDrop's `peer.host` stays valid across router
-> restarts and DHCP renewals. Old dynamically-assigned leases (e.g.
-> `192.168.1.104`) are deprecated; do not reuse them. This is deliberately the
-> simple 1:1 LocalDrop model (MSI ⇄ MacBook over the LAN); the mesh/Delta relay
-> and phone push are documented separately.
+> **Verified direct WireGuard path (2026-09-09):** MacBook is `10.40.0.11` and
+> MSI is `10.40.0.12`. Add the destination `/32` to the active WireGuard
+> profile's `AllowedIPs`, then point LocalDrop directly to that mesh address on
+> port `8765`. Adding the missing addresses made LocalDrop work; no LocalDrop
+> relay service on Alpha is needed.
 
-> **Firewall / exposure:** :8765 must be reachable only by LAN peers. Do NOT add a port-forward for 8765 on the router — LocalDrop is plaintext, and a forward would expose it to the internet once DDNS points at the home WAN. The router currently has **zero** UPnP mappings (verified 2026-08-23), so nothing is exposed through UPnP today.
+> **Firewall / exposure:** port `8765` must be reachable only through the LAN
+> and WireGuard. Do not add a router port-forward or public reverse-proxy route.
 
 ---
 
@@ -143,9 +141,12 @@ Logs: `journalctl --user -u localdrop.service -f`
 
 ### Clipboard not syncing
 
-1. Ping the peer from each side: `python3 main.py ping`
-2. If unreachable, verify both IPs match `peer.host` in each config (DHCP may have changed them)
-3. Check the daemon is running: `launchctl list | grep localdrop` (Mac) / `systemctl --user status localdrop` (Linux)
+1. Confirm the other desktop's `/32` is present in the active WireGuard peer's
+   `AllowedIPs`.
+2. Ping the peer from each side: `python3 main.py ping`.
+3. Verify MacBook targets `10.40.0.12:8765` and MSI targets
+   `10.40.0.11:8765`.
+4. Check the daemon is running: `launchctl list | grep localdrop` (Mac) / `systemctl --user status localdrop` (Linux).
 
 ### `401` / rejected requests
 

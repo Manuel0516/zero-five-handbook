@@ -1,6 +1,6 @@
 ---
 title: LocalDrop — phone
-description: "Send clipboard entries and files from the iPhone to the Linux desktop over LocalDrop via iPhone Shortcuts. Push-only in v1 (Linux → iPhone is not supported). Uses the Linux desktop's static private IP."
+description: "Send clipboard entries and files from the iPhone directly to a desktop over WireGuard using iPhone Shortcuts. Push-only in v1."
 ---
 
 [LocalDrop](https://github.com/Manuel0516/localdrop) syncs the clipboard and
@@ -22,46 +22,45 @@ sending **from the phone**.
 | iPhone → MacBook — clipboard & files | ✅ via Shortcuts |
 | Linux/Mac → iPhone | ❌ not supported in v1 |
 
-## Destination: the Linux/MSI desktop's static IP
+## Destination: the desktop's WireGuard mesh IP
 
-The phone posts to the **MSI Linux desktop** at its **static private IP**:
+The phone posts directly to the **MSI Linux desktop** through WireGuard:
 
 ```
-http://192.168.1.110:8765/clipboard   (clipboard text)
-http://192.168.1.110:8765/file        (file bytes)
+http://10.40.0.12:8765/clipboard   (clipboard text)
+http://10.40.0.12:8765/file        (file bytes)
 ```
 
-`192.168.1.110` is reserved static (it doesn't change), and the MSI daemon
-listens on `0.0.0.0:8765` so it answers on its LAN address. When the target is
-the MacBook instead, use `http://192.168.1.109:8765` (MacBook's static IP).
+The iPhone's active WireGuard profile must include `10.40.0.12/32` in the
+peer's `AllowedIPs`. When targeting the MacBook instead, include
+`10.40.0.11/32` and use `http://10.40.0.11:8765`. This direct configuration was
+owner-verified on 2026-09-09; no LocalDrop relay on Alpha is required.
 
 > The phone is a one-way HTTP **client** — it never opens a listener, so the
 > desktop cannot push audio to it. Only the Shortcuts requests above matter.
 
 ## Setup (iPhone)
 
-1. Confirm the MSI desktop daemon is running and listening on `0.0.0.0:8765`
-   (MSI's `config.toml`), reachable at `192.168.1.110`.
-2. Record the `shared_token` from the MSI/MacBook `config.toml`
+1. Activate the Zero Five WireGuard profile and add the target desktop's `/32`
+   mesh address to its peer's `AllowedIPs`.
+2. Confirm the desktop daemon is running and listening on `0.0.0.0:8765`.
+3. Record the `shared_token` from the MSI/MacBook `config.toml`
    (`[security] shared_token`) — it must match on the phone and the desktop.
-3. In the **Shortcuts** app:
+4. In the **Shortcuts** app:
    - **Send clipboard to Linux:** `Get Clipboard` → `Get Contents of URL`
-     (URL `http://192.168.1.110:8765/clipboard`, method **POST**, headers
+     (URL `http://10.40.0.12:8765/clipboard`, method **POST**, headers
      `X-LocalDrop-Token: <token>` + `Content-Type: application/json`, body:
      `source = "iphone"`, `text = <Clipboard variable>`).
    - **Send file to Linux:** `Get File` → `Get Contents of URL`
-     (URL `http://192.168.1.110:8765/file`, method **POST**, headers
+     (URL `http://10.40.0.12:8765/file`, method **POST**, headers
      `X-LocalDrop-Token: <token>` + `X-LocalDrop-Filename: <name>` +
      `Content-Type: application/octet-stream`, body = file).
-4. Trigger the shortcut from the Share Sheet when sending a file.
+5. Trigger the shortcut from the Share Sheet when sending a file.
 
 ## Security
 
-- Keep port `8765` **LAN-only** — the desktop daemon must listen on the LAN,
-  never be forwarded from the router. Do **not** add a router port-forward for
-  `8765`: LocalDrop is plaintext, and with DDNS now keeping the home WAN
-  reachable, a forward would expose the clipboard + transferred files to the
-  internet.
+- Keep port `8765` restricted to the trusted LAN and WireGuard mesh. Do not add
+  a router port-forward or public reverse-proxy route.
 - The home router currently reports **zero** UPnP port-mappings (verified
   2026-08-23), so nothing is exposed via UPnP today.
 - The `shared_token` is a secret: it must be identical on the desktop and the
@@ -71,9 +70,8 @@ the MacBook instead, use `http://192.168.1.109:8765` (MacBook's static IP).
 
 - `401` — the `X-LocalDrop-Token` header the shortcut sends doesn't match the
   desktop's `shared_token`.
-- Timeout/refused — confirm the MSI daemon is up and listening on the LAN IP;
-  confirm the phone and MSI are on the same LAN (the phone must be on **WiFi**
-  — sending over cellular won't reach `192.168.1.110`).
+- Timeout/refused — confirm WireGuard is active, the target `/32` is in
+  `AllowedIPs`, and the desktop daemon is listening on its mesh address.
 - Clipboard sync between the desktops themselves (MSI ⇄ MacBook) is the
   separate pair configured on those machines — see
   [MacBook LocalDrop](/docs/macbook/localdrop).

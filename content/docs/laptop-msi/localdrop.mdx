@@ -10,13 +10,13 @@ Each daemon both serves HTTP requests and polls its local clipboard:
 flowchart LR
     mac["MacBook<br/>pbcopy / pbpaste"] <--> macd["LocalDrop daemon"]
     msi["MSI<br/>wl-copy / wl-paste"] <--> msid["LocalDrop daemon"]
-    macd <-->|"HTTP :8765<br/>shared token"| msid
+    macd <-->|"WireGuard mesh<br/>HTTP :8765<br/>shared token"| msid
     macd -->|"received files"| md["~/Downloads"]
     msid -->|"received files"| wd["~/Downloads"]
 ```
 
-It is plain HTTP with a shared token for a trusted LAN. It is not encrypted
-and must never be exposed to the internet.
+It is plain HTTP with a shared token inside the encrypted WireGuard mesh. It
+must never be exposed to the internet.
 
 ## MSI installation
 
@@ -44,7 +44,7 @@ mkdir -p ~/projects
 git clone https://github.com/Manuel0516/localdrop ~/projects/localdrop
 cd ~/projects/localdrop
 cp examples/config.example.toml config.toml
-# Edit config.toml manually; create a new shared token and set the peer LAN IP.
+# Edit config.toml manually; create a new shared token and set the peer mesh IP.
 systemctl --user daemon-reload
 systemctl --user enable --now localdrop.service
 ```
@@ -57,13 +57,17 @@ sudo pacman -S --needed python wl-clipboard libnotify zenity
 
 Set the MSI as the Linux device and the MacBook as its peer. Keep the token
 identical on both machines, but never put it in the handbook or infra repo.
-The peer addresses are **static private IPs**: the MSI listens on `0.0.0.0`
-and points `peer.host` at the MacBook's static `192.168.1.109`; the MacBook
-listens on `0.0.0.0` and points `peer.host` at the MSI's static
-`192.168.1.110`. Because these are reserved (static) in the router's DHCP,
-they never go stale across restarts — the reliable, simple 1:1 LocalDrop model
-(MSI ⇄ MacBook over the LAN). The mesh/Delta relay and phone push are
-documented separately.
+LocalDrop connects directly to each device's **WireGuard mesh address**; no
+application relay on Alpha is required:
+
+- MSI points `peer.host` to MacBook `10.40.0.11` on port `8765`.
+- MacBook points `peer.host` to MSI `10.40.0.12` on port `8765`.
+- The active WireGuard profile on each sender must include the destination
+  `/32` in its peer's `AllowedIPs` (`10.40.0.11/32` or `10.40.0.12/32`).
+
+This was owner-verified on 2026-09-09: adding the missing destination addresses
+to WireGuard made LocalDrop work directly. Keep the tunnel active; do not add a
+separate VPS LocalDrop service.
 
 ## Operations
 
@@ -81,10 +85,11 @@ integration path, but the project and token are restored separately.
 ## Troubleshooting
 
 1. Run `python3 main.py ping` from both devices.
-2. Check both `peer.host` values against current LAN addresses.
+2. Check that `peer.host` is the other desktop's mesh address and that the same
+   `/32` appears in the active WireGuard profile's `AllowedIPs`.
 3. Check `systemctl --user status localdrop.service` and its journal.
 4. If requests return `401`, create one new token and set it on both devices.
 5. Confirm `wl-copy` and `wl-paste` work inside the graphical Wayland session.
 
-Do not open port `8765` on the router. If the LAN is untrusted, stop the
-daemon until LocalDrop gains an encrypted transport or a restricted network.
+Do not open port `8765` on the router. Keep it reachable only through the
+trusted LAN and WireGuard mesh.

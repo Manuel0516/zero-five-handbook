@@ -32,8 +32,8 @@ flowchart LR
     router --> webui
     webui -. "Traefik on Alpha" .-> alpha
     msi -->|"peer 10.40.0.12"| alpha
-    mac -->|"local network"| localdrop
-    msi -->|"local network"| localdrop
+    mac -->|"WireGuard 10.40.0.11"| localdrop
+    msi -->|"WireGuard 10.40.0.12"| localdrop
 ```
 
 The MSI is a personal Linux desktop **and a live AI backend**. It runs

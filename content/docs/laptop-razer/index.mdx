@@ -7,6 +7,11 @@ description: Proposed portable workstation architecture for a Razer Blade 15, de
 > partitioned, or enrolled in Zero Five. Hardware details, operating system state,
 > disk topology, power measurements, and network identity below are design targets,
 > not verified configuration.
+>
+> The retirement order is intentionally sequential: prepare and independently
+> verify the NAS migration archive while the MSI and MacBook are available, sell
+> them after the pre-sale acceptance gate, then configure this Razer from the
+> archive and Git. See [Sequential MSI and MacBook retirement migration](/docs/laptop-razer/migration).
 
 The intended role is a portable Linux workstation for university work, development,
 and local AI. It should remain recoverable when a distribution, desktop layer, SSD,
@@ -137,6 +142,8 @@ free -h
 upower -e
 ```
 
-Do not retire the MSI or MacBook until their services, SSH access, personal
-data, and recovery paths have been deliberately migrated and independently
-verified.
+Do not retire the MSI or MacBook until the NAS archive has passed the
+**pre-sale** manifest and restore acceptance gate in the
+[sequential migration runbook](/docs/laptop-razer/migration). The Razer is then
+configured after sale from that retained archive, Git and newly enrolled
+identities.

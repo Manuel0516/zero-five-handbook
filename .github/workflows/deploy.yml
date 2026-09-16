@@ -99,7 +99,17 @@ jobs:
           set -euo pipefail
           cd "$HOME/services/zero-five-handbook"
 
-          git pull --ff-only
+          # Never discard a production-side edit. A dirty checkout is an
+          # operational fault, not a reason to force-reset a server.
+          git fetch --prune origin master
+          if [ -n "$(git status --porcelain)" ]; then
+            echo '::error::Deployment checkout is dirty; preserve or commit its local changes before deployment.'
+            git status --short
+            exit 1
+          fi
+          git checkout --quiet master
+          git reset --hard origin/master
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/master)"
           docker compose config --quiet
           docker compose up -d --build --wait --wait-timeout 180
 

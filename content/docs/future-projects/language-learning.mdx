@@ -1,0 +1,574 @@
+---
+title: Language Learning Platform — Design Proposal
+description: "A local-first Swedish and Mandarin learning workspace on Gamma: conversation capture, AI-assisted knowledge trees, image ingestion, tutoring, practice, and portable archives. Design only — not deployed."
+---
+
+> **Status: DESIGN PROPOSAL — nothing here is deployed.** This page defines the
+> product, architecture, privacy boundary, rollout, and acceptance tests before
+> Gamma is changed. The target URL is `https://language.zero-five.space`,
+> available only through the Zero Five LAN/WireGuard and AdGuard path, with no
+> application login.
+
+## Product vision
+
+Build one personal language-learning workspace for **Swedish** and **Mandarin
+Chinese (Simplified characters + Pinyin)**. It should turn real experiences into
+structured learning material instead of separating notes, flashcards,
+transcripts, pronunciation, and AI chat into unrelated tools.
+
+The core loop is:
+
+```text
+speak / record / photograph / write
+                │
+                ▼
+       local extraction pipeline
+ transcription · OCR · diarization
+                │
+                ▼
+         AI analysis proposal
+ vocabulary · grammar · corrections · cultural knowledge
+                │
+                ▼
+           review and merge
+ knowledge tree · notes · examples · pronunciation · practice
+                │
+                ▼
+       level-aware tutor + spaced review
+```
+
+The application is not only a chatbot. Its durable product is the learner-owned
+knowledge base: every AI suggestion must be traceable to its source and remain
+editable, exportable, and useful without the original model.
+
+## Confirmed product decisions
+
+- One owner, no account system and no login screen.
+- Reachable only on the home LAN or Zero Five WireGuard through the private
+  AdGuard name `language.zero-five.space`; never publish a public DNS record.
+- Dark-mode-first, clean monochrome interface using black, white, and gray.
+- Appica UI is the preferred React component foundation; use accessible Base UI
+  primitives and a small local design-token layer so components can be replaced
+  without rewriting product logic.
+- Swedish and Mandarin are equal first-class languages. Mandarin content uses
+  Simplified Chinese and Pinyin, including tones.
+- Conversation language detection is automatic and may identify mixed-language
+  passages.
+- Transcripts support speaker diarization as Speaker 1, Speaker 2, and so on;
+  the owner may rename speakers per conversation.
+- Audio is temporary by default. Keep it only when the owner explicitly selects
+  **Save audio**. After successful transcription and durable transcript storage,
+  unselected source audio is deleted automatically.
+- Speech-to-text stays local. Conversation analysis may use a configured cloud
+  model. The interface must make the destination and privacy consequence clear
+  before sending transcript or image content externally.
+- Local Ollama and optional API providers are configurable inside the app.
+- Export must support a full portable archive, including only the audio files
+  explicitly retained by the owner.
+- The first complete release covers all major product areas. Delivery remains
+  incremental through end-to-end vertical slices rather than a single untested
+  “big bang.”
+
+## Scope of the complete first release
+
+### 1. Home and learning dashboard
+
+- Swedish and Mandarin overview cards: known items, due reviews, recent
+  conversations, active topics, and confidence trends.
+- Resume actions for an unfinished transcript review, image import, lesson, or
+  tutor thread.
+- Search/command palette across vocabulary, grammar, notes, transcripts,
+  examples, and saved media.
+- Clear processing state: queued, transcribing, analyzing, awaiting review,
+  completed, or failed.
+
+### 2. Knowledge tree
+
+Each language has a navigable tree with typed, linkable nodes rather than a
+folder-only hierarchy:
+
+```text
+Language
+├── Vocabulary
+│   ├── Everyday life
+│   ├── Work and study
+│   ├── Travel
+│   ├── People and relationships
+│   └── owner-defined categories
+├── Grammar
+│   ├── word order / sentence patterns
+│   ├── morphology and forms
+│   └── particles, tense/aspect, classifiers, etc.
+├── Pronunciation
+│   ├── Swedish vowels, pitch accent and difficult clusters
+│   └── Mandarin initials, finals, tones and tone changes
+├── Expressions and pragmatics
+├── Culture and context
+└── Notes and learning goals
+```
+
+A node can have parents and related concepts, examples, tags, source evidence,
+mastery state, review history, and attachments. Language-specific fields include:
+
+- **Swedish:** lemma, part of speech, gender/article, plural/definite forms,
+  verb forms, pronunciation hint, and examples.
+- **Mandarin:** Simplified form, Pinyin with tone marks and tone numbers,
+  definition, measure word/classifier, part of speech, character components,
+  audio, and examples.
+
+New categories are owner-editable. AI suggestions enter a review inbox before
+changing the durable tree; bulk accept is allowed, but silent autonomous edits
+are not part of the first release.
+
+### 3. Conversation capture and transcription
+
+The mobile-first recorder is a foreground web/PWA experience:
+
+1. Choose or auto-detect the language context.
+2. Optionally select **Save audio** before or after recording.
+3. Record with elapsed time, input-level meter, pause/resume, and a persistent
+   recording indicator.
+4. Upload small recoverable chunks over HTTPS rather than one fragile final
+   file.
+5. Assemble and normalize locally on Gamma.
+6. Transcribe locally with timestamps and language spans.
+7. Run speaker diarization and allow speaker renaming.
+8. Display an editable transcript before analysis.
+9. Analyze for unfamiliar vocabulary, grammar structures, corrections,
+   pronunciation targets, useful expressions, and contextual knowledge.
+10. Review and merge selected suggestions into the relevant language tree.
+11. Delete temporary audio after successful processing unless **Save audio** was
+    selected.
+
+The app will not add a consent gate because the owner explicitly declined one.
+It must still display an unambiguous recording state and documentation must state
+that the owner is responsible for obtaining permission and complying with local
+recording law. It must never offer covert or automatic background recording.
+
+A browser recorder is not assumed to survive an iPhone screen lock, OS eviction,
+or extended backgrounding. The first release therefore supports foreground
+capture and recoverable chunk upload. A native wrapper is a later option only if
+real-phone testing proves the web constraint unacceptable.
+
+### 4. Image and handwritten-note ingestion
+
+- Capture from the phone camera or upload JPEG/PNG/HEIC/PDF.
+- Keep the original image temporary unless explicitly retained.
+- Run local OCR/vision when practical; allow a configured cloud vision model
+  only after the UI shows which provider will receive the image.
+- Extract candidate words, phrases, translations, grammar notes, and headings.
+- Compare candidates with existing knowledge using normalized forms, aliases,
+  Chinese script/Pinyin matching, and semantic similarity.
+- Present a side-by-side review: original crop, extracted text, duplicates,
+  updates, and genuinely new nodes.
+- Commit accepted items in one undoable import batch and preserve source
+  provenance.
+
+### 5. Level-aware AI tutor
+
+The integrated tutor reads a retrieval-limited view of the selected language's
+knowledge graph, recent mistakes, mastery state, and learning goals. It should:
+
+- answer language questions at the owner's current level;
+- distinguish “already learned,” “seen but weak,” and “new” concepts;
+- generate examples using mostly known material with a controlled amount of new
+  vocabulary;
+- explain Swedish or Mandarin in English, Swedish, Chinese, or a configurable
+  mix;
+- cite the internal knowledge nodes and source excerpts used in an answer;
+- propose knowledge updates through the same review inbox instead of mutating
+  notes directly;
+- create drills from real conversations and images without exposing private
+  material to a cloud model unless that provider is selected for that task.
+
+### 6. Practice and progress
+
+- Flashcard and cloze review using an FSRS-style scheduler.
+- Listening recognition with saved or generated pronunciation audio.
+- Dictation, sentence ordering, translation, free response, and conversation
+  correction exercises.
+- Tone/Pinyin drills for Mandarin and difficult-vowel/pitch-accent notes for
+  Swedish.
+- Per-item mastery, lapses, confidence, source frequency, and next review.
+- Goals and trends without gamified noise or fabricated “fluency scores.”
+- A mistake can link back to the transcript, image, lesson, or tutor interaction
+  that produced it.
+
+### 7. Settings, models, and portability
+
+- Configure local Ollama endpoint/model roles separately for chat, analysis,
+  embeddings, OCR/vision, and optional TTS.
+- Configure optional API providers with server-side encrypted secrets; never
+  expose keys to the browser or write them into Git, logs, exports, or the
+  handbook.
+- Per-task routing policy with transcription hard-locked to local execution.
+- Model capability test, latency check, and sample preview before saving a
+  provider configuration.
+- Export a versioned archive containing Markdown, JSON, database metadata,
+  attachments, and explicitly saved audio. Include checksums and a documented
+  restore test.
+- Integrate persistent application data into Delta's existing encrypted backup
+  controller after the app is verified.
+
+## UX and visual direction
+
+Use a **Linear-like monochrome workspace**, not a generic colorful education
+app:
+
+- near-black page (`#08090a`), dark panels (`#0f1011`/`#191a1b`), near-white
+  text, subtle gray borders, and no decorative gradients;
+- one restrained neutral/indigo interaction accent only when state cannot be
+  communicated clearly in grayscale;
+- Inter/Geist-style typography, compact navigation, generous content spacing,
+  keyboard command palette, and strong mobile touch targets;
+- Appica UI for accessible buttons, dialogs, menus, tabs, forms, drawers,
+  tooltips, tables, and progress elements; custom components only for the
+  recorder waveform, transcript timeline, knowledge graph, and review diff;
+- responsive three-pane desktop workspace (navigation, content, context) that
+  collapses to a bottom-navigation and full-screen task flow on phones;
+- accessibility baseline: visible focus, keyboard navigation, semantic labels,
+  reduced-motion support, sufficient contrast, transcript playback controls,
+  and no color-only state.
+
+Primary routes:
+
+```text
+/                       dashboard
+/learn/[language]       language overview
+/knowledge/[language]   tree, graph, table and search views
+/capture                 recorder and processing queue
+/conversations/[id]     audio/transcript/analysis/review
+/import                  image and document ingestion
+/practice                due reviews and generated exercises
+/tutor                   level-aware agent
+/settings/models         local/cloud provider routing
+/settings/data           retention, export, restore and deletion
+```
+
+## Proposed architecture
+
+```text
+iPhone / desktop browser
+  │ HTTPS, private DNS, WireGuard/LAN only
+  ▼
+Delta Traefik + AdGuard
+  │ private reverse proxy
+  ▼
+Gamma: ~/services/language-learning
+  ├── web        Next.js + React + TypeScript + Appica UI
+  ├── api        FastAPI domain/API service
+  ├── worker     Python media, ASR, OCR and AI jobs
+  ├── postgres   knowledge, jobs, review history, embeddings
+  └── data       temporary media + explicitly retained attachments
+       │
+       ├── local ASR/diarization/OCR
+       ├── Gamma Ollama / existing local model route
+       └── optional cloud analysis/vision provider
+```
+
+Recommended boundaries:
+
+- **Web:** Next.js App Router, React, TypeScript, Appica UI, Tailwind, Motion only
+  where it communicates state, and a PWA manifest/service worker for installable
+  mobile access.
+- **API:** FastAPI with generated OpenAPI client types. Domain services own
+  knowledge mutations, imports, export, and model routing.
+- **Database:** PostgreSQL with `pgvector`; an adjacency/closure representation
+  supports tree traversal while typed links permit graph relationships. Use
+  database migrations from the first commit.
+- **Jobs:** a PostgreSQL-backed durable queue (`FOR UPDATE SKIP LOCKED`) avoids an
+  additional Redis service on resource-constrained Gamma. Every job is
+  idempotent, retryable, cancellable, and visible in the UI.
+- **Media:** host-mounted persistent data below the service directory, with
+  separate `tmp`, `retained-audio`, `images`, and `exports` paths. Temporary
+  cleanup is both event-driven and periodically reconciled after crashes.
+- **AI adapters:** stable interfaces for ASR, diarization, embedding, analysis,
+  vision/OCR, chat, and TTS. Store model/provider identity and prompt version
+  with every generated artifact.
+
+## Local AI model strategy
+
+`Confucius4-R2T2` is a promising candidate because it is an open-source,
+append-only, low-latency streaming ASR model, is optimized for Chinese/English,
+and lists Swedish among its additional languages. It is **a candidate, not a
+preselected production dependency**: its release is new and Gamma is a small
+CPU-only host shared with Minecraft and Ollama.
+
+Before choosing the default ASR engine, benchmark the same owner-recorded Swedish,
+Mandarin, English, and mixed-language fixtures against:
+
+1. R2T2 in the smallest practical local runtime/quantization;
+2. `faster-whisper` or `whisper.cpp` as the mature fallback;
+3. optional post-processing for punctuation and language-span correction.
+
+Measure word/character errors, names, Swedish compounds, Mandarin characters and
+Pinyin suitability, mixed-language switching, real-time factor, peak RAM, CPU,
+and container cold start. Do not select a model from marketing claims alone.
+
+Speaker labels are a separate concern. Evaluate WhisperX/pyannote-style local
+diarization against Gamma's memory and licensing/download requirements. The
+architecture must allow transcript and diarization engines to be combined rather
+than requiring one model to do both.
+
+Embeddings should use the existing local embedding capability where quality is
+sufficient. Analysis/tutoring starts with Gamma's Ollama route but can use an
+optional cloud provider selected in app settings. TTS/pronunciation begins with
+human-recorded or explicitly generated clips; language-appropriate local voices
+must pass a quality test before becoming the default.
+
+## Gamma resource and lifecycle rules
+
+Gamma has about 6.7 GB RAM, 16 GB swap, Minecraft, Open WebUI/Ollama, and other
+containers. Therefore:
+
+- deploy the project as its own Compose application under
+  `~/services/language-learning` with `restart: unless-stopped` and healthchecks;
+- start with Gamma at boot/wake through Docker's existing service lifecycle;
+- set hard container memory/CPU limits and one heavy AI job at a time;
+- avoid keeping ASR, diarization, and LLM models resident simultaneously;
+- add a resource guard that queues heavy work while Minecraft or another model
+  makes safe processing impossible, rather than pushing Gamma into swap thrash;
+- benchmark with Minecraft both running and stopped, and document whether a
+  “heavy processing mode” is required;
+- cap temporary upload size and age, monitor disk consumption, and fail closed
+  before the filesystem fills;
+- make interrupted jobs resumable after Gamma suspends or restarts.
+
+No hardware claim is considered proven until an assembled conversation fixture
+records on the phone, survives upload, transcribes, diarizes, analyzes, merges
+into knowledge, and produces a practice item on Gamma.
+
+## Network and security boundary
+
+```text
+Public internet ──X── language.zero-five.space
+LAN/WireGuard → AdGuard private rewrite → Delta Traefik → Gamma service
+```
+
+- Add only a private AdGuard rewrite and private Traefik route. Do **not** add a
+  public Cloudflare A record.
+- TLS is mandatory because mobile microphone/camera APIs require a secure
+  context. Follow Delta's existing private-app certificate pattern.
+- No login is acceptable only while the network boundary is verified. The API
+  must still reject unexpected `Host`/origin values and use same-site CSRF
+  protections for mutations.
+- Bind backend services to Gamma/Compose networking; do not publish database,
+  worker, Ollama, or debugging ports to LAN/WireGuard.
+- Validate upload type by content, transcode in a sandboxed worker, reject
+  oversized inputs, strip unsafe metadata, and never execute uploaded content.
+- Encrypt provider secrets at rest with a host-local key excluded from backups
+  unless the recovery procedure explicitly handles it. Redact prompts, content,
+  and keys from normal logs.
+- Provide complete deletion for conversation media, transcript, derived chunks,
+  embeddings, suggestions, and exports. Backups are append-only recovery copies,
+  so the UI must explain their separate retention boundary.
+
+## Data model outline
+
+Core entities:
+
+- `languages` and owner preferences;
+- `knowledge_nodes`, typed `knowledge_edges`, aliases, examples, attachments,
+  source links, proficiency and review state;
+- `conversations`, recoverable audio chunks, transcript segments, language spans,
+  speakers, and optional retained recording;
+- `ingestions` for camera/image/document imports and OCR regions;
+- `suggestion_batches` and item-level accept/reject/edit decisions;
+- `practice_items`, review logs, schedules, mistakes, and goals;
+- `agent_threads`, retrieved node references, model identity, and provider class;
+- `jobs`, attempts, progress, errors, cancellation and cleanup state;
+- `provider_configs` with encrypted credentials and per-capability routing;
+- `audit_events` for knowledge changes, imports, exports, and destructive actions.
+
+Every derived item records its source, model/provider, prompt/pipeline version,
+creation time, confidence, and owner review state. Deduplication never destroys
+source evidence.
+
+## Delivery plan
+
+### Phase 0 — research fixtures and acceptance baselines
+
+1. Create a private, consented fixture set: short/long Swedish, Mandarin,
+   English, mixed-language, two-speaker overlap, background noise, one notebook
+   photo, and one printed page.
+2. Record expected transcripts and vocabulary/grammar extraction by hand.
+3. Benchmark R2T2 and Whisper alternatives locally; test diarization separately.
+4. Measure Gamma RAM/CPU/disk with Minecraft and the current AI stack active.
+5. Decide the ASR runtime, diarization model, OCR path, file limits, and heavy-job
+   concurrency from evidence.
+6. Validate Appica UI's required components, license, bundle behavior, dark theme,
+   accessibility, and Next.js compatibility before locking the UI layer.
+
+**Gate:** a written benchmark supports the selected local pipeline and shows a
+safe Gamma operating envelope.
+
+### Phase 1 — foundation and vertical skeleton
+
+1. Create the repository, Compose topology, healthchecks, migrations, typed API
+   contract, test fixtures, and local development setup.
+2. Build the monochrome shell, responsive navigation, dashboard, command palette,
+   job drawer, error states, and settings structure using Appica UI.
+3. Add PostgreSQL, durable jobs, storage abstraction, audit log, retention
+   reconciler, and backup/export schema version.
+4. Add private-network deployment templates without secrets; perform no public
+   DNS work.
+
+**Gate:** the shell survives container restart; a synthetic job resumes; backup
+and restore of seed data passes.
+
+### Phase 2 — knowledge, review, and practice core
+
+1. Implement Swedish and Mandarin node schemas, tree/graph/table views, search,
+   relations, examples, and provenance.
+2. Implement suggestion review, duplicate resolution, bulk accept/reject, undo,
+   and audit history.
+3. Implement FSRS-style scheduling and the initial exercise types.
+4. Add Markdown/JSON export and deterministic import round-trip tests.
+
+**Gate:** a fixture batch imports, deduplicates, becomes reviewable knowledge,
+creates due practice, exports, and restores without loss.
+
+### Phase 3 — conversation capture pipeline
+
+1. Build foreground mobile capture, chunk upload, recovery, pause/resume,
+   temporary/retained-audio controls, and crash cleanup.
+2. Add normalization, selected local ASR adapter, language spans, timestamps,
+   diarization, speaker rename, transcript correction, and playback sync.
+3. Add local/cloud analysis routing and structured vocabulary/grammar/knowledge
+   proposals with source excerpts.
+4. Merge accepted suggestions into the knowledge tree and create practice from
+   the same conversation.
+
+**Gate:** the full phone-to-practice flow passes on iPhone over LAN and
+WireGuard, with temporary audio demonstrably deleted and explicitly retained
+audio preserved.
+
+### Phase 4 — image ingestion
+
+1. Add camera/file upload with HEIC/PDF normalization and safe metadata handling.
+2. Add local OCR/vision adapter and optional explicit cloud vision route.
+3. Implement crop-linked extraction, language normalization, duplicate matching,
+   review, undo, and source provenance.
+4. Generate practice from accepted handwritten vocabulary.
+
+**Gate:** the notebook-photo fixture adds only approved missing words, preserves
+correct Chinese/Pinyin or Swedish forms, and does not duplicate existing nodes.
+
+### Phase 5 — level-aware tutor
+
+1. Implement retrieval over selected knowledge, mastery, recent errors, and
+   source material.
+2. Add level policy, answer citations, “known/new” labels, context controls, and
+   per-thread provider visibility.
+3. Add agent-proposed knowledge edits through review; prohibit direct writes.
+4. Add conversation-derived lessons and adaptive exercises.
+
+**Gate:** evaluator prompts prove that the tutor uses owned knowledge, cites the
+nodes it used, respects provider routing, and cannot silently alter knowledge.
+
+### Phase 6 — production hardening and Gamma deployment
+
+1. Run unit, API contract, migration, job retry, browser, accessibility,
+   retention, security, and archive round-trip suites.
+2. Deploy under `~/services/language-learning`; verify boot/wake restart,
+   healthchecks, resource limits, and interruption recovery.
+3. Add the private AdGuard rewrite, Delta Traefik route and certificate only;
+   verify the public path cannot reach the service.
+4. Enroll persistent paths in Delta's encrypted backups, run a backup, restore to
+   an isolated location, and verify checksums plus an application-level restore.
+5. Test real iPhone microphone/camera behavior over LAN and WireGuard, including
+   screen lock/background limitations, network interruption, Gamma suspend, and
+   long recordings.
+6. Move verified operational facts into a Gamma runbook page; leave this page as
+   the product/design history.
+
+**Gate:** one assembled Swedish and one Mandarin workflow pass end to end after a
+Gamma reboot, and a fresh restored instance can open the knowledge tree,
+transcripts, review history, practice schedule, and retained audio.
+
+## Test matrix and completion criteria
+
+The platform is not complete until all of these are demonstrated with real
+outputs:
+
+- Swedish, Mandarin and mixed-language transcription quality measured against
+  the fixture truth; speaker labels editable and stable.
+- Temporary audio deletion after success, retained-audio persistence after
+  restart/backup/restore, and cleanup after failed/interrupted jobs.
+- Vocabulary and grammar suggestions are structured, source-linked, editable,
+  deduplicated, and never silently merged.
+- Chinese nodes preserve Simplified characters, Pinyin and tones; Swedish nodes
+  preserve gender/forms and pronunciation notes.
+- Image import identifies missing items without overwriting stronger existing
+  knowledge.
+- Tutor answers reflect current mastery, cite internal nodes, and visibly state
+  whether a local or cloud model handled the request.
+- Exercise schedules survive export/import and backup restore.
+- Phone UI works with touch and accessibility controls; desktop UI supports
+  keyboard navigation.
+- Service starts with Gamma, recovers queued work, respects resource limits, and
+  does not destabilize Minecraft/current AI services.
+- LAN and WireGuard access succeed; a public-origin probe fails before reaching
+  the application.
+- No API key, transcript, image, audio, or prompt content appears in Git or
+  ordinary logs.
+
+## Risks and explicit trade-offs
+
+- **Gamma capacity:** local ASR + diarization + Ollama may exceed practical CPU or
+  memory. The benchmark gate may require slower queued processing, stopping
+  Minecraft for heavy jobs, a smaller model, or later hardware acceleration.
+- **R2T2 maturity:** promising streaming behavior does not prove Swedish or
+  mixed-language quality on this hardware. Keep the adapter boundary and mature
+  Whisper fallback.
+- **Mobile web recording:** iOS may stop microphone work when locked/backgrounded.
+  Do not promise all-day passive capture from a PWA; validate foreground capture
+  first and consider a native client later.
+- **Diarization:** overlap, noise, and similar voices can mislabel speakers.
+  Speaker rename and transcript correction are mandatory.
+- **Cloud privacy:** analysis can reveal an entire conversation. Cloud execution
+  must be explicit, provider-visible, and avoid uploading raw audio because
+  transcription is local-only.
+- **No login:** security depends completely on the private network and proxy
+  boundary. Any future public exposure requires authentication before the route
+  changes.
+- **Knowledge quality:** automatic ingestion can pollute the learning graph.
+  Review-first mutation and provenance cost extra interaction but preserve trust.
+- **Recording responsibility:** absence of a consent gate does not remove legal
+  or ethical obligations; the owner must obtain any required consent.
+
+## Deferred beyond the first complete release
+
+- covert/background surveillance recording;
+- public multi-user accounts, sharing, classrooms, or social features;
+- native iOS/Android clients unless PWA recording tests justify them;
+- automated voice identification or biometric speaker profiles;
+- autonomous knowledge mutation without review;
+- cloud speech transcription;
+- promises of objective fluency scoring.
+
+## Open decisions for the benchmark/design review
+
+These are deliberately evidence-gated rather than guessed now:
+
+1. R2T2 versus Whisper-family default for Swedish/Mandarin/mixed speech.
+2. Diarization runtime and model that fit Gamma without destabilizing services.
+3. Local OCR/vision quality for the owner's handwriting and whether cloud vision
+   is needed per import.
+4. Maximum reliable recording duration and chunk size on the owner's iPhone.
+5. Whether local TTS voices are good enough for Swedish and Mandarin
+   pronunciation practice.
+6. Exact cloud analysis providers and credential recovery policy.
+7. Whether “heavy processing mode” stops Minecraft automatically or only asks
+   the owner to do so.
+
+## Sources to validate during implementation
+
+- [Confucius4-R2T2 project](https://github.com/netease-youdao/Confucius4-R2T2)
+  and [model page](https://huggingface.co/netease-youdao/Confucius4-R2T2)
+- [WhisperX](https://github.com/m-bain/whisperX) for timestamp/diarization
+  evaluation
+- [Appica UI](https://appica.dev/ui) and
+  [Appica UI repository](https://github.com/appica-dev/appica-ui)
+- Browser `MediaRecorder`, microphone, camera, codec, and PWA behavior must be
+  tested on the owner's actual iPhone rather than inferred from desktop support.

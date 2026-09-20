@@ -92,6 +92,29 @@ Delta's `/etc/hosts` aliases: `alpha`→10.40.0.1, `beta`→10.40.0.4, `gamma`�
 This is **required** — Delta has no other resolution, and Alpha's SSH is on
 2020 not 22.
 
+### Alpha host-key pin after mesh renumbering
+
+The backup service runs as root, so its trust record is
+`/root/.ssh/known_hosts`, not Manuel's user-level file. After the Alpha mesh
+address changed from `10.8.0.1` to `10.40.0.1`, the old port-2020 pin caused
+`Host key verification failed` even though Alpha itself was healthy. SSH trust
+is address-and-port scoped.
+
+Do not disable strict host-key checking. First compare the presented key through
+Alpha's actual SSH port against a fingerprint obtained independently from Alpha,
+then remove only the stale `[10.40.0.1]:2020` entry and add the verified key to
+root's `known_hosts`. Validate the exact backup identity before retrying the
+controller:
+
+```bash
+sudo ssh -o BatchMode=yes -o ConnectTimeout=20 alpha \
+  'printf "Alpha backup SSH works\\n"'
+```
+
+A TCP timeout is different: inspect Delta's `alpha` alias resolution, route to
+`10.40.0.1`, WireGuard state and port `2020` reachability before changing host
+keys.
+
 `/root/.ssh/config` on Delta maps each alias to its `User`, `Port` (alpha=2020),
 and `IdentityFile=/root/.ssh/id_ed25519_backup` with `IdentitiesOnly yes`.
 

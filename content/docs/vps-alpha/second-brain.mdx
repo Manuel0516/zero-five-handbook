@@ -89,6 +89,29 @@ Manual deploy:
 cd ~/services/second-brain && git pull && docker compose up -d --build web api bot
 ```
 
+## Planned-card swipe repair (2026-09-24)
+
+Deployed `codex/development` commit `bb56941bc14753f8f843e6f961b97531bcf7c11c`.
+The workout and meal entrance animations retained their final transform with
+`animation-fill-mode: both`, preventing swipe gestures from visibly moving the
+cards. Both now use `backwards`; entrance motion remains without overriding
+subsequent swipe transforms. The regression fixture includes the real module CSS
+and checks rendered movement rather than inline style values.
+
+Verified Chromium touch gestures with normal and reduced motion: both cards move
+48px, the exposed delete control is reachable by an explicit touch, and vertical
+scrolling remains available. The same checks pass with CSS fetched from the live
+HTTPS asset URLs. This is not a physical iPhone/Safari certification.
+
+Only the web container was recreated; configuration, other services, and volumes
+were preserved. Previous frontend image retained as
+`secondbrain-web:rollback-before-swipe-animation-fix`. Internal and HTTPS readiness
+passed after recreation. The normal checkout index remains root-owned and
+unreadable to `manuel`; the one-off deployment verified tracked source using a
+disposable index, synchronized only this commit's files, and rebuilt the web image
+without changing the existing index or permissions. An owner must still repair
+index ownership before normal Git/updater use.
+
 ## Setup from scratch
 
 ```bash

@@ -55,11 +55,11 @@ installer state remain on the machine; do not replace them blindly.
 
 ## Model inventory
 
-At capture time:
+Verified through `http://10.40.0.12:11434/api/tags` on 2026-09-27:
 
 | Machine | Models |
 | --- | --- |
-| MSI | None listed; no model blobs present |
+| MSI | `deepseek-r1:7b` and `qwen2.5-coder:7b`, both Q4_K_M, about 4.68 GB each |
 | Alpha | See [Alpha Ollama](/docs/vps-alpha/ollama) for the VPS inventory |
 
 Pulling a model is an operational change. Record its exact tag, purpose,

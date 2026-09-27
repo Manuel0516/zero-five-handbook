@@ -1,0 +1,422 @@
+---
+title: Final Linux Snapshot — 2026-09-27
+description: MSI hardware, installed software, live services, personal data, backup gaps, and the checklist before replacing CachyOS with Windows.
+---
+
+Captured from the running MSI on **2026-09-27**, before the planned Windows
+installation. This is an inventory and recovery checklist, **not a disk image
+or proof that everything is backed up**. No files were erased or services
+stopped. A later selective project backup and GitHub preservation pass are
+recorded below. NAS is the primary backup destination; OneDrive is an optional
+independent second copy.
+
+Owner clarification on 2026-09-27: settings have not been deliberately changed
+since the September 13 backup; Bonsai is the only reported new addition and
+did not require settings changes. Treat `3f9313b3` as the intended settings
+baseline. Its age alone is not a reason to replace it. Application-managed
+state and successful recovery are separate checks; coverage outside its four
+roots remains unchanged.
+
+Backup selection: the owner explicitly chose **not to preserve Bonsai**.
+Keep its installation in this historical inventory; omit the Bonsai project,
+its bundled models, and Bonsai-only configuration from the planned backup.
+No Bonsai files have been deleted. The owner also excluded `~/Desktop/driving-simulator`
+and the Downloads directories `Manuel_Bosch_CV_Project`, `frontend`, `backend`,
+and `wildfire_project_setup`. Development source is preserved through GitHub;
+private configs and unique local work go to NAS. Downloadable data and local
+development databases are explicitly excluded. The selection record below
+takes precedence over the initial inventory's suggested backup priorities.
+
+## Verified machine state
+
+| Area | Observed state |
+| --- | --- |
+| Identity | Hostname `msi`, user `manuel`, MSI Alpha 15 A4DEK |
+| OS | CachyOS Linux, rolling release, x86_64 |
+| Running kernel | `7.2.6-1-cachyos`; installed LTS package `6.18.52-1` |
+| Firmware | BIOS `E16UKAMS.102`, UEFI 2.70, systemd-boot `261.3-1-arch` |
+| Windows prerequisites | Firmware reports TPM2 support; Secure Boot currently disabled; full Windows eligibility and license unverified |
+| CPU | AMD Ryzen 7 4800H, 8 cores / 16 threads, AMD-V |
+| Memory | About 15 GiB usable RAM and 15 GiB zram swap |
+| Graphics | AMD Renoir integrated graphics and Navi 10 discrete graphics; PCI identification does not establish the exact retail GPU SKU |
+| Network hardware | Intel AX200 Wi-Fi 6; Realtek RTL8111/8168/8211/8411 Gigabit Ethernet |
+| SSD | Kingston `OM8PCP3512F-AI1`, `/dev/nvme0n1`, 476.9 GiB |
+| Partitions | 2 GiB FAT EFI partition at `/boot`; 474.9 GiB Btrfs partition shared by `/`, `/home`, `/root`, `/srv`, and variable-data subvolumes |
+| Filesystem usage | Approximately 403 GiB used, 71 GiB available, 86% used |
+| Desktop | Hyprland `0.56.2-3.1`, Caelestia shell `2.3.0-1`, Caelestia CLI `1.1.2-1` |
+| Displays | `eDP-1`: 1920×1080 at about 144 Hz, scale 1; `DP-1`: 3840×2160 at about 60 Hz, scale 2 |
+| LAN | `eno1` up at `192.168.1.110/24`; `wlan0` down |
+| VPN | `wg0` exists at `10.40.0.12/32`; peer handshakes and remote application routing were not tested |
+
+Only the internal SSD was visible as persistent local block storage during
+capture. The NAS is remote. A copy in another directory or Btrfs subvolume on
+this SSD will be erased along with the original.
+
+## Software and services
+
+The [software manifest](/docs/laptop-msi/software-snapshot-2026-09-27) records
+all 1,589 pacman packages with versions, explicit/dependency status, foreign
+package status, and the installed Flatpak inventory. It supersedes the August
+package inventory for this date, but is not a Windows install list.
+
+Applications include Firefox, Zen Browser, VS Code, VSCodium, Zed, DaVinci
+Resolve, Cake Wallet, Steam, Heroic, Prism Launcher, qBittorrent, Discord,
+Slack, Todoist, Mullvad, Docker, TeX Live, and the Hyprland/Caelestia desktop.
+FreeCAD configuration also exists; configuration presence alone does not prove
+an application is still installed.
+
+Miniforge exists at `~/miniforge3`, with `physics`, `projects`,
+`telegram-translator`, and `wildfire-risk-indicator` environments. User-local
+tools include Claude, Codex, LiteLLM, Node/npm, Python 3.11, and custom display,
+lid, power-mode, and wallpaper commands. `/usr/local/bin/ollama` is installed
+outside pacman's package inventory. Project virtual environments, editor
+extensions, and manually installed tool versions are not exhaustively catalogued.
+
+| Live component | Evidence and retirement consequence |
+| --- | --- |
+| Ollama | System service active as `ollama`; API at `10.40.0.12:11434` returns `deepseek-r1:7b` and `qwen2.5-coder:7b`, both Q4_K_M, about 4.68 GB each |
+| LocalDrop | User service running; preserve `~/projects/localdrop`, its private config, and the user unit |
+| Desktop | Hyprland session and `caelestia-suspend-watchdog.service` running |
+| Docker | `docker` and `containerd` running; five Second Brain containers listed below |
+| Networking | NetworkManager, wpa_supplicant, systemd-resolved, Avahi, Bluetooth, and Mullvad daemon running |
+| Other system services | ananicy-cpp, power-profiles-daemon, SDDM, time synchronization, polkit, rtkit, upower, and core systemd services running |
+| Firewall | `ufw.service` enabled; effective firewall rules were not inspected |
+| Scheduled maintenance | `fstrim.timer` and `cachyos-rate-mirrors.timer` enabled |
+
+The default `ollama list` failed because its default endpoint was not the
+VPN-bound server. The explicit API request succeeded. An empty or failed
+localhost query must not be interpreted as an empty model store.
+
+The older handbook records Gamma using MSI as an AI backend. Before retiring
+Linux, check Gamma's router and remove or replace that backend if still used.
+Remote dependency health was not verified in this capture. Preserve independent
+SSH/VPN access to the NAS and other hosts before losing this laptop's identities.
+
+### Docker data outside the home directory
+
+| Running container | Image | Persistent volume |
+| --- | --- | --- |
+| `secondbrain-dev-bot-1` | `secondbrain-dev-bot` | `secondbrain-dev_dev-bot-data` |
+| `secondbrain-dev-db-1` | `pgvector/pgvector:0.8.6-pg18-trixie` | `secondbrain-dev_dev-postgres-data` |
+| `secondbrain-dev-minio-1` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` | `secondbrain-dev_dev-minio-data` |
+| `secondbrain-db-1` | `postgres:18.3-alpine` | `secondbrain_postgres-data` |
+| `secondbrain-minio-1` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` | `secondbrain_minio-data` |
+
+Mount sources are under `/var/lib/docker/volumes/`. The PostgreSQL volumes
+mount at `/var/lib/postgresql`; bot and MinIO volumes mount at `/data`.
+Back up both databases using PostgreSQL's backup tools, plus object storage,
+bot data, Compose definitions, private environment files, and any locally built
+image that cannot be reproduced. Alternatively, stop the applications cleanly
+before making a consistent volume backup. Copying live PostgreSQL data files
+does not establish a usable backup. Restore and test both stacks separately.
+
+## What to preserve
+
+Sizes are approximate `du` allocated usage from a live scan, not a transfer
+estimate. Nested rows overlap; Btrfs sharing, compression, and hardlinks make
+simple addition misleading. One package-build cache directory was unreadable.
+The home directory scan reported about **372 GiB**.
+
+| Initial review priority | Data found | Approximate size | Suggested action, subject to owner selections |
+| --- | --- | --- | --- |
+| Essential | `~/Desktop` | 18 GiB | Preserve complete projects, `.git`, ignored datasets, `.env` files, notebooks, and uncommitted work |
+| Essential | `~/Documents`, `~/Downloads`, `~/Pictures`, `~/Music` | 134 MiB, 8.1 GiB, 2.2 MiB, 4 KiB | Review downloads for unique documents/media, then copy retained files |
+| Essential | `~/projects` | 1.2 MiB | LocalDrop and personal-ai source and private configuration |
+| Essential | `~/.ssh`, `~/.gnupg`, `~/.pki`, `~/.netrc`, `/etc/wireguard` | Small; privileged VPN contents not inspected | Encrypted backup, preserve permissions, verify recovery from another device |
+| Essential | Cake Wallet: `~/.config/cake_wallet`, `~/.var/app/com.cakewallet.CakeWallet`, `~/moneroc` | 13 MiB, 2.4 MiB, small file | Verify wallet recovery material privately in the application; preserve possible wallet files without exposing their contents |
+| Essential | `~/.local/share/keyrings`, `~/.local/share/kwalletd` | Small | Preserve keyrings and know the unlock passwords; file copies alone may not restore all logins |
+| Essential | `~/.config/mozilla/firefox` | 763 MiB including parent tree | Close Firefox; preserve profiles, export bookmarks, verify passwords and account recovery separately |
+| Essential | `~/.local/share/DaVinciResolve` | 36 MiB | Export project/library backups in Resolve and include all referenced media, LUTs, and assets |
+| Essential | Docker volumes and system configuration | Not measured | Database/object-storage backup; retain reviewed `/etc`, `/boot`, `/usr/local`, and any unique root-owned data privately |
+| Important | `~/.config` | 6.7 GiB | Whole application-settings tree, including browser/editor data and secrets |
+| Important | `~/.local/share/Steam/userdata` and `steamapps/compatdata` | 610 MiB and 42 GiB | Preserve local saves and Proton prefixes; confirm cloud saves game by game |
+| Important | `~/Games/Heroic`, `~/.config/heroic`, `~/.local/state/Heroic` | 16 GiB games; 1.5 GiB config | Preserve saves, Wine prefixes, launcher metadata, and mods |
+| Important | `~/.var/app/org.prismlauncher.PrismLauncher`, `~/.local/share/PandoraLauncher` | 2.2 GiB; small launcher directory | Preserve Minecraft worlds, instances, mods, and screenshots |
+| Important | `~/.config/unity3d`, other game-specific folders | Small | Preserve native game saves outside Steam's userdata |
+| Important | `~/.codex`, `~/.claude`, `~/.claude.json`, `~/.copilot`, `~/.opencode`, `~/.local/share/claude`, `~/.local/share/opencode`, `~/.local/state` | Codex 3.5 GiB; Claude share 834 MiB; others smaller | Preserve wanted sessions, skills, plugins, and local state in an encrypted archive; these can contain credentials and private conversations |
+| Excluded by owner | `~/Bonsai-demo`, Bonsai-only model definitions and configuration | 9.8 GiB Bonsai, including 7.3 GiB models | Installed at capture; intentionally not retained. Review shared `~/Modelfile` and `~/opencode.json` separately before assuming they are Bonsai-only |
+| Important | `~/miniforge3`, `~/.conda`, project environments | 8.7 GiB Miniforge | Preserve for Linux recovery and export environment specifications for rebuilding on Windows |
+| Important | Shell dotfiles, `~/.gitconfig`, `~/.local/bin`, `~/.vscode*`, `~/.platformio` | VS Code tree 2.3 GiB; PlatformIO 37 MiB | Preserve custom scripts, settings, snippets, profiles, and project tooling |
+| Review | `~/.local/share/qBittorrent`, `~/.config/qBittorrent` | 8 MiB data | Preserve resume metadata and actual downloaded files if wanted |
+| Review | `~/.var/app` | 6.7 GiB total | Includes ChatGPT, old VS Code data, Cake Wallet, and Prism; app removal does not mean leftover data is disposable |
+| Review | `~/.config.bak`, `~/.config.before-caelestia-install`, `~/msi-restored` | 57 MiB, 11 GiB, 16 GiB | Compare before omitting; these are local copies, not protection against disk erasure |
+| Review | `~/.local/share/Trash` | 139 MiB | Check for accidentally deleted files before discarding |
+| Usually replaceable | `~/.cache`, downloadable game binaries, shader caches, package caches | Home cache 23 GiB; Steam common 133 GiB; shader cache 17 GiB; in-progress downloads 42 GiB | Omit only after separating saves, mods, unique downloads, and custom assets |
+
+`~/.local/share/Steam` totals about 235 GiB. Its size is not evidence that all
+235 GiB can safely be discarded. Cake Wallet's two local-share paths are symlinks
+into `~/.config/cake_wallet/_local_share`; preserve the target. Check other
+symlink targets when selecting backup roots.
+
+`~/Videos`, `~/Public`, `~/Templates`, and `~/DaVinci Resolve Media` reported
+no allocated content. Resolve's library still exists elsewhere. `~/backups`
+also reported no allocated content, so its name is not evidence of a backup.
+Zen is installed but the owner confirmed they only use Firefox; no Zen
+personal-data migration is requested.
+
+Never put wallet seeds, private keys, browser profiles, environment files, or
+raw configuration dumps into this handbook or a Git repository. A wallet
+recovery check must not reveal a seed to a chat, log, screenshot, or web form.
+
+### Project state at inspection
+
+The owner selected GitHub preservation for development repositories and NAS
+backup for LocalDrop, mining, cybersecurity, private configs, and unique local
+work. The four project directories found in Downloads were explicitly skipped.
+See the completed project-preservation pass below; the following table retains
+the original pre-pull state for historical reference.
+
+The comparison below uses locally cached upstream references; no fetch was
+performed. All readable repositories reported zero commits ahead/behind those
+references and no stashes. This does **not** prove that the remote still holds
+the commits or that ignored files are protected. Counts are Git status entries,
+not every file inside an untracked directory.
+
+| Repository | Branch | HEAD | Changed/untracked entries before this documentation update |
+| --- | --- | --- | --- |
+| `~/Desktop/physics-degree` | main | `a11e53f` | 1 |
+| `~/Desktop/wild-fire-risk-indicator` | main | `8008f46` | 1 |
+| `~/Desktop/telegram-translation-bot` | main | `272c59c` | 0 |
+| `~/Desktop/hub` | main | `5385deb` | 3; additional agent worktrees exist |
+| `~/Desktop/second-brain` | main | `f412d62` | 0; Docker data is separate |
+| `~/Desktop/zero-five/zero-five-handbook` | master | `0eb3e75` | 1 existing recovery-page edit |
+| `~/Desktop/zero-five/zero-five-infra` | main | `51901d6` | 8 |
+| `~/projects/localdrop` | main | `10dd503` | 0 |
+| `~/projects/personal-ai` | main | `8b4e920` | 0 |
+| `~/Bonsai-demo` | main | `17b143e` | 1 |
+| `~/Bonsai-demo/llama.cpp` | prism | `9a9394a89` | 0 |
+
+Other Desktop directories include driving-simulator, mining, cybersecurity,
+Agents, and test-design. Preserve the whole selected project tree, not only
+tracked files. The outer `~/Desktop/zero-five/.git` was not a readable Git
+repository in this session; do not infer its state from the nested checkouts.
+
+## Identity recovery review — 2026-09-27
+
+Read-only inspection of snapshot `3f9313b3` found the following. Counts are
+regular files, not wallets or accounts. Secrets were not displayed or written
+to the handbook. Selected SSH files were read back from the encrypted backup
+and SHA-256 compared with the current local files in memory.
+
+| Item | Verified backup evidence | Remaining recovery check |
+| --- | --- | --- |
+| SSH | 7 files; `id_ed25519`, `zero-five-media-relay`, and `config` match current local bytes | Restore securely on another device and test the required host logins; know any key passphrases |
+| WireGuard | 4 files under `/etc/wireguard` | Restore the intended tunnel on the replacement device, with the old identity offline, and test NAS reachability; file equality and handshake not tested |
+| Native Cake Wallet | 35 files under `~/.config/cake_wallet` | Independently preserve recovery material for every wallet and test recovery in the trusted app |
+| Firefox | 10,959 files, including one each of `logins.json`, `key4.db`, and `places.sqlite` | Restore into a separate profile with Firefox closed, then verify bookmarks and saved passwords; know the Primary Password if set |
+| Other identity locations | Flatpak Cake Wallet data, `~/.local/share/keyrings`, and `~/.gnupg` are outside this snapshot | Decide whether these contain identities still needed; present on disk does not establish active use |
+
+### Wallet first
+
+Open Cake Wallet privately and list which wallets need preservation. For each,
+confirm that its recovery phrase or required keys are safely stored outside MSI,
+along with any additional recovery passphrase and Monero restore date/height
+if applicable. Do not send these values through chat or put them in Git.
+
+Use the official [Cake Wallet recovery flow](https://docs.cakewallet.com/get-started/setup/restore-existing-wallet)
+on another trusted device or a separate wallet instance, without deleting the
+working original. Check that the intended wallet is recovered and synchronizes
+correctly. A PIN that unlocks the current application is not itself a backup
+of wallet recovery material. The owner confirmed that Cake Wallet is also on
+their phone and recovery information is saved in their password manager,
+independently of MSI. A fresh restore from that saved information has not been
+tested. Confirm that the phone contains every wallet being retained and shows
+the expected synchronized balances before erasing the laptop.
+
+### Browser and account access
+
+The owner confirmed that Firefox is the only browser used, all wanted browser
+data is synced to their Firefox account, and Firefox is also available on their
+phone. Zen is installed but does not require a personal-data migration according
+to this clarification. Firefox's saved-password files are also present in the
+NAS backup; restoring that profile has not been tested.
+Follow [Mozilla's profile recovery instructions](https://support.mozilla.org/en-US/kb/recovering-important-data-from-an-old-profile)
+and test the restored profile separately before changing the original.
+
+From another device, verify the primary email account, password manager,
+Microsoft/OneDrive account, and NAS login. Confirm authenticator access,
+recovery codes, and any device-bound passkeys or security keys needed for those
+accounts. Record only completion status here. The owner confirmed independent
+NAS, password-manager, and two-factor access all work on another device.
+The owner also confirmed access to email, Microsoft, and their other accounts
+on other computers. Account access and Firefox sync are owner-confirmed;
+no account credentials were inspected. A fresh wallet-seed restore and a
+restored WireGuard tunnel test remain unperformed.
+
+## Selected project preservation — 2026-09-27
+
+All nine retained repositories were fetched and pulled with `--ff-only`.
+Hub advanced five remote commits, Second Brain two, and personal-ai three;
+the other six were already current. No service deployment was run.
+
+| Repository | Preservation action |
+| --- | --- |
+| physics-degree | Source already on GitHub at `a11e53f`; local OpenCode config/package metadata saved privately to NAS |
+| wild-fire-risk-indicator | Source already on GitHub at `8008f46`; `.env` saved to NAS; downloadable/raw/intermediate/testing data omitted |
+| telegram-translation-bot | Source already on GitHub at `272c59c`; `.env` and ignored project roadmap saved to NAS |
+| hub | Pulled through `e6b51e3`; committed reviewed local `agents/` planning notes and `hub-plan-v2.md` as `370435d`; `.env` and local Claude settings saved to NAS |
+| second-brain | Pulled through `175234a`; `.env` saved to NAS; development databases/object storage excluded by owner |
+| zero-five-infra | Preserved Lua display/lid changes in `95d3fc5` and migration backup workflows/tests in `0e341af` |
+| zero-five-handbook | Final inventory, software manifest, recovery review, and this selection record included in the handbook preservation commit |
+| localdrop | Source already on GitHub at `10dd503`; entire working directory, including private config, Git metadata, and service files, saved to NAS |
+| personal-ai | Pulled through `778c695`; no additional uncommitted source changes |
+
+Hub's seven old agent worktrees were clean, and every local branch commit was
+already reachable from fetched remote history before the documentation commit.
+No separate branch push or merge was needed. Its local `.claude` preferences
+remain untracked; they are included in the private NAS backup instead.
+
+The wildfire repository's untracked `setup/` tree was byte-identical to the
+Downloads setup copy the owner chose to skip, so it was not committed or backed
+up. Physics' untracked `.opencode` settings are machine-local and preserved on
+NAS. No other unique ignored source was found in the reviewed repositories;
+caches, virtual environments, build output, logs, and development databases
+were omitted. These decisions do not yet cover all personal Downloads/media.
+
+### Verified NAS project snapshot
+
+Repository: `delta:/srv/nas/shared/msi-settings-backup/repository`.
+Snapshot: `56856c59cf9ee4d6a123ad01ffff65b08327992ff22eb223f716aa32d6da672c`
+(short ID `56856c59`), tag `selected-projects-2026-09-27`.
+
+The new encrypted snapshot contains these 15 roots/files:
+
+```text
+/home/manuel/projects/localdrop
+/home/manuel/Desktop/mining
+/home/manuel/Desktop/cybersecurity
+/home/manuel/Desktop/wild-fire-risk-indicator/.env
+/home/manuel/Desktop/telegram-translation-bot/.env
+/home/manuel/Desktop/telegram-translation-bot/telegram_translation_bot_roadmap.md
+/home/manuel/Desktop/hub/.env
+/home/manuel/Desktop/hub/.claude/settings.local.json
+/home/manuel/Desktop/hub/.claude/settings.json
+/home/manuel/Desktop/second-brain/.env
+/home/manuel/Desktop/physics-degree/.opencode/opencode.json
+/home/manuel/Desktop/physics-degree/.opencode/package.json
+/home/manuel/Desktop/physics-degree/.opencode/package-lock.json
+/home/manuel/Desktop/physics-degree/.opencode/.gitignore
+/home/manuel/.config/systemd/user/localdrop.service
+```
+
+The complete new snapshot was restored into a private temporary directory using
+`restic restore --verify`. All **153 regular files** were SHA-256 compared with
+the current sources; file permissions and symlink targets were checked. The
+temporary plaintext restore was then removed. This verifies the selected files,
+not the contents of the older September 13 settings snapshot or a future
+functional deployment on Windows. Existing snapshots were not pruned.
+
+Both NAS directories have mode `2700` (owner-only access plus setgid); the
+repository password has mode `600`. The same existing recovery key is used.
+To restore later, follow the [recovery instructions](/docs/laptop-msi/recovery)
+using snapshot `56856c59` and a new destination directory. Restore the September
+13 settings snapshot separately when needed; each snapshot has its own scope.
+
+Validation before preservation: infrastructure `make validate` and both MSI
+backup-script checks passed. Second Brain's required `npm run check` passed,
+including all 148 backend tests; existing lint/build/deprecation warnings remain.
+Hub's preservation commit contains documentation only and passed whitespace
+and secret-pattern review; this was not a new feature implementation.
+
+## NAS evidence and backup plan
+
+Read-only SSH inspection of `delta` verified `/srv/nas` is mounted from
+`/dev/sda2`: about **3.6 TiB total, 49 GiB used, 3.4 TiB available**.
+This is enough apparent capacity for the currently observed MSI data, but the
+actual backup size and completion still need verification.
+
+The repository `/srv/nas/shared/msi-settings-backup/repository` contains:
+
+| Snapshot | Time reported by restic | Host/tag | Logical size | Roots |
+| --- | --- | --- | --- | --- |
+| `3f9313b3` | 2026-09-13 17:03:56 | `msi` / `settings` | 20.077 GiB | `/etc/wireguard`, `/home/manuel/.config`, `/home/manuel/.ssh`, `/home/manuel/miniforge3` |
+
+Snapshot listing and access succeeded. A full data check and restore of this
+snapshot were **not** performed during this inspection. `~/msi-restored`
+exists locally, but its presence alone does not prove a successful restore.
+The existing [selected-settings procedure](/docs/laptop-msi/recovery) still
+backs up only those four roots. The selected-project snapshot above supplies
+the additional approved project files; remaining personal files are still under review.
+
+The owner selected the smaller file-level approach above. A complete disk image
+is not requested; the broader options below are reference material, not a change
+to those exclusions.
+
+1. **Choose the preservation level.** For the closest possible final snapshot,
+   make an offline image of the entire internal disk to the NAS using a trusted
+   imaging tool. Also keep a file-level backup for convenient Windows recovery.
+   For a smaller file backup, include the essential/important rows above and
+   explicitly decide which games, caches, and models to omit.
+2. **Close applications and export application data.** Export Resolve projects,
+   verify wallet recovery, save browser bookmarks/recovery access, and obtain
+   consistent database and object-storage backups. A live home-folder copy can
+   miss in-flight database or browser changes.
+3. **Back up to the NAS with encryption and Linux metadata preserved.** Keep
+   system-owned files, permissions, symlinks, and project hidden files. A new
+   full backup must have explicit scope including home and unique system data;
+   rerunning the four-root script does not broaden it. An offline disk image
+   also preserves the partition table, bootloader, and otherwise missed files.
+4. **Put an independent copy of irreplaceable data on OneDrive.** Use encrypted
+   archives or an encrypted backup repository; verify cloud quota, upload
+   completion, and an actual download. Keep recovery credentials independently.
+   OneDrive capacity and access were not inspected. Avoid a loose-file sync as
+   the only preservation of Linux permissions, symlinks, or application state.
+5. **Verify from another device.** Retrieve the backup without using MSI's
+   local keys, run the backup tool's full integrity check, restore representative
+   files, and open them. Test database and Resolve restores, game saves, and
+   wallet recovery through their respective applications. Record snapshot IDs,
+   dates, paths, checksum/check results, and restore results outside MSI.
+6. **Freeze the final state.** Close remaining applications, take the last
+   incremental backup after this handbook update, and save this documentation
+   with it. Capture any changes made after this inventory.
+
+The existing restic recovery key is stored beside its repository at
+`/srv/nas/shared/msi-settings-backup/password`. Whoever can read both can decrypt
+the backup. Keep the NAS directory owner-only and store independent recovery
+material securely; do not publish or copy the key into the handbook.
+
+For a disk-image rollback, a successful restore replaces the target disk with
+the captured Linux state. File backups alone require reinstalling applications
+and rebuilding services. Neither Linux binaries nor copied Miniforge environments
+become native Windows programs; retain the Linux archive and recreate Windows
+environments from suitable package specifications.
+
+## Before installing Windows
+
+- [ ] Full intended backup scope agreed and completed, including data outside home.
+- [ ] Last snapshot/image ID, date, location, and verification results saved elsewhere.
+- [ ] Independent NAS login and backup decryption tested from another device.
+- [ ] Irreplaceable data has a verified second copy, with cloud upload/download tested.
+- [ ] Wallet recovery, browser/account recovery, projects, game saves, Resolve, and databases checked.
+- [ ] Final handbook changes are included in the off-machine backup.
+- [ ] MSI's remote-service dependencies are retired or moved deliberately.
+- [ ] Windows edition/license, TPM2, and Secure Boot capability checked.
+- [ ] Windows installation USB prepared separately from backup storage.
+- [ ] Network/storage drivers available and backup storage disconnected before disk selection.
+
+Use Microsoft's [Windows 11 download page](https://www.microsoft.com/software-download/windows11)
+and [installation guidance](https://support.microsoft.com/en-us/windows/deployment/install-upgrade/ways-to-install-windows-11).
+Check the [Windows 11 requirements](https://learn.microsoft.com/en-us/windows/whats-new/windows-11-requirements)
+and retrieve drivers for the exact Alpha 15 A4DEK from [MSI support](https://www.msi.com/support/download).
+These links were checked on 2026-09-27. The local TPM2 report does not by itself
+certify all installation requirements or confirm Windows activation.
+
+During installation, identify the **476.9 GiB Kingston internal SSD by model
+and size**, not an assumed Windows disk number. Deleting its Linux partitions
+also deletes every local backup on that SSD. Do this only after the checklist
+is satisfied. Partition deletion for reinstall is not a certified secure erase
+for transferring ownership.
+
+## Capture limits
+
+This was a running-system inspection, not a forensic file-by-file image.
+Private file contents, root-only directories, complete firewall/VPN rules,
+database contents, browser/cloud sync health, account licenses, NAS integrity,
+and recovery success remain unverified. Full `/boot` inspection was denied;
+firmware status was readable. Secrets were not copied into documentation.
+
+**Erase readiness: not established.** The selected project snapshot has been
+restored and compared, and the September 13 settings snapshot remains the
+owner's settings baseline. Personal documents, remaining Downloads/media,
+game saves, and other selected categories still need decisions. This is a
+selective migration, not a verified full-disk backup.

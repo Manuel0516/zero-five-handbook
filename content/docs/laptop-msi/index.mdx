@@ -9,6 +9,14 @@ hub and public service entry point.
 
 ## Current status
 
+The final pre-Windows Linux inventory was captured on **2026-09-27**. Start with
+the [final snapshot and backup checklist](/docs/laptop-msi/final-snapshot) and
+[installed software manifest](/docs/laptop-msi/software-snapshot-2026-09-27).
+Linux was still running at capture. Selected projects/private configs now have
+a restore-verified NAS backup, and development repositories are being preserved
+on GitHub. Personal-file selection and Windows installation remain pending.
+Earlier settings snapshots below cover only their documented roots.
+
 The reproducible, secret-free settings snapshot lives in
 [`zero-five-infra/settings/msi/`](https://github.com/Manuel0516/zero-five-infra/tree/main/settings/msi).
 This page explains the machine; the infrastructure repository carries the
@@ -49,9 +57,9 @@ models into Open WebUI — the laptop branch is fully deployed and verified
 | Hardware | MSI Alpha 15 A4DEK |
 | Hostname | `msi` (renamed from `alpha` on 2026-08-12) |
 | Operating system | CachyOS Linux, rolling release |
-| LAN address | Not yet verified |
-| WireGuard | MSI migration target at `10.40.0.12/32`; live cutover pending |
-| Role | Personal Linux desktop and prospective laptop AI backend |
+| LAN address | `192.168.1.110/24` on `eno1`, verified 2026-09-27 |
+| WireGuard | `wg0` at `10.40.0.12/32`, verified 2026-09-27; remote handshakes not checked |
+| Role | Personal Linux desktop, Ollama backend, and local Second Brain containers; Windows migration planned |
 
 ## Naming convention
 
@@ -106,7 +114,6 @@ wallpapers, project repositories, or AI model blobs.
 
 ## Next steps
 
-1. Confirm the exact MSI model and operating system.
-2. Decide whether it is a workstation, a WireGuard client, or a service node.
-3. If it needs Zero Five network access, add a secret-free peer template under
-   `zero-five-infra/wireguard/` and document its verified route here.
+Complete the [pre-erasure checklist](/docs/laptop-msi/final-snapshot#before-installing-windows),
+verify recovery from another device, and preserve the final handbook off-machine
+before replacing CachyOS with Windows.

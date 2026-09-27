@@ -365,8 +365,8 @@ The explicitly skipped Downloads directories `Manuel_Bosch_CV_Project`,
 ZIP copies, and rebuildable `.venv`/`__pycache__` were omitted. Separate CV PDFs
 and cover letters were kept. Bonsai and driving-simulator remain excluded.
 
-The following inventory distinguishes copied personal files from game-save
-locations that still need a separate decision:
+The following inventory records personal-file contents and game locations;
+the completed game-selection pass follows it.
 
 | Location | Observed contents |
 | --- | --- |
@@ -379,7 +379,7 @@ locations that still need a separate decision:
 | Downloads: project archives | Older Hub/personal-ai archives, Python environment YAML files, a Second Brain knowledge JSON export |
 | Downloads: credentials | `ssh.zip`, a hidden `.ssh` directory, and a Mullvad WireGuard ZIP; private archive contents were not displayed and uniqueness is not yet established |
 | Prism Launcher | Active instance `1.20.1` contains the world `LynxHouse`, distinct by name from the archived `New World` |
-| Steam/Heroic | Installed game manifests include No Man's Sky, Counter-Strike 2, Valheim, and Cities: Skylines II; Heroic contains FarmingSimulator19. Save preservation and cloud status remain to be decided |
+| Steam/Heroic | Installed game manifests include No Man's Sky, Counter-Strike 2, Valheim, and Cities: Skylines II; Heroic contains FarmingSimulator19. Installation does not establish which games were played |
 
 Exact byte comparisons found these same-named Downloads files already preserved
 in tracked GitHub project files: `Comp_Proj2_nanotransport.pdf`,
@@ -388,6 +388,46 @@ in tracked GitHub project files: `Comp_Proj2_nanotransport.pdf`,
 Other filenames were not established as duplicates by this check.
 `OneDrive_1_2026-06-06.zip` contains only `labs-environment.yml` and
 `physics-environment.yml`; the archive name does not imply a complete OneDrive backup.
+
+### Game selection and No Man's Sky saves
+
+The owner reports mainly online play, confirms the Minecraft server is already
+saved elsewhere, and explicitly does not need Counter-Strike data. No new
+Minecraft/server or Counter-Strike backup was made. The earlier personal-file
+copy already includes `Documents/1.20.1.zip`; it remains available. No additional
+save backup was requested for Valheim, Cities: Skylines II, or FarmingSimulator19.
+
+No Man's Sky had local save files. Both the current save tree and a different
+older prefix backup were copied to:
+
+```text
+delta:/srv/nas/shared/msi-personal-review-2026-09-27/Game-saves/No-Mans-Sky/
+  Current/
+  Older-prefix-backup/
+  Steam-metadata-1/
+  manifest.json
+  README.txt
+```
+
+The source roots are beneath
+`~/.local/share/Steam/steamapps/compatdata/275850/pfx/drive_c/users/steamuser/`:
+`AppData/Roaming/HelloGames/NMS` (current) and
+`Application Data BACKUP/HelloGames/NMS` (older copy). Steam metadata was copied
+from the account's `~/.local/share/Steam/userdata/*/275850` directory. Account
+identifiers and exact original paths are retained in the private NAS manifest.
+
+The game process `NMS.exe` was not running during capture. All **19 files,
+3,586,613 bytes (about 3.4 MiB)** passed size and SHA-256 comparison on the NAS;
+copied files have owner-only access. This is an addition to the 95-file personal
+archive, with a separate manifest. The root README points to it.
+
+In-game restoration has not been tested. Keep current and older save sets
+separate, preserve any new Windows saves before restoration, and verify the
+expected progress after loading. No live Steam Cloud or Hello Games cross-save
+verification was performed; local cloud metadata is not evidence of a successful
+upload. Refer to [Steam Cloud support](https://help.steampowered.com/en/faqs/view/68D2-35AB-09A9-7678)
+and [Hello Games cross-save guidance](https://cloud.nomanssky.com/cross-save)
+when reviewing cloud recovery.
 
 Initial SSH inspection, before the personal-file copy, verified `/srv/nas` is mounted from
 `/dev/sda2`: about **3.6 TiB total, 49 GiB used, 3.4 TiB available**.
@@ -487,6 +527,7 @@ firmware status was readable. Secrets were not copied into documentation.
 **Erase readiness: not established.** The selected project snapshot has been
 restored and compared, and the September 13 settings snapshot remains the
 owner's settings baseline. The remaining personal files have a checksum-verified,
-categorized NAS copy for later review. Active game saves and other unreviewed
-application data still need decisions. This is a selective migration, not a
-verified full-disk backup.
+categorized NAS copy for later review. No Man's Sky saves are copied and verified;
+Minecraft is already saved elsewhere according to the owner and Counter-Strike
+is intentionally skipped. Other unreviewed application data still needs decisions.
+This is a selective migration, not a verified full-disk backup.

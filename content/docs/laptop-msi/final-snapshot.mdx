@@ -429,6 +429,67 @@ upload. Refer to [Steam Cloud support](https://help.steampowered.com/en/faqs/vie
 and [Hello Games cross-save guidance](https://cloud.nomanssky.com/cross-save)
 when reviewing cloud recovery.
 
+### Final settings, credentials, and AI history
+
+The owner explicitly excluded **FreeCAD**, which was only a test, and requested
+preservation of the remaining shell settings, scripts, private credentials,
+and AI history/customization. These were captured at **2026-09-27 12:33:48 UTC**
+into an encrypted archive in the existing restic repository:
+
+| Property | Verified result |
+| --- | --- |
+| Repository | `delta:/srv/nas/shared/msi-settings-backup/repository` |
+| Snapshot | `ca3975bb659ff7073437bfb7bf33482f35361e695bad6adc3e49147666cec216` (short ID `ca3975bb`) |
+| Tag | `final-extras-2026-09-27` |
+| Archive | `msi-final-extras-2026-09-27.tar` |
+| Preserved files | 1,338 regular files, 212,286,058 source bytes (about 202 MiB), plus directory/symlink entries |
+| Database capture | Nine SQLite databases copied through SQLite's online backup API, converted to standalone journal mode, and checked with `PRAGMA quick_check` |
+| Restore verification | Entire archive retrieved from restic and SHA-256 compared; every archived regular file compared to its manifest, with modes and symlink targets checked |
+
+The archive has three folders, plus `README.txt` and `manifest.json`:
+
+| Folder | Contents |
+| --- | --- |
+| `Shell-and-scripts` | Existing Bash/Zsh profiles, Git config, and `~/.local/bin` scripts/launcher links |
+| `Private-credentials` | `.netrc`, `.dodsrc`, cookies file, certificate stores, GPG trust/configuration, desktop keyrings, and Ollama identity files |
+| `AI-history-and-settings` | Codex sessions, memories, skills, rules, config/auth, state/history databases, and installed plugin definitions; Claude history/settings/plugins; OpenCode history/database/state; Copilot config; the custom Ollama Modelfile and history |
+
+Downloaded tool binaries, node_modules, runtime caches, logs, lock/socket
+directories, and transient SQLite WAL/SHM files were omitted. Installed plugin
+definitions were retained so customizations remain available. Launcher symlinks
+were preserved without copying their downloaded binary targets; reinstall the
+tools before using those launchers. Bonsai and the home OpenCode configuration
+that references it remain excluded. FreeCAD application data was not copied.
+
+Temporary plaintext staging and verification copies were removed after success.
+The private NAS review folder now contains
+`Final-extras-encrypted/README.txt` with retrieval instructions; it contains no
+decryption key or plaintext copy of the archive. The archive's own manifest maps
+its organized folders back to original paths and records checksums and modes.
+
+Restore to a new private directory using the existing restic recovery key. On
+Delta, as `manuel`:
+
+```bash
+umask 077
+mkdir ~/msi-final-extras-restore
+restic --no-cache -r /srv/nas/shared/msi-settings-backup/repository \
+  --password-file /srv/nas/shared/msi-settings-backup/password \
+  dump ca3975bb /msi-final-extras-2026-09-27.tar \
+  > ~/msi-final-extras-restore/extras.tar
+mkdir ~/msi-final-extras-restore/files
+tar -xf ~/msi-final-extras-restore/extras.tar \
+  -C ~/msi-final-extras-restore/files
+```
+
+Read the extracted README and manifest before applying individual files. Stop
+the target applications before restoring SQLite snapshots, review OS-specific
+paths and plugin compatibility, and do not overwrite a live profile wholesale.
+This capture does not include conversations written after its timestamp.
+No local Resolve project databases were found in the default project library;
+this does not inspect any external or remote libraries. No GPG private-key files
+were found, although the small GPG trust/configuration tree was retained.
+
 Initial SSH inspection, before the personal-file copy, verified `/srv/nas` is mounted from
 `/dev/sda2`: about **3.6 TiB total, 49 GiB used, 3.4 TiB available**.
 The completed selective copies and their verification results are recorded
@@ -519,9 +580,11 @@ for transferring ownership.
 ## Capture limits
 
 This was a running-system inspection, not a forensic file-by-file image.
-Private file contents, root-only directories, complete firewall/VPN rules,
-database contents, browser/cloud sync health, account licenses, NAS integrity,
-and recovery success remain unverified. Full `/boot` inspection was denied;
+Backup and restore verification applies to the specific scopes recorded above.
+Root-only directories, complete firewall/VPN rules, account licenses, independent
+cloud-sync health, and functional restoration of every application remain
+unverified. A full data check of the older September 13 settings repository has
+not been performed during this review. Full `/boot` inspection was denied;
 firmware status was readable. Secrets were not copied into documentation.
 
 **Erase readiness: not established.** The selected project snapshot has been
@@ -529,5 +592,8 @@ restored and compared, and the September 13 settings snapshot remains the
 owner's settings baseline. The remaining personal files have a checksum-verified,
 categorized NAS copy for later review. No Man's Sky saves are copied and verified;
 Minecraft is already saved elsewhere according to the owner and Counter-Strike
-is intentionally skipped. Other unreviewed application data still needs decisions.
-This is a selective migration, not a verified full-disk backup.
+is intentionally skipped. The final shell/credentials/AI-history archive is
+encrypted and restore-verified; FreeCAD is excluded by the owner. The requested
+preservation passes are complete, but Windows preparation and the remaining
+recovery checks above have not been completed. This is a selective migration,
+not a verified full-disk backup.

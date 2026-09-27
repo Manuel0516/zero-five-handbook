@@ -501,12 +501,26 @@ The repository `/srv/nas/shared/msi-settings-backup/repository` contains:
 | --- | --- | --- | --- | --- |
 | `3f9313b3` | 2026-09-13 17:03:56 | `msi` / `settings` | 20.077 GiB | `/etc/wireguard`, `/home/manuel/.config`, `/home/manuel/.ssh`, `/home/manuel/miniforge3` |
 
-Snapshot listing and access succeeded. A full data check and restore of this
-snapshot were **not** performed during this inspection. `~/msi-restored`
+Snapshot listing and access succeeded. On 2026-09-27, the full repository
+integrity check also **passed**: all **3 snapshots and 402 data packs** were
+checked, with exit status 0 and `no errors were found`. This includes the
+September 13 settings snapshot and both new encrypted snapshots. The check
+read all stored data rather than a subset:
+
+```bash
+restic --no-cache -r /srv/nas/shared/msi-settings-backup/repository \
+  --password-file /srv/nas/shared/msi-settings-backup/password \
+  check --read-data
+```
+
+The command ran on Delta, where `/srv/nas` was verified mounted. No snapshots
+were deleted or pruned. Integrity verification does not establish that every
+Linux application has been successfully restored on Windows. `~/msi-restored`
 exists locally, but its presence alone does not prove a successful restore.
 The existing [selected-settings procedure](/docs/laptop-msi/recovery) still
 backs up only those four roots. The selected-project snapshot above supplies
-the additional approved project files; remaining personal files are still under review.
+the additional approved project files; the remaining approved personal files
+and final extras are preserved as documented above.
 
 The owner selected the smaller file-level approach above. A complete disk image
 is not requested; the broader options below are reference material, not a change
@@ -551,18 +565,21 @@ and rebuilding services. Neither Linux binaries nor copied Miniforge environment
 become native Windows programs; retain the Linux archive and recreate Windows
 environments from suitable package specifications.
 
-## Before installing Windows
+## Backup handoff and Windows installation
 
-- [ ] Full intended backup scope agreed and completed, including data outside home.
-- [ ] Last snapshot/image ID, date, location, and verification results saved elsewhere.
-- [ ] Independent NAS login and backup decryption tested from another device.
-- [ ] Irreplaceable data has a verified second copy, with cloud upload/download tested.
-- [ ] Wallet recovery, browser/account recovery, projects, game saves, Resolve, and databases checked.
-- [ ] Final handbook changes are included in the off-machine backup.
-- [ ] MSI's remote-service dependencies are retired or moved deliberately.
-- [ ] Windows edition/license, TPM2, and Secure Boot capability checked.
-- [ ] Windows installation USB prepared separately from backup storage.
-- [ ] Network/storage drivers available and backup storage disconnected before disk selection.
+- [x] Owner-selected backup scope completed; intentional exclusions recorded.
+- [x] Snapshot IDs, locations, restore instructions, and verification results saved off-machine.
+- [x] Independent NAS, password-manager, 2FA, and account access confirmed by the owner.
+- [x] Selected project and final-extras restores verified; personal/game copies checksum-verified.
+- [x] Full encrypted repository check passed: 3 snapshots, 402 packs, no errors.
+- [x] Final handbook updates preserved on GitHub.
+
+The owner confirms they have the Windows installation and will handle it.
+Installer media, licensing, drivers, and any retirement of MSI's remote-service
+dependencies are owner-managed and were not performed in this session. No disk
+erase or Windows installation was initiated. A separate OneDrive copy was not
+created; the NAS/GitHub/owner-confirmed account and wallet copies are the
+preservation choices recorded here.
 
 Use Microsoft's [Windows 11 download page](https://www.microsoft.com/software-download/windows11)
 and [installation guidance](https://support.microsoft.com/en-us/windows/deployment/install-upgrade/ways-to-install-windows-11).
@@ -583,17 +600,17 @@ This was a running-system inspection, not a forensic file-by-file image.
 Backup and restore verification applies to the specific scopes recorded above.
 Root-only directories, complete firewall/VPN rules, account licenses, independent
 cloud-sync health, and functional restoration of every application remain
-unverified. A full data check of the older September 13 settings repository has
-not been performed during this review. Full `/boot` inspection was denied;
+unverified. The full restic repository data check passed, including the older
+September 13 settings snapshot. Full `/boot` inspection was denied;
 firmware status was readable. Secrets were not copied into documentation.
 
-**Erase readiness: not established.** The selected project snapshot has been
+**Selected backup work: complete and verified.** The selected project snapshot has been
 restored and compared, and the September 13 settings snapshot remains the
 owner's settings baseline. The remaining personal files have a checksum-verified,
 categorized NAS copy for later review. No Man's Sky saves are copied and verified;
 Minecraft is already saved elsewhere according to the owner and Counter-Strike
 is intentionally skipped. The final shell/credentials/AI-history archive is
 encrypted and restore-verified; FreeCAD is excluded by the owner. The requested
-preservation passes are complete, but Windows preparation and the remaining
-recovery checks above have not been completed. This is a selective migration,
-not a verified full-disk backup.
+preservation passes and full repository integrity check are complete. The owner
+is handling Windows installation. Functional restoration of every application
+has not been tested; this is a selective migration, not a full-disk image.

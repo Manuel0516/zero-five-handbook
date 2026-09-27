@@ -104,10 +104,11 @@ Temporary passwords and restored test data are removed from `/run` on exit.
 This is a live-file backup; close apps and rerun after final changes. No old
 snapshots are pruned. The new workflow is prepared and locally checked; its
 NAS snapshot listing was verified on 2026-09-27: snapshot `3f9313b3`, dated
-2026-09-13 17:03:56, contains all four roots and reports 20.077 GiB. A full
-data check and restore were not repeated during that inspection, so recovery
-success remains unverified. See the final snapshot for the additional data
-outside this backup's scope.
+2026-09-13 17:03:56, contains all four roots and reports 20.077 GiB. A subsequent
+`restic check --read-data` on 2026-09-27 verified all 3 repository snapshots and
+402 data packs, exited successfully, and reported no errors. A complete functional
+restore of these Linux settings has not been tested. See the final snapshot for
+the additional data outside this backup's scope and the separately verified restores.
 
 The Miniforge addition takes effect on the next run. An already-running backup
 keeps its original scope. Restore Miniforge to the original

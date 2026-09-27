@@ -320,10 +320,79 @@ and secret-pattern review; this was not a new feature implementation.
 
 ## NAS evidence and backup plan
 
-Read-only SSH inspection of `delta` verified `/srv/nas` is mounted from
+### Personal files saved for later review
+
+The owner chose to save the remaining personal files in categorized NAS folders
+and review them later. **95 files, 8,683,819,973 bytes (about 8.1 GiB)** were copied
+to `delta:/srv/nas/shared/msi-personal-review-2026-09-27` and every copied regular
+file's size and SHA-256 hash were verified on the NAS against the source manifest.
+Original files remain untouched.
+
+| Review folder | Files |
+| --- | --- |
+| `CAD-and-electronics` | 6 |
+| `CV-and-applications` | 8 |
+| `Code-notes-and-exports` | 12 |
+| `Design-system` | 1 |
+| `Downloaded-datasets` | 2 |
+| `Installers-and-system-images` | 17 |
+| `Minecraft-archive` | 1 |
+| `Music-and-video` | 1 |
+| `Other-archives-and-files` | 4 |
+| `Photos-and-wallpapers` | 14 |
+| `Private-credentials` | 7 |
+| `Study-and-documents` | 22 |
+
+Each category retains the original home-relative paths, so identically named
+files from different directories cannot overwrite one another. `README.txt`
+explains the layout; `manifest.json` records original locations, destination
+paths, file modes, sizes, checksums, and exclusions. Directory/symlink entries
+are separate from the 95-file count. This browsable copy has owner-only access
+and is **not encrypted**; `Private-credentials` must remain private. Unlike the
+project/settings backups, this folder is not a restic snapshot.
+
+To recover an item, use the manifest to identify its original path and copy it
+to a new destination first. Original Linux modes are recorded in the manifest;
+the NAS copies have group/other access removed. Preserve `manifest.json` and
+`README.txt` with the review folders.
+
+Included roots were the remaining contents of Documents, Downloads, Pictures,
+Music, and Videos. Installers and the two datasets in Downloads were kept under
+the owner's later “save everything for review” instruction; this does not
+reverse the earlier exclusion of development-project datasets/databases.
+The explicitly skipped Downloads directories `Manuel_Bosch_CV_Project`,
+`frontend`, `backend`, and `wildfire_project_setup`, their corresponding CV/setup
+ZIP copies, and rebuildable `.venv`/`__pycache__` were omitted. Separate CV PDFs
+and cover letters were kept. Bonsai and driving-simulator remain excluded.
+
+The following inventory distinguishes copied personal files from game-save
+locations that still need a separate decision:
+
+| Location | Observed contents |
+| --- | --- |
+| Documents | `1.20.1.zip` (about 134 MiB), a Minecraft instance archive containing a `New World` save; empty BlackmagicDesign directory |
+| Pictures | Seven wallpapers, about 2.2 MiB total |
+| Music | `lyrics/lyrics_map.json`, about 2 KiB |
+| Videos | Empty |
+| Downloads: study/work | University PDFs, `Computer_Project.ipynb`, `data.py`, CAD/STL files, avionics budget spreadsheet, CV/cover-letter files |
+| Downloads: personal assets | Photos/images and `Zero-Five Design System.zip` (about 126 MiB; components, fonts, assets, guidelines, and tokens) |
+| Downloads: project archives | Older Hub/personal-ai archives, Python environment YAML files, a Second Brain knowledge JSON export |
+| Downloads: credentials | `ssh.zip`, a hidden `.ssh` directory, and a Mullvad WireGuard ZIP; private archive contents were not displayed and uniqueness is not yet established |
+| Prism Launcher | Active instance `1.20.1` contains the world `LynxHouse`, distinct by name from the archived `New World` |
+| Steam/Heroic | Installed game manifests include No Man's Sky, Counter-Strike 2, Valheim, and Cities: Skylines II; Heroic contains FarmingSimulator19. Save preservation and cloud status remain to be decided |
+
+Exact byte comparisons found these same-named Downloads files already preserved
+in tracked GitHub project files: `Comp_Proj2_nanotransport.pdf`,
+`FYSC23_LEDmanual_HT26.pdf`, `MNXB11-manual-1.pdf`, `PXRD lab manual 2025.pdf`,
+`c.jpg`, `d.jpg`, `hub-plan-v2.md`, and `localdrop_project_guidelines.md`.
+Other filenames were not established as duplicates by this check.
+`OneDrive_1_2026-06-06.zip` contains only `labs-environment.yml` and
+`physics-environment.yml`; the archive name does not imply a complete OneDrive backup.
+
+Initial SSH inspection, before the personal-file copy, verified `/srv/nas` is mounted from
 `/dev/sda2`: about **3.6 TiB total, 49 GiB used, 3.4 TiB available**.
-This is enough apparent capacity for the currently observed MSI data, but the
-actual backup size and completion still need verification.
+The completed selective copies and their verification results are recorded
+above; these capacity figures describe the earlier inspection.
 
 The repository `/srv/nas/shared/msi-settings-backup/repository` contains:
 
@@ -417,6 +486,7 @@ firmware status was readable. Secrets were not copied into documentation.
 
 **Erase readiness: not established.** The selected project snapshot has been
 restored and compared, and the September 13 settings snapshot remains the
-owner's settings baseline. Personal documents, remaining Downloads/media,
-game saves, and other selected categories still need decisions. This is a
-selective migration, not a verified full-disk backup.
+owner's settings baseline. The remaining personal files have a checksum-verified,
+categorized NAS copy for later review. Active game saves and other unreviewed
+application data still need decisions. This is a selective migration, not a
+verified full-disk backup.

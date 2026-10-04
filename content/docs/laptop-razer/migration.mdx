@@ -12,11 +12,12 @@ CachyOS installation assumptions no longer describe this migration.
 
 The owner supplied `smb://192.168.1.106/shared/` as the archive access path.
 Local AI and personalization are already configured according to the owner;
-current work focuses on development, university tooling and LocalDrop.
+the installed personal layer is captured alongside the restored physics workflow.
 The live continuation installed and tested development/scientific/LaTeX tools,
 verified English/Spanish switching and WireGuard access, repaired runtime Delta
 DNS selection and recovered the LocalDrop token privately. See
-[verified results and pairing blockers](/docs/laptop-razer/development).
+[development and Physics usage](/docs/laptop-razer/development) and
+[LocalDrop status and service commands](/docs/laptop-razer/localdrop).
 
 ### Recover MSI from retained evidence
 
@@ -26,8 +27,10 @@ settings baseline `3f9313b3`, selected projects `56856c59`, and final shell,
 credentials and AI-history extras `ca3975bb`. Personal files are separately
 recorded at `/srv/nas/shared/msi-personal-review-2026-09-27`.
 These are historical full-backup verification records. The continuation confirmed
-repository access and recovered the LocalDrop configuration from `56856c59`;
-it did not repeat a complete archive integrity check.
+repository access and recovered the LocalDrop configuration from `56856c59`.
+It also restored `physics` from `3f9313b3` at its original Linux prefix and
+compared all 257 saved Conda metadata/history files byte-for-byte. These targeted
+restores did not repeat a complete repository integrity check.
 
 Restore selected material into a separate private staging directory and compare
 its manifests before applying configuration. Use the existing encrypted recovery
@@ -51,13 +54,22 @@ platform-specific settings before restoring them.
 
 ### Build and verify the Razer
 
-1. Complete the [observed baseline](/docs/laptop-razer/inventory), including existing GPU/power helpers and live checks.
-2. Confirm the owner's preferred tools, appearance, monitors and first priorities.
-3. Restore selected projects and data; rebuild environments from specifications and lockfiles.
-4. Configure and test private access with a fresh Razer identity.
-5. Personalize the desktop, terminal and editors with reviewed user overlays.
-6. Verify local AI and selected power profiles on the actual GPU.
-7. Create a tested backup and complete the MacBook replacement acceptance checks.
+| Work | Evidence and remaining boundary |
+| --- | --- |
+| Hardware inventory | CPU, RAM class, NVMe, 16 GiB NVIDIA VRAM and display modes verified; [overview](/docs/laptop-razer) |
+| Personalization and AI preservation | Current Omarchy, keyboard, GPU/power and Bonsai sources captured; inference and power measurements remain separate |
+| English/Spanish input | Owner verified Alt + Shift and Spanish `ñ` |
+| Build and university tools | CMake/Ninja, Python 3.11 scientific environment, Jupyter and Spanish LaTeX smoke checks passed |
+| Physics Conda | MSI snapshot restored, Python 3.14.2 and 255 Conda packages retained; registered Physics kernel and functional checks passed |
+| LocalDrop | Owner reports working; iPhone → Razer confirmed, Razer health verified; latest MacBook ping timed out |
+| Network ownership | `.12` and inherited public identity belong to Razer; runtime Delta DNS works |
+| Recovery pack | 117 explicit files, checksums and staged file recovery verified; full machine rebuild not performed |
+
+Remaining work is to verify actual coursework, MacBook bidirectional transfers,
+AI inference, power/suspend behavior and Windows boot; apply and test the desired
+private DNS rename and persistent resolver setting; activate the inherited LAN
+reservation if intended; and complete the assembled backup/restore acceptance.
+Keep the existing personalization and AI while performing those checks.
 
 Source configurations exclusive to the retired hardware remain under
 `zero-five-infra/archive/msi/`. The owner transferred the laptop's current
@@ -74,7 +86,11 @@ personal layer and new tooling are included in
 
 ## Historical sequential plan
 
-## Decision
+The following is retained planning history. Its sale sequence, CachyOS choice
+and fresh-key proposal are superseded by the current status above and the
+owner-directed inherited Razer identity. Follow current Razer pages for operations.
+
+### Decision
 
 This is **not** a live device-to-device migration. The MSI and MacBook will be
 prepared first, their approved data and reproducible configuration will be
@@ -92,7 +108,7 @@ the sale:
 The source laptops are not available during Razer setup. No step on the Razer
 may assume it can SSH to, copy from, or compare against the MSI or MacBook.
 
-## Boundary and security model
+### Boundary and security model
 
 - The NAS is the current migration archive, not automatically a proven
   disaster-recovery system. The storage and backup controller is Delta at
@@ -111,7 +127,7 @@ may assume it can SSH to, copy from, or compare against the MSI or MacBook.
 - LP tooling remains read-only. The Razer must never receive a wallet secret or
   automatic blockchain-mutation path.
 
-## Final state
+### Final state
 
 The intended final workstation is the documented
 [Razer Blade 15](/docs/laptop-razer): Windows retained for Windows-only tasks;
@@ -133,7 +149,7 @@ Linux must contain, after the post-sale build and acceptance test:
 - backup, snapshots, restore instructions and a tool manifest that make a
   future replacement possible without either retired laptop.
 
-## Sequential runbook
+### Sequential runbook
 
 ```mermaid
 flowchart TD
@@ -149,7 +165,7 @@ flowchart TD
     i --> j["Razer: Hermes + llama.cpp + daily workflow acceptance"]
 ```
 
-### Stage 1 — before the sale: freeze the portable environment
+#### Stage 1 — before the sale: freeze the portable environment
 
 Perform this while both source laptops are still available. Do not start Razer
 installation in this stage.
@@ -196,7 +212,7 @@ installation in this stage.
    keys/passphrases needed for the new Razer design. This does not mean copying
    source-laptop private keys.
 
-### Stage 2 — before the sale: verify the NAS archive
+#### Stage 2 — before the sale: verify the NAS archive
 
 This stage is the blocking gate. It must finish while the source devices can
 still correct omissions.
@@ -220,7 +236,7 @@ still correct omissions.
 all required material can be retrieved without MSI/MacBook access, and the user
 has reviewed the final manifest.
 
-### Stage 3 — MSI conversion to a clean Windows sale image
+#### Stage 3 — MSI conversion to a clean Windows sale image
 
 This stage is performed **only after Gate A** and before selling the MSI. It
 intentionally removes the MSI Linux installation. Do not begin until the NAS
@@ -268,7 +284,7 @@ retrievable without the MSI.
    or private network credentials remaining. Keep sale receipts and serial
    numbers outside the public handbook.
 
-### Stage 4 — sell both source devices and preserve the archive
+#### Stage 4 — sell both source devices and preserve the archive
 
 1. Sell the MSI only after the clean Windows OOBE handover check passes. Sell
    the MacBook after its separate approved factory-reset/account-removal check.
@@ -277,7 +293,7 @@ retrievable without the MSI.
 3. Keep the migration manifest, Windows media provenance and sale records in the
    retained private migration evidence, not in a public repository.
 
-### Stage 5 — after the sale: establish the Razer platform
+#### Stage 5 — after the sale: establish the Razer platform
 
 Follow this stage only with the NAS/Git bootstrap kit; no source-machine
 assistance is expected.
@@ -314,7 +330,7 @@ assistance is expected.
    Delta → Beta → target access approach. Verify private routes; do not create
    public DNS records or copy source VPN keys.
 
-### Stage 6 — post-sale assembled acceptance and archive closure
+#### Stage 6 — post-sale assembled acceptance and archive closure
 
 The Razer is not complete until this sequence works in one session:
 
@@ -335,7 +351,7 @@ verify their hashes/status, update the Razer handbook with observed state, and
 only then convert the NAS migration archive from active bootstrap material to
 longer-term retained backup/archive.
 
-## Failure modes and rollback
+### Failure modes and rollback
 
 | Failure | Safe response |
 | --- | --- |
@@ -346,7 +362,7 @@ longer-term retained backup/archive.
 | Hermes cannot authenticate or routes incorrectly | Keep it local; re-authenticate and inspect profile/routing configuration. Do not copy old auth stores. |
 | Local model consumes too much disk/RAM/VRAM | Remove the model, use the manifest to choose a smaller quant, and keep the server loopback-only. |
 
-## Evidence required
+### Evidence required
 
 - NAS archive path, free-space check, manifest and SHA-256 results;
 - completed restore-rehearsal log before sale;

@@ -3,8 +3,8 @@ title: Infrastructure Roadmap
 description: Open work for Raspberry Pi Delta, Gamma service migration, backups, remote access, and homelab control.
 ---
 
-This is the operational task list for the next infrastructure changes. A
-checkbox means the work is not complete; pages linked from a task remain the
+This is the operational task list for the next infrastructure changes. An
+unchecked checkbox means the work is not complete; pages linked from a task remain the
 source of truth for implementation details.
 
 ## Current priorities
@@ -15,10 +15,28 @@ source of truth for implementation details.
   - [x] Beta peer and direct route.
   - [x] Gamma peer, direct ping, and Delta→Gamma SSH.
   - [ ] MacBook, BlackArch, and iPhone.
-- [ ] Build and test the Delta backup target before migrating services away
-  from Alpha.
+- [x] Deploy and smoke-test the Delta backup controller; August deployment is
+  recorded in [the backup runbook](/docs/raspberry/backup).
+- [ ] Verify timer enablement and perform a full disaster-recovery drill before
+  treating the backup controller as a proven recovery system.
 - [ ] Define Gamma's storage, power, and recovery capacity before moving
   stateful services.
+
+## Razer workstation migration
+
+- [x] Record current hardware and Razer ownership of former MSI addresses.
+- [x] Preserve current personalization and AI in the reviewed configuration pack.
+- [x] Restore MSI Physics Conda with exact saved metadata and functional checks.
+- [x] Verify English/Spanish switching and iPhone → Razer LocalDrop.
+- [x] Document daily Physics/Jupyter and LocalDrop use/restart commands.
+- [ ] Apply and verify persistent Delta DNS and the canonical Razer DNS rewrite.
+- [ ] Reconcile the inherited `.110` LAN reservation with observed `.100`/`.108`.
+- [ ] Confirm MacBook bidirectional LocalDrop while both devices are online.
+- [ ] Complete coursework, AI inference, power/suspend and Windows acceptance.
+- [ ] Perform a full assembled Razer backup/restore drill.
+
+See [current migration evidence](/docs/laptop-razer/migration) for what each
+completed check establishes. A file-only pack rehearsal is not a full rebuild.
 
 ## Raspberry Pi — Delta
 
@@ -33,15 +51,17 @@ and direct SSH setup is documented in the [Delta handbook](/docs/raspberry).
 - [x] Format and mount the drive as a standalone NAS data service.
   - ext4 filesystem, neutral label `nas`, mounted persistently at `/srv/nas`.
   - The `/etc/fstab` entry uses the filesystem UUID and `nofail`.
-- [ ] Build a NAS system backed by the 4 TB drive.
+- [x] Deploy basic Samba shares backed by the 4 TB drive (verified 2026-08-26).
+- [ ] Finish NAS access and recovery acceptance.
   - Use `/srv/nas/shares/` for private Samba shares and `/srv/nas/backups/`
     for backup repositories.
   - Define LAN-only share access and VPN access separately.
   - Create users, groups, permissions, and an ownership model.
   - Keep the NAS administration interface off the public internet.
   - Test reboot, mount failure, full-disk behavior, permissions, and recovery.
-- [ ] Build the Delta-controlled backup system on the 4 TB drive.
-  - Use an encrypted, deduplicated repository; restic is the current candidate.
+- [x] Deploy the Delta-controlled restic backup system (smoke-tested 2026-08-20).
+- [ ] Finish backup automation and recovery acceptance on the 4 TB drive.
+  - The encrypted, deduplicated restic controller is installed.
   - Prefer pull-based jobs controlled by Delta, with a dedicated backup
     account that normal NAS users cannot modify.
   - Back up Alpha databases, Docker volumes, service configuration, Gamma
@@ -51,15 +71,18 @@ and direct SSH setup is documented in the [Delta handbook](/docs/raspberry).
     runtime configuration.
   - Define retention, pruning, stale/failure alerts, disk-full alerts, and
     repository integrity checks.
-  - Run autonomously from Delta at 21:00 every day.
+  - Verify timer enablement for autonomous runs from Delta at 21:00 every day.
   - Restore testing and a second destination are intentionally deferred.
 - [ ] Keep a second backup destination or offline copy in the design.
   - A single external drive is storage, not disaster recovery.
   - Do not treat the Pi's SD card as the backup target.
 
-Samba and the backup tool are intentionally not installed yet. Implementation
-starts after users, source paths, retention, and restore requirements are
-confirmed.
+Samba shares were deployed and verified on 2026-08-26; the restic controller was
+deployed and smoke-tested on 2026-08-20. The design tasks above cover remaining
+acceptance and refinements, not a claim that those tools are absent. Follow
+[the NAS deployment record](/docs/raspberry/nas) and
+[backup status](/docs/raspberry/backup); controller timer enablement and full
+disaster-recovery acceptance remain separate.
 
 ### Private DNS and remote access
 

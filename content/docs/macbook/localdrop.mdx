@@ -81,8 +81,10 @@ The Linux config is identical except `device.name`/`device.platform`/`peer.*` ar
 
 > **Inherited direct WireGuard path:** verified with the former MSI on
 > 2026-09-09. MacBook is `10.40.0.11` and
-> Razer now owns `10.40.0.12`. The Razer side is prepared, but current
-> MacBook pairing remains unverified; see [Razer LocalDrop](/docs/laptop-razer/localdrop). Add the destination `/32` to the active WireGuard
+> Razer now owns `10.40.0.12`. The Razer listener is active and phone sending is owner-verified. The owner
+> reports LocalDrop working, but the latest MacBook peer ping timed out;
+> current bidirectional MacBook acceptance remains unverified. For daily-use and
+> restart commands, see [Razer LocalDrop](/docs/laptop-razer/localdrop). Add the destination `/32` to the active WireGuard
 > profile's `AllowedIPs`, then point LocalDrop directly to that mesh address on
 > port `8765`. Adding the missing addresses made LocalDrop work; no LocalDrop
 > relay service on Alpha is needed.

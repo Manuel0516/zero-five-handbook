@@ -1,6 +1,6 @@
 ---
 title: LocalDrop on Razer
-description: Current Razer/MacBook addresses, verified iPhone sending, private token recovery, firewall source and pairing limits.
+description: Current Razer/MacBook addresses, owner-confirmed working transfers, daily-use commands and private recovery source.
 ---
 
 Razer owns the former laptop endpoint `10.40.0.12:8765`. Its LocalDrop checkout is
@@ -25,19 +25,65 @@ See [iPhone Shortcuts](/docs/iphone/localdrop) for body/headers and direction li
 Normal phone copy/paste does not trigger a transfer, and LocalDrop v1 cannot send
 clipboard/files from Razer to iPhone.
 
-## MacBook path: still incomplete
+## Current working status
 
-Razer routes `.11` through Alpha and saves the AllowedIPs addition persistently.
-At the latest check the MacBook's ports 22 and 8765 refused connections from
-Alpha/Delta; Razer peer health timed out. The prepared `.11` UFW allow on Razer
-has not been applied because administrator authentication was cancelled.
-These are independent prerequisites; the phone working does not prove MacBook sync.
+On 2026-10-04 the owner confirmed that LocalDrop now works. iPhone → Razer
+was specifically confirmed earlier; this page records that working path. During
+this documentation update, Razer's service was active and its `/health` returned
+`status ok`. The configured MacBook peer `ping` timed out. The latest owner
+report did not specify transfer directions, so MacBook bidirectional acceptance
+remains unverified until a concrete MacBook test confirms it. A timeout at one
+check can reflect a sleeping/offline peer rather than a persistent failure.
 
-Bring the MacBook daemon online using Python 3.11+, check its reciprocal route
-to `.12` and token, apply the narrow MacBook UFW rule after review, then test both
-clipboard directions and a harmless file. Do not use Alpha's `:8765` as a
-LocalDrop relay: that port belongs to the Hub host agent. No Hub service was
-stopped or changed during this migration.
+Use the direct WireGuard peer `10.40.0.11:8765` for MacBook and Razer
+`10.40.0.12:8765` for the phone Shortcut. Alpha's `:8765` belongs to the Hub
+host agent and is not a LocalDrop relay. Keep WireGuard connected on the devices.
+
+## Daily use and service commands
+
+Clipboard text syncs automatically between Razer and MacBook while both daemons
+and clipboard polling are running. Copy text normally, then paste on the other
+computer. On iPhone, run the configured Shortcut to send its clipboard to Razer;
+ordinary iPhone copy/paste does not itself trigger LocalDrop.
+
+On Razer:
+
+```bash
+# Start now; enable automatic startup with the graphical session.
+systemctl --user enable --now localdrop.service
+
+# Restart after changing the private configuration or reconnecting the session.
+systemctl --user restart localdrop.service
+
+# Service state and recent diagnostic messages.
+systemctl --user status localdrop.service --no-pager
+journalctl --user -u localdrop.service -n 50 --no-pager
+
+# Local listener health and configured MacBook peer reachability.
+curl --fail --max-time 5 http://10.40.0.12:8765/health
+cd ~/projects/localdrop
+python main.py ping
+
+# Send a file to the configured MacBook peer.
+python main.py send ~/Downloads/example.pdf
+
+# Pause clipboard/file reception and outbound polling.
+systemctl --user stop localdrop.service
+```
+
+Received files are in `~/Downloads/LocalDrop`. Replace the example filename with
+an existing file. The CLI reads the existing private `config.toml`; never put the
+shared token in a command or paste it into logs. A health response only checks
+the listener; `ping` checks the configured peer. Run the foreground daemon only
+when the service is stopped, otherwise its listening port is already occupied:
+
+```bash
+systemctl --user stop localdrop.service
+cd ~/projects/localdrop
+python main.py daemon
+# After Ctrl+C, resume the normal service:
+systemctl --user start localdrop.service
+```
 
 ## Token and restore source
 

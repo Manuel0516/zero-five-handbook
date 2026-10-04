@@ -5,7 +5,10 @@ description: Reviewed current identity, desktop/AI preservation, explicit export
 
 ## What this pack captures
 
-The Razer pack records the current personal layer and operational source from
+The latest Razer pack also captures the restored Physics Conda specifications and
+verified hardware inventory. Earlier dated exports remain immutable; build a new
+archive filename after source updates. The reviewed inventory contains **117
+files**. The Razer pack records the current personal layer and operational source from
 2026-10-04, after the owner transferred the former laptop's IP addresses and
 roles to Razer. Its source is `zero-five-infra/settings/razer/`; the explicit
 inventory is `pack.json`, with per-file restore destinations and status.
@@ -14,13 +17,13 @@ The generated archive adds exact membership, sizes and SHA-256 hashes in
 
 | Area | Included source | Boundary |
 | --- | --- | --- |
-| Identity/network | `identity.json`, active Razer/shared WireGuard models, DNS and SSH examples | Private keys excluded; DNS rename and `.110` activation pending |
+| Identity/network/hardware | `identity.json`, `hardware.json`, active Razer/shared WireGuard models, DNS and SSH examples | Private keys excluded; DNS rename and `.110` activation pending |
 | Personal desktop | Hyprland overlays, Foot, Omarchy shell/menu, three custom plugins and public university CA | Stock/generated theme files and private wallpaper assets excluded |
 | Keyboard | Final synchronized helper, bindings and Fcitx configuration/profile | Restore together; preserves English/Spanish and Compose |
 | GPU/power | User helpers/wrappers, root hardware helper, units, fixed Polkit rules and baseline/preferences | Hardware-specific; no transient `/run` snapshots |
-| Development/university | Reviewed package set, observed versions, editor selections/settings, Python specification and lock | No virtual environments or opaque project directories |
+| Development/university | Reviewed package set, observed versions, editor selections/settings, Python specification/lock and recovered Physics Conda exports/provenance | No virtual environments or opaque project directories |
 | Existing AI | Bonsai overlays, services/launchers, source revision, model hash manifest, selected editor/Claude preferences | No model blobs, compiled binaries, auth or chat history |
-| LocalDrop | Pinned revision, service, token-placeholder example and scoped firewall source | Existing private token recovered separately; MacBook pairing incomplete |
+| LocalDrop | Pinned revision, service, token-placeholder example and scoped firewall source | Existing private token recovered separately; owner reports working, phone confirmed; MacBook acceptance separate |
 | Runbooks | Current Razer handbook pages and phone setup | Explanation stays in the handbook repository |
 
 This is a reviewed **configuration/recovery pack**, not a disk image or a
@@ -31,12 +34,16 @@ inferred from file presence.
 
 ## Build and verify
 
+The completed documentation export is `razer-pack-2026-10-04-final.tar.gz`
+with its external `.sha256` file. Earlier exports are retained snapshots; they
+do not contain later handbook edits.
+
 From the infrastructure checkout:
 
 ```bash
 python scripts/razer_pack.py validate
-python scripts/razer_pack.py build ../razer-pack-2026-10-04.tar.gz
-python scripts/razer_pack.py verify ../razer-pack-2026-10-04.tar.gz
+python scripts/razer_pack.py build ../razer-pack-2026-10-04-final.tar.gz
+python scripts/razer_pack.py verify ../razer-pack-2026-10-04-final.tar.gz
 ```
 
 The builder reads only the explicit reviewed inventory. It rejects symlinks,
@@ -52,6 +59,15 @@ current keyboard dependencies and DNS updates preserving peer/key material.
 The verifier checks all archive members without extracting them. SHA-256 detects
 corruption or unintended changes when compared with the retained checksum; it is
 not a publisher signature and should be kept with trusted recovery records.
+
+## Physics environment recovery
+
+The pack contains the restored Conda specifications, exact linux-64 package URL
+and SHA-256 lock, shell compatibility snippet and restore provenance. It excludes
+the 2.4 GB restored archive and installed environment. Follow
+[Physics recovery](/docs/laptop-razer/development#recovery-and-rollback) to
+rebuild at a new destination or recover from the retained MSI snapshot. Keep the
+Physics Python 3.14 kernel distinct from the separate uv Python 3.11 environment.
 
 ## Restore rehearsal before application
 
@@ -78,8 +94,9 @@ not a publisher signature and should be kept with trusted recovery records.
    labeling without renaming retained MSI NAS directories or snapshot hosts.
 7. Validate the graphical session before enabling user services. Keep keyboard
    helper, bindings and both Fcitx methods together. Apply only the scoped
-   LocalDrop rules relevant to active clients; the MacBook rule is prepared,
-   not yet applied. Check routes and health from each actual client.
+   LocalDrop rules relevant to active clients; the last captured MacBook rule was prepared rather than applied. Check current
+   rules and routes before changing anything; the owner now reports working
+   LocalDrop, and phone sending is confirmed. Test each actual client.
 
 ## Acceptance and rollback
 
@@ -104,5 +121,7 @@ legacy name. Razer uses `.100`/`.108` on the LAN rather than the inherited `.110
 reservation. Delta DNS is verified at runtime; persistent DNS application and
 reconnect acceptance are pending. The inherited key has not been rotated.
 Gamma's reciprocal endpoint and old remote AI slot require live reconciliation.
-MacBook LocalDrop and campus Wi-Fi remain unverified. None of these gaps is
+LocalDrop is reported working by the owner and the phone path is confirmed;
+the latest MacBook ping timed out, so bidirectional MacBook acceptance and
+campus Wi-Fi remain separate checks. None of these gaps is
 hidden by the new Razer label or pack checksum.

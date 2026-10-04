@@ -23,9 +23,48 @@ The reviewed current baseline is now packaged in
 | Addresses, DNS, SSH and VPN | [Identity/network](/docs/laptop-razer/network) |
 | Appearance, keyboard and power | [Desktop](/docs/laptop-razer/desktop) |
 | Existing local AI | [AI](/docs/laptop-razer/ai) |
+| Physics Conda and Jupyter | [Restored Physics environment](/docs/laptop-razer/development) |
 | Build/scientific/LaTeX tools | [Development](/docs/laptop-razer/development) |
 | University network support | [University Wi-Fi](/docs/laptop-razer/university-wifi) |
 | MacBook/phone transfers | [LocalDrop](/docs/laptop-razer/localdrop) |
+
+## Hardware verified on Razer — 2026-10-04
+
+| Component | Observed hardware |
+| --- | --- |
+| Model | Razer Blade 15 (2022), `RZ09-0421`; DMI product version `8.04` |
+| Processor | Intel Core i7-12800H; 14 cores, 20 logical processors; reported maximum 4.8 GHz |
+| Memory | 32 GB class; about 31 GiB usable by Linux |
+| Integrated graphics | Intel Alder Lake-P Iris Xe Graphics |
+| Dedicated graphics | NVIDIA GeForce RTX 3080 Ti Laptop GPU; 16,384 MiB VRAM; driver `610.57.04` |
+| Storage | Samsung `MZVL21T0HCLR-00B00` NVMe SSD; 1 TB class / 953.9 GiB reported capacity |
+| Internal display | Sharp `LQ156T1JW03`, 2560×1440; advertises 240 Hz and 60 Hz; active capture at 60 Hz, scale 1.6 |
+| Connected external display | LG Ultra HD through `DP-4`, active 3840×2160 at 30 Hz, scale 2; an accessory, not built-in hardware |
+| Wireless | Intel Alder Lake-P CNVi Wi-Fi controller |
+| Battery | Razer Blade battery; design charge 5,209 mAh, reported full charge 4,842 mAh (about 93% of design); reported cycle count 0 |
+
+These results come from local DMI/sysfs, `lscpu`, `lspci`, `lsblk`,
+`nvidia-smi` and `hyprctl monitors`. RAM is usable OS memory, not a DIMM
+inventory; battery values and active display modes are a dated capture rather
+than a runtime/battery-life test. A reported zero cycle count does not prove a
+new battery. Serial numbers and hardware identifiers are omitted.
+
+## Daily commands
+
+```bash
+# Load the restored physics environment in the current Bash terminal.
+source ~/.bashrc
+conda activate physics
+jupyter lab --ip=127.0.0.1
+
+# After editing LocalDrop configuration, restart and inspect the user service.
+systemctl --user restart localdrop.service
+systemctl --user status localdrop.service --no-pager
+```
+
+For file sending, peer checks and foreground troubleshooting, see
+[LocalDrop usage](/docs/laptop-razer/localdrop#daily-use-and-service-commands).
+Use `conda deactivate` when finished with the physics environment.
 
 ## Working principles
 

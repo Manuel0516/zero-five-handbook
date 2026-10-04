@@ -26,6 +26,83 @@ uv run --project ~/university/python jupyter lab
 uv run --project ~/university/python marimo edit
 ```
 
+## Restored MSI Physics Conda environment — 2026-10-04
+
+The owner-requested `physics` environment is installed at
+`~/miniforge3/envs/physics`. It was recovered from the actual September 13 MSI
+restic snapshot `3f9313b3`, not freshly resolved from the older Downloads YAML.
+This preserves all 255 Conda package records and the original prefix, including
+Python **3.14.2**, NumPy 2.4.6, SciPy 1.17.1, SymPy 1.14.0, pandas 3.0.3,
+Matplotlib 3.10.9, SciencePlots 2.2.1 (Conda record), uncertainties 3.2.3,
+JupyterLab 4.5.7, Jupyter collaboration 4.3.0 and marimo 0.23.8. The older YAML
+omits the later `uncertainties` installation, so it is not the full saved state.
+
+A checksum-verified Miniforge 26.7.2-0 installation supplies the new base manager.
+The environment itself was transferred through SSH using a restic directory
+dump, checked for safe paths/links and restored without overwriting an existing
+environment. The archive SHA-256, source snapshot and installer checksum are
+recorded in `settings/razer/university/physics-restore.json`. The backup still
+belongs to the historical MSI record; the installed environment now belongs to
+Razer. Other saved Conda environments were not restored by this request.
+
+Open a new Bash terminal, or load the Conda hook in the current one:
+
+```bash
+source ~/.bashrc
+conda activate physics
+python --version
+jupyter lab --ip=127.0.0.1
+# Alternatively, edit a marimo notebook:
+marimo edit
+# Leave the environment when finished:
+conda deactivate
+```
+
+New Bash terminals include the reviewed Conda hook without activating `base`.
+The compatibility snippet respects Omarchy's disabled Bash command hashing for
+mise, avoiding Conda activation/deactivation errors. In an existing Omarchy
+terminal, run `source ~/.bashrc` to load that snippet before activation.
+The registered kernel is **Physics (Conda, Python 3.14)**; select it in VS Code
+or Jupyter for physics notebooks. This coexists with the separate Python 3.11
+`~/university/python` environment; choose the kernel appropriate to each project.
+Without activating a shell:
+
+```bash
+~/miniforge3/bin/conda run -n physics python your_script.py
+~/miniforge3/bin/conda run --no-capture-output -n physics jupyter lab --ip=127.0.0.1
+```
+
+Verification passed linear algebra, numerical integration, symbolic
+differentiation, pandas, uncertainty propagation, SciencePlots/Matplotlib image
+rendering and an executed Python 3.14 Jupyter notebook. A registered `physics`
+kernel points to the restored interpreter. Actual course notebooks and GUI
+collaboration remain project-level acceptance checks.
+
+### Recovery and rollback
+
+Infra retains `physics-environment.yml` (all package builds),
+`physics-requested.yml` (requested package history), and
+`physics-linux-64.explicit.txt` (exact linux-64 package URLs and SHA-256).
+The explicit lock preserves the original mix of defaults and conda-forge; the
+requested export reports the new base manager's configured channel and is not
+an exact rebuild lock. For a reviewed reconstruction at a **new destination**:
+
+```bash
+~/miniforge3/bin/conda create -n physics-rebuild \
+  --file settings/razer/university/physics-linux-64.explicit.txt
+```
+
+Run that command from the infra checkout. Availability of all upstream package
+artifacts is not established by the file restore; use the retained snapshot if
+an exact artifact has disappeared. Cross-platform or different-prefix rebuilds
+need validation. Keep the existing environment until the replacement passes.
+
+Rollback removes the `physics` Jupyter kernel and only the restored environment
+through Conda after preserving any new work. The prior Bash file is retained
+privately at `~/.local/state/razer-migration/physics/bashrc-before-conda`; remove
+only the appended Conda block if rolling back later so other shell edits survive.
+Never remove shared environments or the MSI recovery snapshot.
+
 ## Functional checks
 
 | Check | Result |

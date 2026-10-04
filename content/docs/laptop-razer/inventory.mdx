@@ -14,16 +14,17 @@ checks below remain separate.
 | Hardware | Razer Blade 15 (2022), RZ09-0421 |
 | CPU | Intel Core i7-12800H; 14 cores, 20 threads |
 | Memory | About 31 GiB usable; zram device about 31 GiB; session reports about 62 GiB total swap |
-| Graphics | Intel Iris Xe plus NVIDIA GeForce RTX 3080 Ti Laptop GPU; VRAM not independently verified |
+| Graphics | Intel Iris Xe plus NVIDIA GeForce RTX 3080 Ti Laptop GPU; 16,384 MiB VRAM verified by `nvidia-smi`; driver `610.57.04` |
 | OS | Omarchy 4.0.4, Arch family |
 | Running kernel | `7.2.5-3-omarchy` |
-| Storage | One visible 953.9 GiB NVMe SSD; Samsung controller |
+| Storage | Samsung `MZVL21T0HCLR-00B00`, 953.9 GiB NVMe SSD |
 | Linux storage | 2 GiB FAT boot partition; 531.2 GiB partition marked `crypto_LUKS`; session root reports Btrfs subvolume `@` |
 | Windows storage | NTFS partitions of about 18.3 GiB, 401.2 GiB and 1.1 GiB, plus separate 100 MiB FAT and 16 MiB partitions; roles and boot health unverified |
 | GPU packages | `nvidia-open-dkms`, `nvidia-utils`, `lib32-nvidia-utils`, Intel graphics packages |
+| Physics | Miniforge 26.7.2-0; restored `physics` environment, Python 3.14.2, 255 Conda packages; Physics Jupyter kernel registered |
 | Development | Git, base-devel, Clang/LLVM, Docker, Compose, Buildx, VS Code, mise, Python; Node, uv, Codex and Claude resolve on PATH |
 | Desktop/applications | Hyprland, Quickshell, Foot, Chromium, Firefox, Obsidian, LibreOffice, Xournal++, Kdenlive, OBS, LocalSend and Moonlight installed |
-| Operations | Restic, WireGuard tools, UFW, power-profiles-daemon, thermald and intel-lpmd installed; activation unverified |
+| Operations | Restic, WireGuard tools, UFW, power-profiles-daemon, thermald and intel-lpmd installed; UFW, power-profiles-daemon and thermald active; intel-lpmd inactive at the latest check |
 
 ## Personal overlays already present
 
@@ -34,8 +35,8 @@ See the current desktop page for the captured implementation. Caps Lock is confi
 sensitivity is `-0.2`; trackpad scrolling is natural and mouse scrolling is normal.
 
 The display-menu file configures `eDP-2` at 2560×1440, 240 Hz, scale 1.6 and
-`DP-4` at 3840×2160, 30 Hz, scale 2. These are saved settings; active display
-modes were not verified. The monitor overlay also sets `GDK_SCALE=2`.
+`DP-4` at 3840×2160, 30 Hz, scale 2. The later live capture verified internal 2560×1440 at 60 Hz, scale 1.6, and
+external 3840×2160 at 30 Hz, scale 2; the internal panel advertises 240 Hz as well. The monitor overlay also sets `GDK_SCALE=2`.
 
 The autostart overlay prepends `~/.local/lib/performance-gpu/bin` to application
 PATH. The current pack now captures the GPU/power helpers, wrappers, units,
@@ -46,11 +47,10 @@ on [desktop/power](/docs/laptop-razer/desktop).
 ## Initial inspection limits and remaining checks
 
 The initial sandbox denied system bus and Hyprland socket access; the subsequent
-live pass accessed both and supersedes those limits for the checks it completed. `nvidia-smi` could
-not communicate with the driver from this session. That result does not establish
-a host driver failure; repeat it in a normal terminal before diagnosing the GPU.
-The session exposes a read-only root view, which does not establish that the
-normal desktop root filesystem is read-only.
+live pass accessed both and supersedes those limits for the checks it completed. The initial `nvidia-smi` access failure is superseded by the successful live
+query recorded on [the Razer overview](/docs/laptop-razer).
+The initial restricted filesystem view does not describe the later live host
+pass. Hardware details and dated measurements are on the Razer overview.
 
 Run on the host and retain only reviewed, non-secret results:
 
@@ -66,4 +66,6 @@ findmnt / /home /boot
 Check snapshots, backups, encryption recovery, Windows boot, suspend/resume,
 CUDA, audio and network reachability separately. The initial baseline pass made no runtime changes. Subsequent tool installation,
 Docker activation, runtime DNS repair and selective LocalDrop configuration
-recovery are recorded on the development page.
+recovery are recorded on the current development, network and LocalDrop pages.
+The physics restore and successful GPU query supersede the initial inspection
+gaps for those components.

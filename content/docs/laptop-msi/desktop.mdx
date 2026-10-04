@@ -3,10 +3,17 @@ title: Hyprland and Caelestia Desktop
 description: The MSI's Wayland session, monitor layout, appearance, keybinds, launcher, wallpaper, and desktop services.
 ---
 
+> **Historical MSI record.** The owner confirmed on 2026-10-04 that this
+> device is sold and unavailable. Commands and live-state claims below refer
+> to their recorded dates; use the Razer migration pages for current work.
+> The former laptop addresses and active roles now belong to Razer; see
+> [current ownership](/docs/laptop-razer/network).
+
+
 The MSI uses CachyOS with Hyprland `0.56.2-1`, Caelestia shell `2.2.0-1`, and
 Caelestia CLI `1.1.2-1`. Caelestia supplies generated defaults; the personal
-choices are tracked in `zero-five-infra/settings/msi/caelestia/` and
-`settings/msi/hypr/`.
+choices are tracked in `zero-five-infra/archive/msi/settings/msi/caelestia/` and
+`archive/msi/settings/msi/hypr/`.
 
 ## Session flow
 
@@ -75,13 +82,13 @@ lock, sleep, and LocalDrop send-file actions.
 The tracked personal overlay is loaded after Caelestia's generated modules.
 Generated `.conf` files are not the active source for these settings. The
 overlay starts the display helpers and calls the authored scripts under
-`zero-five-infra/settings/msi/hypr/scripts/`. `hyprctl monitors` and
+`zero-five-infra/archive/msi/settings/msi/hypr/scripts/`. `hyprctl monitors` and
 `cat /tmp/hypr-mode /tmp/hypr-display-layout` show the effective display state.
 
 The display helper uses the laptop's `eDP-1` and external `DP-1` names, moves
 workspaces before disabling the laptop panel, and skips lid-triggered layout
 changes while the session is locked. The MSI also installs
-`systemd/logind.conf.d/10-msi-lid-display-only.conf`, so closing the lid does
+`archive/msi/systemd/logind.conf.d/10-msi-lid-display-only.conf`, so closing the lid does
 not suspend the session before the watcher switches the desktop to `DP-1`.
 The helper uses Hyprland's Lua `eval` API for runtime monitor changes because
 Hyprland 0.55+ no longer accepts the legacy `hyprctl keyword monitor` command.

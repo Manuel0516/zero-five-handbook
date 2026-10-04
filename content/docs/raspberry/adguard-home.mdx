@@ -26,7 +26,7 @@ their names must stay stable even as their host changes. A single private
 resolver gives:
 
 - stable **host** names for every mesh peer (`alpha`, `delta`, `gamma`,
-  `beta`, `macbook`, `msi`, `blackarch`) with `.zero-five.space`;
+  `beta`, `macbook`, `razer`, `blackarch`) with `.zero-five.space`;
 - stable **app** names that follow the service wherever it is deployed;
 - **ad-blocking + per-client filtering** (the same motivation as the Pi-hole
   option, with a lighter footprint on Delta);
@@ -64,15 +64,21 @@ Two behaviors in one resolver:
 This mirrors the "pick per name" model: only the private names are local; the
 rest are proxied so nothing mirrors stale.
 
-## Record set (DNS rewrites, loaded)
+## Host records and the Razer rename
 
-Host records, pinned to mesh IPs:
+The established host records are pinned to mesh IPs. The owner transferred the
+laptop slot to Razer on 2026-10-04. Direct Delta queries still resolve
+`msi.zero-five.space` to `.12`, while `razer.zero-five.space` returns NXDOMAIN.
+The new name is desired source, **not yet deployed**. Add the Razer rewrite and
+retire the old live label after checking clients; retained backup paths keep their
+historical names. No AdGuard runtime configuration was changed by this documentation pass.
 
 | Name | Target |
 |---|---|
 | `alpha.zero-five.space` | 10.40.0.1 |
 | `delta.zero-five.space` | 10.40.0.2 |
 | `macbook.zero-five.space` | 10.40.0.11 |
+| `razer.zero-five.space` | 10.40.0.12 — desired rename; deployment pending |
 | `gamma.zero-five.space` | 10.40.0.3 |
 | `beta.zero-five.space` | 10.40.0.4 |
 | `blackarch.zero-five.space` | 10.40.0.101 |
@@ -142,7 +148,8 @@ Status 2026-08-22:
   resilience). See [MacBook WireGuard](/docs/macbook/wireguard).
 - **iPhone (10.40.0.21)** — on the mesh via the home public IP; **`DNS =
   10.40.0.2, 1.1.1.1` applied**.
-- **Beta/Gamma/MSI** — not yet adopted; each client edit needs its own
+- **Razer** — runtime Delta resolver verified on 2026-10-04; persistent configuration remains pending.
+- **Beta/Gamma** — not yet adopted in this dated record; each client edit needs its own
   sudo/confirmation. LAN devices can instead get AdGuard automatically via
   router DHCP (see [home app gateway](/docs/raspberry/home-app-gateway)).
 
@@ -199,7 +206,7 @@ device must re-trust a new CA (see
 
 - ~~Apply `DNS = 10.40.0.2` to WireGuard peers~~ — **DONE 2026-08-22**:
   MacBook + phone use `DNS = 10.40.0.2, 1.1.1.1` (AdGuard + Cloudflare
-  fallback); Beta/Gamma/MSI pending per-client sudo. LAN devices: router
+  fallback); Beta/Gamma/Razer pending per-client sudo. LAN devices: router
   DHCP DNS → 192.168.1.106 (user-side).
 - Inventory service names for apps migrating off Alpha (part of the
   [Gamma migration](/docs/roadmap)).

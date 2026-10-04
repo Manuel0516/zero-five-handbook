@@ -1,0 +1,28 @@
+---
+title: University Wi-Fi on Razer
+description: Captured Omarchy enterprise Wi-Fi UI, public Lund CA and private credential enrollment.
+---
+
+The current `manuel.network` plugin includes enterprise Wi-Fi input for account
+identity and password. This supersedes the retired MSI's single-password panel
+limitation. Its captured code configures Lund eduroam with PEAP/MSCHAPv2, the
+public `lund-eduroam-ca.pem`, server domain `radius.lu.se` and anonymous identity
+`anonymous@lu.se`. These are **observed saved implementation choices**, not a
+new university-policy verification or proof of an on-campus connection.
+
+Personal student identities, passwords and saved NetworkManager connections are
+excluded from the Razer pack. The UI passes secrets through standard input rather
+than a command-line argument. Before first connection, confirm the currently
+required EAP method, CA and server name with the university's official installer;
+do not weaken certificate validation to bypass an authentication failure.
+
+Razer's observed Wi-Fi interface is `wlo1`. Use `nmcli device status` to inspect
+it and `nmcli --ask connection up eduroam` from a real terminal for an existing
+reviewed profile. For a new profile, use the current university installer or the
+captured UI after verifying its settings. Do not reuse MSI's `wlan0` commands
+without checking the interface.
+
+Actual campus authentication and reconnect behavior remain untested in this
+capture. Rollback restores the previous plugin files and reloads the user shell;
+remove only a newly created Wi-Fi profile if necessary, preserving unrelated
+network configuration and keeping private credentials out of logs.

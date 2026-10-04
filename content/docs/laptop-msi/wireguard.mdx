@@ -3,6 +3,13 @@ title: WireGuard
 description: The MSI's dual-hub WireGuard configuration, direct Delta failover, routing boundaries, and activation task.
 ---
 
+> **Historical MSI record.** The owner confirmed on 2026-10-04 that this
+> device is sold and unavailable. Commands and live-state claims below refer
+> to their recorded dates; use the Razer migration pages for current work.
+> The former laptop addresses and active roles now belong to Razer; see
+> [current ownership](/docs/laptop-razer/network).
+
+
 ## Design
 
 The MSI is represented by the legacy-named `cachyos-laptop` template in
@@ -38,7 +45,7 @@ The secret-free sources are:
 
 | Source | Purpose |
 | --- | --- |
-| `zero-five-infra/wireguard/cachyos-laptop.conf.example` | Legacy-named MSI peer template at `10.40.0.12/32`; private key remains a placeholder |
+| `zero-five-infra/archive/msi/wireguard/cachyos-laptop.conf.example` | Legacy-named MSI peer template at `10.40.0.12/32`; private key remains a placeholder |
 | `zero-five-infra/wireguard/vps.conf.example` | Alpha peer model and `10.40.0.12/32` ownership |
 | `zero-five-infra/scripts/validate_wireguard.py` | Local topology and placeholder validation |
 

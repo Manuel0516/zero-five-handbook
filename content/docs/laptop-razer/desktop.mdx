@@ -1,0 +1,65 @@
+---
+title: Desktop, keyboards and power personalization
+description: Captured Omarchy overlays, custom plugins, final keyboard helper and current GPU/power dependencies.
+---
+
+## Current personal layer
+
+Razer runs Omarchy 4.0.4. Its `hypr/` snapshot loads packaged defaults then personal
+Lua overlays. The current theme is `tokyo-night`; the bar uses the three cloned
+`manuel.monitor`, `manuel.network` and `manuel.power` plugins. Their reviewed
+QML/JavaScript/Python sources, shell settings, display-menu state and menu
+extension are included in the pack. Generated caches and plugin backup directories
+are excluded. Public Lund eduroam CA material is included; account credentials
+and saved NetworkManager profiles are not.
+
+The terminal snapshot is Foot with JetBrainsMono Nerd Font size 9. The saved
+Omarchy shell base font size is 12. The stock theme is recreated through Omarchy;
+private wallpaper assets and generated theme state are not treated as configuration.
+The theme manifest records the selected background filename for comparison.
+
+The captured display menu records `eDP-2` at 2560×1440/240 Hz, scale 1.6 and
+`DP-4` at 3840×2160/30 Hz, scale 2. Restore these only after checking actual
+monitor names and modes. Pointer acceleration is off, sensitivity `-0.2`,
+trackpad scrolling natural and mouse scrolling normal.
+
+## Final English/Spanish switching
+
+Both layouts are configured as `us,es`. Fcitx's profile includes `keyboard-us`
+and `keyboard-es`. The final live configuration uses explicit Hyprland
+Alt + Shift bindings calling `~/.local/bin/keyboard-layout-toggle`, which changes
+**all** keyboard devices and selects the matching Fcitx input method under a
+runtime lock. Fcitx's separate enumeration shortcut and the XKB group toggle are
+empty, preventing competing double toggles. Caps Lock Compose remains enabled,
+and Right Alt is available as Spanish AltGr.
+
+This final synchronized helper supersedes the earlier Fcitx-only fix. The owner
+confirmed Alt + Shift switching and Spanish `ñ` input. Capture validation checks
+that the helper, three bindings, two input methods and absence of a competing
+group-toggle setting remain together. Restore them as one set, then validate
+`hyprctl reload`, `hyprctl configerrors` and actual text entry.
+
+## GPU and power dependencies
+
+The personal autostart PATH selects wrappers under
+`~/.local/lib/performance-gpu/bin`. They call the captured `performance-gpu` and
+`university-power` helpers. The active user GPU policy and its baseline variables
+are captured, together with AC/battery preference files. The saved preferences
+are source observations, not battery-life measurements.
+
+Extreme Power Saver depends on the captured system unit, fixed root hardware
+helper and narrowly scoped Polkit rule. It changes Intel CPU limits, NVIDIA
+runtime power policy, Wi-Fi power saving and desktop display/effect state, with
+private runtime snapshots for restoration. The root helper's PCI address and
+`wlo1` interface are hardware-specific. Do not run these files on a different
+machine without review, or copy temporary `/run` policy state into a rebuild.
+
+The charge-limit UI uses the captured `/usr/local/bin/razer-charge-limit` helper
+and its Polkit rule. It targets Razer HID `1532:028a` and requires firmware
+optimizer support. Presence of this helper is not proof that charge limits work;
+no charge threshold or firmware was changed for this pack.
+
+Review system helpers and authorization rules before installation. Keep their
+prior files for rollback. Never install root-owned helpers writable by the desktop
+user, and never edit `/usr/share/omarchy/`. Restore the user environment first,
+verify config errors, then explicitly validate GPU/power behavior on this hardware.

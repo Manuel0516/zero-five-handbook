@@ -3,6 +3,13 @@ title: LocalDrop
 description: Clipboard synchronization and file transfer between the MSI Linux desktop and the MacBook.
 ---
 
+> **Historical MSI record.** The owner confirmed on 2026-10-04 that this
+> device is sold and unavailable. Commands and live-state claims below refer
+> to their recorded dates; use the Razer migration pages for current work.
+> The former laptop addresses and active roles now belong to Razer; see
+> [current ownership](/docs/laptop-razer/network).
+
+
 LocalDrop is a small Python project that runs a daemon on the MSI and MacBook.
 Each daemon both serves HTTP requests and polls its local clipboard:
 
@@ -21,7 +28,7 @@ must never be exposed to the internet.
 ## MSI installation
 
 The project is expected at `~/projects/localdrop`. The tracked user unit is
-`zero-five-infra/settings/msi/services/localdrop.service` and expands `%h` to
+`zero-five-infra/archive/msi/settings/msi/services/localdrop.service` and expands `%h` to
 the home directory:
 
 ```ini

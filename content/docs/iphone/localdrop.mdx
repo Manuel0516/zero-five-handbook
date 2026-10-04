@@ -9,22 +9,22 @@ iPhone**: the phone cannot run a LocalDrop daemon (no `config.toml` on iOS),
 so the iPhone uses **Shortcuts** to POST clipboard/text and files to a desktop
 daemon. **Linux → iPhone is not supported in v1** (the reverse direction).
 
-If you are setting up the MSI ⇄ MacBook pair, see the MacBook
-[LocalDrop](/docs/macbook/localdrop) and MSI
-[LocalDrop](/docs/laptop-msi/localdrop) pages instead. This page only covers
+For the current Razer ⇄ MacBook pair, see
+[Razer setup](/docs/laptop-razer/development) and
+[MacBook LocalDrop](/docs/macbook/localdrop). The MSI has been retired. This page only covers
 sending **from the phone**.
 
 ## What the phone can do (v1)
 
 | Direction | Supported? |
 | --- | --- |
-| iPhone → Linux (MSI) — clipboard & files | ✅ via Shortcuts |
+| iPhone → Linux (Razer) — clipboard & files | ✅ via Shortcuts |
 | iPhone → MacBook — clipboard & files | ✅ via Shortcuts |
 | Linux/Mac → iPhone | ❌ not supported in v1 |
 
 ## Destination: the desktop's WireGuard mesh IP
 
-The phone posts directly to the **MSI Linux desktop** through WireGuard:
+The phone posts directly to the **Razer Linux desktop** through WireGuard:
 
 ```
 http://10.40.0.12:8765/clipboard   (clipboard text)
@@ -43,8 +43,10 @@ owner-verified on 2026-09-09; no LocalDrop relay on Alpha is required.
 
 1. Activate the Zero Five WireGuard profile and add the target desktop's `/32`
    mesh address to its peer's `AllowedIPs`.
-2. Confirm the desktop daemon is running and listening on `0.0.0.0:8765`.
-3. Record the `shared_token` from the MSI/MacBook `config.toml`
+2. Confirm the desktop daemon is running and listening on `10.40.0.12:8765`.
+   On the iPhone, open `http://10.40.0.12:8765/health` in Safari over WireGuard.
+   It should return JSON containing `"status":"ok"`.
+3. Record the `shared_token` from the Razer/MacBook `config.toml`
    (`[security] shared_token`) — it must match on the phone and the desktop.
 4. In the **Shortcuts** app:
    - **Send clipboard to Linux:** `Get Clipboard` → `Get Contents of URL`
@@ -56,6 +58,29 @@ owner-verified on 2026-09-09; no LocalDrop relay on Alpha is required.
      `X-LocalDrop-Token: <token>` + `X-LocalDrop-Filename: <name>` +
      `Content-Type: application/octet-stream`, body = file).
 5. Trigger the shortcut from the Share Sheet when sending a file.
+
+## Razer firewall repair — 2026-10-04
+
+The Razer listener was healthy locally, but active UFW had no allow rule for
+LocalDrop. Added input rules on `wg0`, destination `10.40.0.12`, TCP port 8765,
+restricted to the primary iPhone `.21` and optional iPhone Alpha-relay `.32`
+identities. The corresponding MacBook `.11` rule was requested separately;
+its administrator authentication remained pending during the phone test. No public or LAN-wide port opening was added.
+Secret-free rules are recorded in infra at
+`settings/razer/localdrop/firewall.rules`. The optional `.32` profile also needs
+a reciprocal Razer route through Alpha; allowing its firewall address alone
+is not proof that this fallback works. The owner then confirmed the iPhone Safari health endpoint returns `status ok`
+and the iPhone-to-Razer Shortcut works. This establishes the primary phone path;
+it does not verify the optional fallback or MacBook pairing.
+
+For rollback, remove only the corresponding UFW rules by their current numbered
+entries after inspecting `ufw status numbered`; numbering changes after deletions.
+Do not disable the firewall to troubleshoot LocalDrop.
+
+The phone must target the current WireGuard URL above. Historical instructions
+using MSI LAN address `192.168.1.110` or Alpha relay `10.40.0.1:8765` do not reach
+this Razer listener. Normal copy/paste alone does not run the Shortcut or send
+anything to the desktop, and desktop-to-iPhone delivery remains unsupported.
 
 ## Security
 
@@ -72,6 +97,6 @@ owner-verified on 2026-09-09; no LocalDrop relay on Alpha is required.
   desktop's `shared_token`.
 - Timeout/refused — confirm WireGuard is active, the target `/32` is in
   `AllowedIPs`, and the desktop daemon is listening on its mesh address.
-- Clipboard sync between the desktops themselves (MSI ⇄ MacBook) is the
+- Clipboard sync between the desktops themselves (Razer ⇄ MacBook) is the
   separate pair configured on those machines — see
   [MacBook LocalDrop](/docs/macbook/localdrop).

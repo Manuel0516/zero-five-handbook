@@ -1,6 +1,6 @@
 ---
 title: AI Stack
-description: The personal-ai stack on Gamma — Open WebUI, Ollama, and SearXNG migrated from alpha on 2026-08-24; MSI laptop leg wired as a mutual WireGuard peer; the translation bot keeps translategemma on the VPS.
+description: The personal-ai stack on Gamma — Open WebUI, Ollama, and SearXNG migrated from alpha on 2026-08-24; laptop endpoint ownership transferred to Razer; historical MSI service evidence retained; the translation bot keeps translategemma on the VPS.
 ---
 
 # AI Stack on Gamma
@@ -11,6 +11,19 @@ completely from [alpha](/docs/vps-alpha/ai-stack) so the VPS keeps only what
 the [Telegram translation bot](/docs/vps-alpha/telegram-bot) needs. The chat
 URL is unchanged: **https://ai.zero-five.space** (VPN-only, Traefik on alpha
 proxies to gamma over the mesh).
+
+## Razer ownership update — 2026-10-04
+
+The laptop backend address `10.40.0.12` now belongs to Razer. The existing
+Razer AI setup is Bonsai with loopback endpoints `127.0.0.1:8087`/`127.0.0.1:8088`; this pass did
+not enable Ollama at `.12:11434` or restore the old model pair. Any router URL
+that still targets `.12:11434` is now a **Razer-owned legacy endpoint requiring
+service acceptance**, rather than an active MSI device. Keep existing AI
+personalization and consult [Razer AI](/docs/laptop-razer/ai) before changing
+providers. No Gamma application configuration was deployed by this relabeling.
+
+The architecture and model results below are dated **historical MSI evidence**
+from 2026-08-24, not a claim that those models are deployed on Razer today.
 
 ```text
 Browser (on VPN) → https://ai.zero-five.space (alpha Traefik, VPN-only)

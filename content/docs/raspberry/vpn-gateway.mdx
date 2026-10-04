@@ -1,10 +1,10 @@
 ---
 title: Delta VPN Gateway (Mullvad)
-description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gamma only. Delta also runs its own Mullvad client. MSI/MacBook stay on the normal mesh with their own Mullvad toggles. Mesh always direct via a sport-51820 routing rule."
+description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gamma only. Delta also runs its own Mullvad client. Razer/MacBook stay on the normal mesh with their own Mullvad toggles. Mesh always direct via a sport-51820 routing rule."
 ---
 
 > **Status: DEPLOYED 2026-08-14.** Delta forwards only Beta and Gamma
-> through Mullvad; every other device (MSI, MacBook, iPhone, BlackArch)
+> through Mullvad; every other device (Razer, MacBook, iPhone, BlackArch)
 > works exactly as before this change. Delta itself also runs its own
 > Mullvad client. Mesh traffic never enters the tunnel.
 
@@ -15,9 +15,9 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
   gateway scope — no other device is routed through Delta.
 - **Delta itself** keeps its **own Mullvad client** (`wg-quick@mullvad`,
   enabled at boot) so Delta's own traffic also egresses via Mullvad.
-- **MSI, MacBook, iPhone, BlackArch** are **unaffected**: normal mesh
+- **Razer, MacBook, iPhone, BlackArch** are **unaffected**: normal mesh
   (personal Zero Five VPN), normal internet via the home router, and each
-  laptop may run **its own Mullvad toggle** (e.g. MSI) without breaking
+  laptop may run **its own Mullvad toggle** (e.g. Razer) without breaking
   the mesh.
 - **Mesh is always direct.** A policy rule (`sport 51820 lookup main`)
   keeps all WireGuard mesh keepalives out of the Mullvad tunnel, on every
@@ -30,7 +30,7 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
 | Delta | Raspberry Pi 4 Model B, always-on home node (192.168.1.106, wg0 10.40.0.2). See [index](/docs/raspberry). |
 | Beta | HP 15 Proxmox VE host (192.168.1.166, wg0 10.40.0.4). **Gateway client.** |
 | Gamma | Clean box, Ubuntu + netplan (192.168.1.107, wg0 10.40.0.3). **AI host** (Open WebUI, Ollama, router, SearXNG) + Minecraft. **Gateway client.** |
-| MSI | MSI laptop (10.40.0.12). **AI backend** (Ollama deepseek-r1:7b, qwen2.5-coder:7b) wired to gamma via mutual WG peer. Not a gateway client; own Mullvad toggle. |
+| Razer | Personal workstation (`10.40.0.12`), successor to the former laptop slot. Not a Delta gateway client. Local AI is preserved; the historical Ollama endpoint is not verified on Razer. |
 | MacBook | Admin + dev box (10.40.0.11). Not a gateway client; own Mullvad toggle. |
 | iPhone | Mobile access (10.40.0.21 direct / 10.40.0.32 VPS relay). |
 | Home router | 192.168.1.1 — normal egress for all non-gateway devices. |
@@ -43,7 +43,7 @@ description: "Deployed 2026-08-14: Delta is the Mullvad gateway for Beta and Gam
 | Delta | wg0 10.40.0.2 | Own Mullvad client (always on) |
 | Beta | via Delta (mesh + gateway) | **Delta → Mullvad** |
 | Gamma | via Delta (mesh + gateway) | **Delta → Mullvad** |
-| MSI | normal (direct mesh peers) | Direct / own Mullvad toggle |
+| Razer | normal (direct mesh peers) | Direct / own Mullvad toggle |
 | MacBook | normal (direct mesh peers) | Direct / own Mullvad toggle |
 
 Enforcement on Delta (`/etc/nftables.conf`, nftables):
@@ -96,10 +96,10 @@ out originates from that port. The rule sends those packets to the main
 table (direct, via the router) **before** the tunnel rules are reached.
 Result: mesh keepalives always egress directly, tunnel up or down.
 
-This also fixes the "MSI with its own Mullvad on" case: MSI's keepalives
+This also fixes the "Razer with its own Mullvad on" case: Razer's keepalives
 to Delta arrive via the home router (`192.168.1.1`), Delta replies
-direct, handshake completes — verified 2026-08-14 with the MSI's own
-Mullvad toggled off after the fix; the MSI peer shows a fresh handshake.
+direct, handshake completes — verified 2026-08-14 on the former MSI with its own
+Mullvad toggled off after the fix; the former laptop peer showed a fresh handshake. Razer owns that identity now.
 
 ## Current verified state (2026-08-14, gamma port updated 2026-08-24)
 
@@ -129,7 +129,7 @@ sudo mullvad-switch se-sto               # switch Mullvad location (list, --dry-
 `mullvad-switch` (tracked in `zero-five-infra/scripts/mullvad-switch`,
 installed `/usr/local/sbin/mullvad-switch`) rewrites only the `[Peer]`
 block of `mullvad.conf` from Mullvad's public relay list and restarts the
-tunnel. Same script is reusable on MSI/MacBook for their own clients.
+tunnel. Same script is reusable on Razer/MacBook for their own clients.
 
 ## Gateway failover watchdog (Beta + Gamma)
 

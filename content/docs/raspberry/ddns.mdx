@@ -62,7 +62,7 @@ WAN.
   **`sport 51820`** (delta's actual WG listen port). Backup:
   `/etc/wireguard/mullvad.conf.bak-20260824`.
 
-**Diagnostic tell:** in alpha's `wg show wg0`, delta and MSI egress from the
+**Diagnostic tell:** in alpha's `wg show wg0`, delta and Razer egress from the
 home WAN IP while gamma and beta (the Mullvad-gateway clients) egress from the
 Mullvad exit. If the DDNS record ever equals the gamma/beta egress IP, the
 probe is leaking through Mullvad again — check `ip rule show` for the pref-5

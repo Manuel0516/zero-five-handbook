@@ -1,0 +1,66 @@
+---
+title: Preserved Razer AI
+description: Existing Bonsai launchers, coding tools, model manifests and explicit boundaries for the inherited remote endpoint.
+---
+
+## Preserve the installed stack
+
+Razer owns the former laptop AI role, but its existing implementation is not
+assumed to be the old MSI Ollama stack. The current local setup includes Bonsai
+2, Claude Code, Codex and a Hermes command on PATH. The capture changes no AI
+runtime, provider authentication, model selection or Telegram routing.
+An earlier historical migration exclusion for Bonsai does not authorize removing
+the Bonsai setup already present on Razer.
+
+## Observed Bonsai setup — 2026-10-04
+
+| Item | Captured state |
+| --- | --- |
+| Checkout | `~/Work/Bonsai-demo` |
+| Source | `ai/source.json` records remote and revision `bfaea577522626b883f755236878e4583f3d6e68` |
+| Model alias | `bonsai-2-27b` |
+| Server | Loopback `127.0.0.1:8087` |
+| Reasoning proxy | Loopback `127.0.0.1:8088` |
+| Context | Saved context in `ai/bonsai/bonsai-server.env.example`; normal wrapper default 131072, maximum 262144 |
+| Services | `bonsai.service` and `bonsai-reasoning.service` installed; inactive at capture |
+| Launch integration | Runtime/controller, Claude wrapper, chat template, proxy and desktop launchers captured |
+
+Five GGUF files are recorded by exact relative path, byte size and SHA-256 in
+`ai/models.json`: PQ2_0 and compact PTQ1_0 27B models, the Q8 vision projector,
+and two calibrated KV-bias files. The export contains their manifest, not model
+blobs. Read the recorded source's download/build procedure, obtain its CUDA
+binaries/environment and compare model hashes before restoring launchers.
+Copied launchers are local overlays on a pinned project; they do not bundle the
+entire upstream project or compiled libraries.
+
+The wrapper defaults to Q8 cache for normal context and calibrated Q4 cache
+above 131072. The reasoning proxy translates high/max client requests into
+Bonsai's native effort/budget values. The literal `bonsai-local` client value is
+a non-secret loopback placeholder, not a cloud credential.
+
+## Coding preferences and exclusions
+
+The pack captures reviewed VS Code preferences with credential fields removed,
+Claude's theme/model settings and the selected Omarchy default agent (`codex`).
+It records package/editor manifests. Codex, Claude, Hermes and editor auth stores,
+provider API keys, sessions and histories are excluded; enroll authentication
+privately rather than copying a whole tool profile.
+
+The `.12:11434` router slot is now Razer-owned. No Ollama service/model acceptance
+was observed on this host, and this documentation task does not deploy the
+historical `deepseek-r1:7b` / `qwen2.5-coder:7b` pair. Gamma's dated model results
+remain historical evidence, not a statement about current Razer models.
+
+## Rebuild and acceptance
+
+Stage the pinned project and binaries, verify the five model files against their
+manifest, then compare the captured local overlays with upstream before applying
+only those files. Restore the user units and reviewed desktop launchers after
+checking paths; the current source assumes user `manuel` and the existing checkout
+location. Keep credentials outside Git and retain the previous units before changes.
+
+After explicitly starting the selected local server, verify loopback `/health`
+and a harmless inference request, then the VS Code and CLI workflows. These
+inference/restart checks were not performed during pack capture. Rollback restores
+the previous launchers/units and selected settings; do not delete models or auth
+stores as a rollback shortcut.

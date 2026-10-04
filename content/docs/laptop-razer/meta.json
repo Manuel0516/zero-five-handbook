@@ -1,4 +1,15 @@
 {
   "title": "Laptop - Razer Blade 15",
-  "pages": ["index", "migration"]
+  "pages": [
+    "index",
+    "inventory",
+    "network",
+    "desktop",
+    "development",
+    "university-wifi",
+    "ai",
+    "localdrop",
+    "configuration-pack",
+    "migration"
+  ]
 }

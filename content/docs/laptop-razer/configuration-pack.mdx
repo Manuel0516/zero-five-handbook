@@ -1,0 +1,108 @@
+---
+title: Razer configuration pack and recovery
+description: Reviewed current identity, desktop/AI preservation, explicit export inventory, SHA-256 validation and staged restoration.
+---
+
+## What this pack captures
+
+The Razer pack records the current personal layer and operational source from
+2026-10-04, after the owner transferred the former laptop's IP addresses and
+roles to Razer. Its source is `zero-five-infra/settings/razer/`; the explicit
+inventory is `pack.json`, with per-file restore destinations and status.
+The generated archive adds exact membership, sizes and SHA-256 hashes in
+`MANIFEST.json` and `SHA256SUMS`, plus an external archive checksum.
+
+| Area | Included source | Boundary |
+| --- | --- | --- |
+| Identity/network | `identity.json`, active Razer/shared WireGuard models, DNS and SSH examples | Private keys excluded; DNS rename and `.110` activation pending |
+| Personal desktop | Hyprland overlays, Foot, Omarchy shell/menu, three custom plugins and public university CA | Stock/generated theme files and private wallpaper assets excluded |
+| Keyboard | Final synchronized helper, bindings and Fcitx configuration/profile | Restore together; preserves English/Spanish and Compose |
+| GPU/power | User helpers/wrappers, root hardware helper, units, fixed Polkit rules and baseline/preferences | Hardware-specific; no transient `/run` snapshots |
+| Development/university | Reviewed package set, observed versions, editor selections/settings, Python specification and lock | No virtual environments or opaque project directories |
+| Existing AI | Bonsai overlays, services/launchers, source revision, model hash manifest, selected editor/Claude preferences | No model blobs, compiled binaries, auth or chat history |
+| LocalDrop | Pinned revision, service, token-placeholder example and scoped firewall source | Existing private token recovered separately; MacBook pairing incomplete |
+| Runbooks | Current Razer handbook pages and phone setup | Explanation stays in the handbook repository |
+
+This is a reviewed **configuration/recovery pack**, not a disk image or a
+one-command full system bootstrap. The owner-confirmed phone Shortcut and
+keyboard acceptance are recorded; Windows boot, campus Wi-Fi, GPU/power
+measurements, AI inference, MacBook pairing and full rebuild acceptance are not
+inferred from file presence.
+
+## Build and verify
+
+From the infrastructure checkout:
+
+```bash
+python scripts/razer_pack.py validate
+python scripts/razer_pack.py build ../razer-pack-2026-10-04.tar.gz
+python scripts/razer_pack.py verify ../razer-pack-2026-10-04.tar.gz
+```
+
+The builder reads only the explicit reviewed inventory. It rejects symlinks,
+unsafe paths, environment/cache directories, model blobs, private keys and a
+non-placeholder LocalDrop token. It refuses to replace an existing export.
+Generated directories such as `.venv` are outside the inventory even if they
+exist locally under the source tree. The public Lund CA is intentionally allowed;
+public certificate material is not a private identity.
+
+Run `make validate` for the source checks and meaningful export tests: missing
+membership, changed payload checksums, linked/unsafe entries, secret placeholders,
+current keyboard dependencies and DNS updates preserving peer/key material.
+The verifier checks all archive members without extracting them. SHA-256 detects
+corruption or unintended changes when compared with the retained checksum; it is
+not a publisher signature and should be kept with trusted recovery records.
+
+## Restore rehearsal before application
+
+1. Verify the archive using the retained builder/verifier and compare its external
+   checksum with the trusted copy. Extract only after verification into a new
+   private staging directory, never directly over the home directory or `/etc`.
+2. Run `sha256sum -c SHA256SUMS` inside staging. Check the inventory's
+   `restore_to`/status fields. Review target paths and permissions, especially
+   user `manuel`, PCI address, display names and university CA placement.
+3. Compare the staged overlays with the current files. Keep owner-only backups of
+   affected files, with secrets in a separate private recovery path. Package
+   manifests with all observed versions describe presence; install only the
+   reviewed development selection and needed dependencies.
+4. Recreate upstream LocalDrop/Bonsai checkouts at recorded revisions and prepare
+   their required binaries/models separately. Verify model hashes. Restore
+   captured local overlays only after comparing them with those source revisions.
+5. Restore user configuration/helpers selectively using the inventory's exact
+   destinations. Install root hardware helpers, system units and Polkit rules
+   only after review, root-owned and not writable by the desktop user. Do not
+   install all observed files blindly, run power transitions as syntax checks,
+   or overwrite `/usr/share/omarchy/`.
+6. Enroll/recover WireGuard, SSH, LocalDrop and AI credentials privately. Keep
+   private keys and `config.toml` out of the archive. Restore the new Razer identity
+   labeling without renaming retained MSI NAS directories or snapshot hosts.
+7. Validate the graphical session before enabling user services. Keep keyboard
+   helper, bindings and both Fcitx methods together. Apply only the scoped
+   LocalDrop rules relevant to active clients; the MacBook rule is prepared,
+   not yet applied. Check routes and health from each actual client.
+
+## Acceptance and rollback
+
+The staged file-only rehearsal verifies bytes and pack membership, not a full
+machine rebuild. After an intentional restore, check Hyprland errors and Alt +
+Shift text entry; display modes and Foot; development/C++ build, scientific
+Python/Jupyter and course LaTeX; Docker through the chosen permission model;
+AI loopback inference; phone/MacBook LocalDrop; VPN reconnect, DNS and SSH; GPU
+selection, suspend and power restoration; Windows and an actual backup restore.
+Record each result as passed, failed or untested.
+
+Rollback restores only the previous selected overlays/helpers/units, then reloads
+the affected user component. For host units/policies, retain the old root-owned
+files and restore their permissions before daemon reload. Restore only changed
+firewall/DNS/routes, preserving a working administration path. Never remove shared
+packages, model data, credentials or private university/project files as a shortcut.
+
+## Remaining work is explicit
+
+The new canonical private DNS rewrite is source-only; Delta still resolves its
+legacy name. Razer uses `.100`/`.108` on the LAN rather than the inherited `.110`
+reservation. Delta DNS is verified at runtime; persistent DNS application and
+reconnect acceptance are pending. The inherited key has not been rotated.
+Gamma's reciprocal endpoint and old remote AI slot require live reconciliation.
+MacBook LocalDrop and campus Wi-Fi remain unverified. None of these gaps is
+hidden by the new Razer label or pack checksum.

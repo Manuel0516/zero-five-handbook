@@ -3,6 +3,13 @@ title: Configuration Reference
 description: Ownership, paths, tracked snapshots, generated defaults, and excluded state for the MSI laptop.
 ---
 
+> **Historical MSI record.** The owner confirmed on 2026-10-04 that this
+> device is sold and unavailable. Commands and live-state claims below refer
+> to their recorded dates; use the Razer migration pages for current work.
+> The former laptop addresses and active roles now belong to Razer; see
+> [current ownership](/docs/laptop-razer/network).
+
+
 This is the MSI path map. It separates durable personal choices from package
 defaults, generated desktop files, runtime state, and secrets. A file existing
 on disk does not prove that its feature is enabled; use the effective-state
@@ -20,7 +27,7 @@ commands on the subsystem pages.
 
 ## Tracked source
 
-All tracked MSI settings live under `zero-five-infra/settings/msi/`:
+All tracked MSI settings live under `zero-five-infra/archive/msi/settings/msi/`:
 
 | Source | Live destination | Purpose |
 | --- | --- | --- |
@@ -39,7 +46,7 @@ All tracked MSI settings live under `zero-five-infra/settings/msi/`:
 | `manifests/` | No live destination | Package and model inventory used for rebuilds |
 
 The authoritative restore commands are in
-[`zero-five-infra/settings/msi/README.md`](https://github.com/Manuel0516/zero-five-infra/blob/main/settings/msi/README.md).
+[`zero-five-infra/archive/msi/settings/msi/README.md`](https://github.com/Manuel0516/zero-five-infra/blob/main/archive/msi/settings/msi/README.md).
 
 ## Generated and package-owned paths
 

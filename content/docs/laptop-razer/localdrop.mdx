@@ -1,0 +1,58 @@
+---
+title: LocalDrop on Razer
+description: Current Razer/MacBook addresses, verified iPhone sending, private token recovery, firewall source and pairing limits.
+---
+
+Razer owns the former laptop endpoint `10.40.0.12:8765`. Its LocalDrop checkout is
+`~/projects/localdrop`, revision `10dd5035ac495e4421bbe209ebea79c25cc8c25a`.
+The user service is enabled with the graphical session and binds to the WireGuard
+address only. Files go to `~/Downloads/LocalDrop` and clipboard polling is enabled.
+
+The current wire-protocol device name remains **`linux`** for compatibility with
+existing MacBook and phone configurations. This is a protocol role, not the
+hostname; it does not identify the retired MSI. Keep it until both peers can be
+reviewed together. The secret-free example labels the workstation as Razer and
+targets MacBook `.11` directly.
+
+## Verified iPhone path
+
+The owner confirmed iPhone → Razer sending after the UFW repair: Safari at
+`http://10.40.0.12:8765/health` returns `status ok`, and the clipboard Shortcut
+works. Razer UFW allows incoming TCP 8765 on `wg0` from primary iPhone `.21`
+and optional phone relay `.32`. The primary path is verified; `.32` still needs
+its reciprocal route and a separate test. No public or LAN-wide opening was added.
+See [iPhone Shortcuts](/docs/iphone/localdrop) for body/headers and direction limits.
+Normal phone copy/paste does not trigger a transfer, and LocalDrop v1 cannot send
+clipboard/files from Razer to iPhone.
+
+## MacBook path: still incomplete
+
+Razer routes `.11` through Alpha and saves the AllowedIPs addition persistently.
+At the latest check the MacBook's ports 22 and 8765 refused connections from
+Alpha/Delta; Razer peer health timed out. The prepared `.11` UFW allow on Razer
+has not been applied because administrator authentication was cancelled.
+These are independent prerequisites; the phone working does not prove MacBook sync.
+
+Bring the MacBook daemon online using Python 3.11+, check its reciprocal route
+to `.12` and token, apply the narrow MacBook UFW rule after review, then test both
+clipboard directions and a harmless file. Do not use Alpha's `:8765` as a
+LocalDrop relay: that port belongs to the Hub host agent. No Hub service was
+stopped or changed during this migration.
+
+## Token and restore source
+
+The existing shared token was recovered privately from retained restic snapshot
+`56856c59`, without printing it. Historical NAS paths keep their names. Local
+`config.toml` and the recovery copy are mode 600 and outside Git. The pack's
+`config.toml.example` contains only `ENROLL_RECOVERED_TOKEN_PRIVATELY`.
+
+Restore the pinned source and reviewed service/example separately, enroll the
+same token through the private recovery path, and verify graphical-session
+Wayland variables before enabling. The receive endpoint can update the clipboard
+even if outbound polling is paused. HTTP 401 indicates a token mismatch; timeout
+points to URL, route/firewall or listener availability. An installed package or
+an active service is not inter-device acceptance.
+
+Rollback stops/disables only the new user service and removes only its scoped
+firewall rules. Preserve private configuration and downloaded files. Operational
+source is `settings/razer/localdrop/`; TCP checks require explicit current targets.

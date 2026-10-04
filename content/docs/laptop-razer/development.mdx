@@ -1,0 +1,60 @@
+---
+title: Development and university tools
+description: Installed build/scientific/LaTeX tools, verified smoke checks, editor preservation and Docker permission limits.
+---
+
+## Installed and tested — 2026-10-04
+
+Razer's existing personalization and AI are preserved. Current network identities
+are [Razer-owned](/docs/laptop-razer/network); [desktop/keyboard](/docs/laptop-razer/desktop),
+[AI](/docs/laptop-razer/ai) and [LocalDrop](/docs/laptop-razer/localdrop) have their
+own acceptance records. The complete reviewed source/export is documented in
+[the Razer pack](/docs/laptop-razer/configuration-pack).
+
+Installed CMake, Ninja, selected TeX Live collections, Biber and Zenity.
+The functional LaTeX check exposed `latexmk` as a separate dependency;
+`texlive-binextra` is now in the reviewed manifest and installed.
+Existing VS Code extensions cover the requested selection. The pack captures
+installed extensions and reviewed preferences without credentials.
+
+The separate Python 3.11 environment is `~/university/python`. Its specification
+and resolved `uv.lock` are retained under `settings/razer/university/` in infra.
+Use individual project environments and lockfiles for course/project dependencies.
+
+```bash
+uv run --project ~/university/python jupyter lab
+uv run --project ~/university/python marimo edit
+```
+
+## Functional checks
+
+| Check | Result |
+| --- | --- |
+| C++ through CMake/Ninja | Built and ran a small executable |
+| Scientific Python | Linear algebra, numerical integration, symbolic differentiation, pandas and uncertainties passed |
+| Plotting | Matplotlib generated an image |
+| Jupyter | Executed a notebook through a Python kernel |
+| Spanish LaTeX | PDF with mathematics and a Biber bibliography compiled |
+| Docker | Daemon enabled/active; administrator-run `hello-world` container passed |
+| User Docker access | Ordinary client still lacks socket permission; no group/socket changes |
+| Real course/project acceptance | Course-specific fonts/packages and a project Compose stack remain untested |
+
+Native package versions are observations, not a reviewed full-install command.
+The selected native dependencies are in `manifests/packages-development.txt`.
+`scripts/razer-development-setup.sh --apply` uses this list and the university
+specification/lock. It refuses different existing specification or lock files,
+preserving unrelated environments, projects, desktop choices and AI services.
+The existing host was configured during the migration, not by the pack exporter.
+
+## University and recovery boundaries
+
+The captured [university Wi-Fi plugin](/docs/laptop-razer/university-wifi) includes
+enterprise-authentication support and public CA material; on-campus authentication
+and private credential enrollment are separate checks. Student identities,
+passwords, documents and course projects are not included in the public pack.
+
+Compile an actual course document and run a representative project build before
+retiring the MacBook workflow. Undo native installations only after reviewing
+shared dependencies. Preserve coursework, lockfiles and private configuration
+before removing environments. Docker activation can be reversed after checking
+workloads; do not grant broad socket access just to make a smoke check pass.

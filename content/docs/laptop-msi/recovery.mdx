@@ -3,6 +3,13 @@ title: Recovery and Rebuild
 description: Recreate the MSI laptop from CachyOS, the two Zero Five repositories, and newly generated secrets.
 ---
 
+> **Historical MSI record.** The owner confirmed on 2026-10-04 that this
+> device is sold and unavailable. Commands and live-state claims below refer
+> to their recorded dates; use the Razer migration pages for current work.
+> The former laptop addresses and active roles now belong to Razer; see
+> [current ownership](/docs/laptop-razer/network).
+
+
 The two repositories can restore the durable configuration layer quickly, but
 they cannot recreate private identities, personal data, project source,
 wallpapers, browser accounts, LocalDrop's token, or Ollama model blobs. Those
@@ -31,7 +38,7 @@ flowchart TD
 
 1. Install CachyOS and create the `manuel` user.
 2. Restore network access and clone both repositories.
-3. Follow `zero-five-infra/settings/msi/README.md` for official packages and
+3. Follow `zero-five-infra/archive/msi/settings/msi/README.md` for official packages and
    settings.
 4. Restore wallpapers and `~/projects/localdrop` from trusted sources.
 5. Generate a new SSH key, GPG identity if needed, WireGuard private key, and
@@ -66,16 +73,16 @@ On 2026-09-13 the owner narrowed the migration to exactly:
   environments: `physics`, `projects`, `telegram-translator`, and
   `wildfire-risk-indicator`).
 
-Use the new `scripts/msi-settings-backup.sh` in the infra checkout. Stop the
+Use the new `archive/msi/scripts/msi-settings-backup.sh` in the infra checkout. Stop the
 previous broad backup with Ctrl+C first. The old `msi-nas-backup.sh` is retained
 because an instance may still be running; it is superseded for this migration.
 Existing broad snapshots are not removed.
 
 ```bash
 cd ~/Desktop/zero-five/zero-five-infra
-bash scripts/msi-settings-backup.sh --plan
+bash archive/msi/scripts/msi-settings-backup.sh --plan
 systemd-inhibit --what=sleep:idle --why="MSI settings backup" \
-  sudo bash scripts/msi-settings-backup.sh
+  sudo bash archive/msi/scripts/msi-settings-backup.sh
 ```
 
 Restic must already be installed. Close applications that write settings, keep

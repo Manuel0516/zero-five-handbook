@@ -1,6 +1,6 @@
 ---
 title: SSH Configuration
-description: SSH keys, host aliases, and config on this MacBook — GitHub, Alpha, Delta, Gamma, Beta, MSI, and BlackArch. Key material itself is never documented here.
+description: SSH keys, host aliases, and config on this MacBook — GitHub, Alpha, Delta, Gamma, Beta, Razer, and BlackArch. Key material itself is never documented here.
 ---
 
 SSH is used to authenticate to **GitHub**, connect to the **Alpha VPS**, and
@@ -80,7 +80,7 @@ Host beta
   ProxyJump delta
   HostKeyAlias 192.168.1.166
 
-Host msi
+Host razer
   HostName 10.40.0.12
   User manuel
   Port 22
@@ -108,7 +108,7 @@ Host blackarch
 | `Host delta` | Direct LAN alias for Delta at `192.168.1.106`; it is the jump host for the private laptop paths |
 | `Host gamma` | Connects to Gamma's private `10.40.0.3` address through `ProxyJump delta`; Gamma remains unreachable directly from outside WireGuard |
 | `Host beta` | Connects as `root` to Beta's `10.40.0.4` address through `ProxyJump delta`; `HostKeyAlias 192.168.1.166` reuses the already-pinned identity of the same physical host |
-| `Host msi` | Connects to the MSI's WireGuard address through Alpha |
+| `Host razer` | Connects to the Razer's WireGuard address through Alpha |
 | `Host blackarch` | Connects as `zero` to BlackArch through Delta and reuses its LAN host-key alias |
 | `IdentitiesOnly yes` | Restricts each host to the explicitly selected identity instead of trying every key loaded in the agent |
 

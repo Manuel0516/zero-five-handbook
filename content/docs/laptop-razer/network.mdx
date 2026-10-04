@@ -1,0 +1,98 @@
+---
+title: Razer identity, WireGuard, DNS and SSH
+description: Current ownership of the former laptop addresses, observed routes, desired DNS labels and remaining activation checks.
+---
+
+## Ownership contract — 2026-10-04
+
+The owner transferred all former MSI laptop IP addresses and active roles to
+**Razer**. Operational source uses `razer`; the sold MSI is a historical device.
+The machine-readable identity is `zero-five-infra/settings/razer/identity.json`.
+Retained NAS backups, snapshot IDs, historical device photographs and the
+`archive/msi/` source preserve their original names so recovery references remain
+valid. Their addresses describe past ownership, not a second live laptop.
+
+| Item | Current Razer ownership | Observed or pending |
+| --- | --- | --- |
+| Hostname and user | `razer`, `manuel` | Observed locally |
+| WireGuard identity | `10.40.0.12/32` | Live on `wg0` |
+| WireGuard public key | `EY6HvumuGxCDCpsn9PgG5Qdfq/iZiwpUU82nPMId9jA=` | Live public key matches inherited peer |
+| Mesh port | UDP `51820` | Saved Interface setting |
+| Inherited LAN reservation | `192.168.1.110` | Ownership transferred; DHCP/router activation not verified |
+| Current Ethernet address | `192.168.1.100/24` on `enp0s20f0u3u3` | Observed; not the inherited reservation |
+| Current Wi-Fi address | `192.168.1.108/24` on `wlo1` | Observed |
+| Canonical private DNS name | `razer.zero-five.space` → `10.40.0.12` | Desired rewrite; Delta currently returns NXDOMAIN |
+| SSH client alias for this workstation | `razer` | Reviewed source; remote SSH acceptance separate |
+| LocalDrop listener | `10.40.0.12:8765` | Running; iPhone sending owner-verified |
+| Inherited remote AI slot | `10.40.0.12:11434` | Ownership transferred; no verified Razer Ollama service |
+
+The inherited public identity is preserved; this pass did not rotate VPN keys.
+Private keys remain outside the pack. Ownership transfer does not prove that a
+private identity was removed from the sold device; any later rotation must update
+all matching peer declarations and preserve a working administration route.
+
+## Reviewed WireGuard source
+
+`wireguard/razer.conf.example` replaces the archived laptop template as the active
+client model. Alpha and Delta label their `.12` peer **razer**. Gamma's model now
+includes the reciprocal Razer peer. All eight current models are validated
+together; the archive is no longer an active peer-validation input.
+
+| Razer peer | Endpoint | Allowed destinations | Acceptance |
+| --- | --- | --- | --- |
+| Alpha | `95.111.229.142:51820` | `.1`, iPhone `.21`, MacBook `.11` | Recent handshake; MacBook route persisted |
+| Delta | `delta-vpn.zero-five.space:51820` | `.2` | Reachability, handshake and DNS verified |
+| Gamma | `192.168.1.107:51820` | `.3` | Saved peer; latest observed handshake zero |
+
+The endpoints are narrow mesh routes, not a full internet tunnel. Alpha's live
+firewall allows `wg0` → `wg0` forwarding, but both clients still need matching
+AllowedIPs and return routes. Razer's MacBook route was added to runtime and
+`/etc/wireguard/wg0.conf`, preserving existing Alpha destinations. Reconnect and
+cold-boot persistence tests remain pending. The optional phone `.32` fallback
+requires its return route on Razer; its firewall allow alone is insufficient.
+
+Gamma's inherited laptop endpoint still targets `.110`; reconcile that with
+Razer's actual LAN addresses or activate the reservation before claiming the
+Gamma/Razer direct peer is healthy. Do not assign `.110` to an interface merely
+because it appears in a historical document.
+
+## DNS: working resolver, pending name and persistence
+
+The initial client resolver selected Cloudflare and failed private-name lookups.
+The runtime `wg0` DNS setting is now Delta-only (`10.40.0.2`) with routing domain
+`~.`. The system resolver returns Delta `.2` and MacBook `.11` correctly.
+
+The saved WireGuard file has no `DNS` line in the sanitized capture. The prepared
+`razer.conf.example` includes desired `DNS = 10.40.0.2`; this difference is explicit.
+The repair helper now inserts a missing Interface DNS setting and replaces a
+mixed setting; offline tests verify that peer/key lines are preserved. Its
+persistent application is still pending. Do not restart a working
+mesh session solely to test an unreviewed template.
+
+The canonical Razer rewrite is in `adguard/dns-rewrites.example`. The live old name
+`msi.zero-five.space` currently resolves to Razer's address, while the new name is
+absent. Deploy the new private AdGuard rewrite separately, update consumers, then
+retire the old alias if no clients need compatibility. Do not create a public
+Cloudflare device record. Roll back a DNS rename by restoring the previous
+private rewrite without changing the VPN address.
+
+## SSH and inspection
+
+The MacBook SSH example now uses `Host razer` with `.12`, user `manuel` and
+`ProxyJump alpha`. It is source for review; this pass did not modify another
+machine's SSH configuration or enroll keys. Verify the Razer SSH server and
+known-host fingerprint before first access. An old client alias does not prove
+that a Razer SSH daemon is listening.
+
+```bash
+ip route get 10.40.0.2
+ip route get 10.40.0.11
+resolvectl status wg0
+resolvectl query delta.zero-five.space macbook.zero-five.space
+adig -s 10.40.0.2 razer.zero-five.space
+```
+
+Use administrator `wg show wg0 latest-handshakes` and `wg show wg0 allowed-ips`
+for safe inspection. Never publish `wg showconf`, full `.conf` files or private
+keys. Preserve an owner-only copy before persistent changes; roll back only the
+changed route/name configuration, keeping a working SSH hop available.

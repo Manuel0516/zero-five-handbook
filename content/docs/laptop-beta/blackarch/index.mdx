@@ -17,7 +17,7 @@ progress.
 | WireGuard address | `10.40.0.101/32` |
 | Login user | `zero` |
 | Password | Stored in Bitwarden; never document it here |
-| SSH path | `MSI → Alpha/contabo → WireGuard → blackarch` |
+| SSH path | `Razer → Alpha → WireGuard → blackarch` |
 | SSH alias | `ssh blackarch` |
 
 VMs use the three-digit WireGuard range beginning at `10.40.0.101`. Physical
@@ -29,7 +29,8 @@ Verified on 2026-08-12:
 
 - Arch Linux installed from the verified `archlinux-2026.08.01-x86_64.iso`.
 - Hostname is `blackarch`.
-- User `zero` authenticates with the MSI SSH key.
+- User `zero` authenticated with the former MSI SSH key at this historical check.
+  Razer owns the administration role now; current SSH acceptance is separate.
 - SSH password and root logins are disabled.
 - `sshd` and `wg-quick@wg0` are active.
 - WireGuard routes only `10.40.0.1/32` through Alpha.

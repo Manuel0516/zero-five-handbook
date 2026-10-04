@@ -45,7 +45,7 @@ cp examples/config.example.toml config.toml
 ## Configuration
 
 One file per device: `~/projects/localdrop/config.toml`. This machine's config
-uses the MSI's **WireGuard mesh IP** as the peer address:
+uses the Razer's **WireGuard mesh IP** as the peer address:
 
 ```toml
 [device]
@@ -58,7 +58,7 @@ port = 8765
 
 [peer]
 name = "linux"
-host = "10.40.0.12"       # the MSI Linux desktop's WireGuard mesh IP
+host = "10.40.0.12"       # the Razer Linux desktop's WireGuard mesh IP
 port = 8765
 
 [clipboard]
@@ -79,8 +79,10 @@ enabled = true
 
 The Linux config is identical except `device.name`/`device.platform`/`peer.*` are swapped. The `shared_token` value is not documented here on purpose — read it from the config on either machine when setting up a new device.
 
-> **Verified direct WireGuard path (2026-09-09):** MacBook is `10.40.0.11` and
-> MSI is `10.40.0.12`. Add the destination `/32` to the active WireGuard
+> **Inherited direct WireGuard path:** verified with the former MSI on
+> 2026-09-09. MacBook is `10.40.0.11` and
+> Razer now owns `10.40.0.12`. The Razer side is prepared, but current
+> MacBook pairing remains unverified; see [Razer LocalDrop](/docs/laptop-razer/localdrop). Add the destination `/32` to the active WireGuard
 > profile's `AllowedIPs`, then point LocalDrop directly to that mesh address on
 > port `8765`. Adding the missing addresses made LocalDrop work; no LocalDrop
 > relay service on Alpha is needed.
@@ -144,7 +146,7 @@ Logs: `journalctl --user -u localdrop.service -f`
 1. Confirm the other desktop's `/32` is present in the active WireGuard peer's
    `AllowedIPs`.
 2. Ping the peer from each side: `python3 main.py ping`.
-3. Verify MacBook targets `10.40.0.12:8765` and MSI targets
+3. Verify MacBook targets `10.40.0.12:8765` and Razer targets
    `10.40.0.11:8765`.
 4. Check the daemon is running: `launchctl list | grep localdrop` (Mac) / `systemctl --user status localdrop` (Linux).
 

@@ -129,7 +129,8 @@ required for direct boot proof.
 
 Two findings from the SSH diagnosis session (see [beta SSH](/docs/laptop-beta/ssh)):
 
-1. **Delta peer endpoint → LAN IP.** Same broken-hairpin issue as the MSI:
+1. **Delta peer endpoint → LAN IP.** Same broken-hairpin issue previously observed on the retired MSI;
+   the laptop endpoint role now belongs to Razer:
    beta's Delta peer used `delta-vpn.zero-five.space:51820` (public DDNS),
    which the home router cannot hairpin back to the LAN. The direct
    beta↔Delta handshake died (stale 57 min), which broke the MacBook's

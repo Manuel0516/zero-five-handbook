@@ -1,13 +1,78 @@
 ---
-title: Sequential MSI and MacBook retirement migration
-description: "A source-device-first transfer plan: prepare and verify the NAS archive, sell the MSI and MacBook, then build the Razer from a reproducible bootstrap kit."
+title: Razer migration from MSI and MacBook
+description: Current migration work using the sold MSI's retained archive and the still-available MacBook.
 ---
 
-> **Status: planned; no Razer configuration has been applied.** The MSI backup is
-> user-confirmed to exist on the NAS. This handbook instance has not independently
-> inspected it: the local SSH client has no trusted Delta host-key entry, so an
-> inspection must wait for an out-of-band verified host fingerprint rather than
-> bypassing SSH host-key verification.
+## Current status — 2026-10-04
+
+The MSI has been sold and cannot be contacted. The MacBook remains available.
+The Razer is already installed with Omarchy 4.0.4. The older sequential plan
+below is retained as historical planning; its source-device availability and
+CachyOS installation assumptions no longer describe this migration.
+
+The owner supplied `smb://192.168.1.106/shared/` as the archive access path.
+Local AI and personalization are already configured according to the owner;
+current work focuses on development, university tooling and LocalDrop.
+The live continuation installed and tested development/scientific/LaTeX tools,
+verified English/Spanish switching and WireGuard access, repaired runtime Delta
+DNS selection and recovered the LocalDrop token privately. See
+[verified results and pairing blockers](/docs/laptop-razer/development).
+
+### Recover MSI from retained evidence
+
+The [final MSI snapshot](/docs/laptop-msi/final-snapshot) records a verified
+Delta archive at `/srv/nas/shared/msi-settings-backup/repository`:
+settings baseline `3f9313b3`, selected projects `56856c59`, and final shell,
+credentials and AI-history extras `ca3975bb`. Personal files are separately
+recorded at `/srv/nas/shared/msi-personal-review-2026-09-27`.
+These are historical full-backup verification records. The continuation confirmed
+repository access and recovered the LocalDrop configuration from `56856c59`;
+it did not repeat a complete archive integrity check.
+
+Restore selected material into a separate private staging directory and compare
+its manifests before applying configuration. Use the existing encrypted recovery
+procedure privately; never commit extracted credentials or paste passwords into
+agent logs. Razer now owns the former laptop addresses and roles; retain any restored
+private material outside Git. Current public identity matches the inherited
+peer. Identity rotation/retirement is a separate check. Review MSI's AMD,
+CachyOS and Caelestia settings before translating them to NVIDIA and Omarchy.
+The earlier archive selection excluded Bonsai and FreeCAD. This is not an
+instruction to remove Razer's already installed Bonsai AI, which is now preserved
+in the [current AI record](/docs/laptop-razer/ai).
+
+### Export the available MacBook
+
+Capture current package and editor manifests, project remotes, unpushed work,
+scientific environment specifications and unique personal files while it remains
+available. The existing [MacBook handbook](/docs/macbook) records Ghostty,
+Zsh/Starship, VS Code extensions, Miniforge physics tools, LaTeX, Docker/Colima,
+AI coding tools, llama.cpp and LocalDrop. Port workflows to Linux; review
+platform-specific settings before restoring them.
+
+### Build and verify the Razer
+
+1. Complete the [observed baseline](/docs/laptop-razer/inventory), including existing GPU/power helpers and live checks.
+2. Confirm the owner's preferred tools, appearance, monitors and first priorities.
+3. Restore selected projects and data; rebuild environments from specifications and lockfiles.
+4. Configure and test private access with a fresh Razer identity.
+5. Personalize the desktop, terminal and editors with reviewed user overlays.
+6. Verify local AI and selected power profiles on the actual GPU.
+7. Create a tested backup and complete the MacBook replacement acceptance checks.
+
+Source configurations exclusive to the retired hardware remain under
+`zero-five-infra/archive/msi/`. The owner transferred the laptop's current
+addresses, network/service roles and active labels to Razer. The shared models
+now use `razer`, with active client source `wireguard/razer.conf.example`.
+The live Razer uses `.12` and the inherited public identity. The inherited LAN
+reservation `.110`, canonical DNS rewrite and remote service acceptance remain
+explicitly tracked on [Razer networking](/docs/laptop-razer/network).
+
+Historical NAS directory names and snapshot IDs stay valid; relabeling active
+ownership does not rename or invalidate those archives. The reviewed current
+personal layer and new tooling are included in
+[the Razer pack](/docs/laptop-razer/configuration-pack).
+
+## Historical sequential plan
 
 ## Decision
 
@@ -104,7 +169,7 @@ installation in this stage.
    application data. Preserve permissions/metadata for Linux repository data.
 4. **Create reproducible developer manifests.** Capture, review and archive:
    - MSI package and desktop manifests already represented by
-     `zero-five-infra/settings/msi/` and the MSI handbook pages;
+     `zero-five-infra/archive/msi/settings/msi/` and the MSI handbook pages;
    - Mac Homebrew, editor, terminal, Python, Docker, LaTeX and AI-tool
      manifests referenced by the [MacBook handbook](/docs/macbook);
    - the final selected daily-tool list for the Razer, removing one-off,

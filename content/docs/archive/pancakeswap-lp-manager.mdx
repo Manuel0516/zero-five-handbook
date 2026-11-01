@@ -1,11 +1,25 @@
 ---
-title: PancakeSwap LP Market Observer
+title: PancakeSwap LP Market Observer (REMOVED)
 description: Read-only Hermes analysis service for one PancakeSwap V3 BNB/USDC position.
 ---
 
-> **Status: deployed read-only observer — 2026-09-02.** This service reads and analyses one existing PancakeSwap V3 BNB/USDC LP on BNB Smart Chain. It cannot sign, pair a wallet, submit transactions, transfer assets, collect fees, swap, mint, burn, or rebalance.
+> **Historical status — 2026-09-02 (service removed 2026-10-25).** This service reads and analyses one existing PancakeSwap V3 BNB/USDC LP on BNB Smart Chain. It cannot sign, pair a wallet, submit transactions, transfer assets, collect fees, swap, mint, burn, or rebalance.
 >
 > **Mobile approval-review route: partially prepared, execution disabled.** The Alpha route and grey-cloud DNS record are installed. Traefik already serves a Let's Encrypt certificate for the hostname and rejects the forced public-IP path with HTTP 403; the approval page itself is pending because its private state directory still needs owner-run `sudo` ownership provisioning and the service has not been started.
+
+## Retirement — 2026-10-25
+
+The owner requested removal. Both observer and approval-review containers and their
+service images were removed. Both paused Hermes report/alert jobs were deleted;
+no native MCP connection was configured. The Traefik route was removed and its
+configuration retained outside the watched directory. Compose files now have a
+`.disabled` suffix to prevent an ordinary Compose invocation from restarting them.
+
+Source code, the observation-history named volume and private review state were
+retained; no wallet, position or on-chain asset was changed. The DNS record and
+existing certificate were not deleted, but no application route remains.
+
+Everything below is a historical record, not a current deployment procedure.
 
 ## Purpose
 

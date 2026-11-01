@@ -1,0 +1,266 @@
+---
+title: Nextcloud and Saber
+description: "VPN-only Nextcloud on Alpha for encrypted Saber note synchronization between Linux and iPad."
+---
+
+## Verified state — 2026-11-01
+
+Nextcloud **34.0.5** is deployed under `/home/manuel/services/nextcloud`.
+The stack contains Apache/PHP, PostgreSQL **17.11**, Redis, and a separate cron
+container. Images are pinned by digest; `stable-apache` was resolved and pinned
+at installation and will not silently advance to another major version.
+
+Verified through the actual HTTPS/Traefik route:
+
+- Valid Let's Encrypt certificate for `nextcloud.zero-five.space`.
+- `/status.php` returns HTTP 200, installed, no maintenance, no DB upgrade required.
+- Ordinary account `manuel` authenticates to OCS and WebDAV.
+- Disposable WebDAV upload: 201; download: 200 with identical bytes;
+  PROPFIND: 207; deletion: 204; subsequent read: 404.
+- Login Flow v2 initializes with correct HTTPS login and poll URLs; an
+  unapproved poll returns the expected 404. Browser authorization was not forged.
+- Forcing the hostname to Alpha's public IP returns **403**.
+- HSTS is present on the real HTTPS response, with max-age 15552000.
+- A cron execution from the cron container succeeded and recorded `lastcron`.
+- Authenticated HTTPS access still works after the local snapshot stop/start.
+
+**Not yet verified:** installing Saber on the owner's devices, browser approval
+of its app token, and actual encrypted Linux-to-iPad note synchronization.
+The Linux computer at `10.40.0.12` was unreachable over SSH both directly and
+from Delta during setup. No desktop application was installed on Alpha instead.
+
+## Access boundary
+
+URL: **https://nextcloud.zero-five.space**.
+
+This is an **Alpha-hosted Zone-1 service**, following the existing AFFiNE and
+handbook pattern: Cloudflare DNS-only A record to `10.40.0.1`, plus a Traefik
+source allowlist for `10.40.0.0/24`. It is not a public application and is not a
+new home/Zone-2 DNS record. No private home hostnames were published.
+TLS uses Alpha's existing Let's Encrypt DNS-01 resolver; no internal CA was
+added and there is no need to install a private CA on the iPad.
+
+Only the app joins the external `traefik` network. PostgreSQL and Redis are
+on the stack's internal backend network, and no Nextcloud stack container
+publishes a host port. Redis is a private disposable cache and locking/session
+backend, with no published port and no password; do not attach untrusted
+containers to the backend network. Durable data is in PostgreSQL and the HTML
+volume, not Redis. The app's outbound connectivity uses the proxy network.
+
+Apache IP rewriting is disabled. Nextcloud trusts the existing proxy bridge
+`172.19.0.0/16` for forwarded headers and has explicit HTTPS hostname/CLI URL
+overrides. Keep the bridge subnet aligned if Traefik networking changes.
+VPN-source allowlisting is enforced by Traefik, not client route declarations.
+
+Memory limits: app 1536 MiB, PostgreSQL 512 MiB, Redis 128 MiB, cron 512 MiB.
+PHP memory limit and upload limit are both 512 MiB. Redis is capped at 96 MiB
+with no eviction. Container logs are rotated. Check capacity before expanding
+users, upload sizes, previews, or additional Nextcloud apps.
+
+## Accounts and credential handling
+
+- `manuel`: internal account ID, normal non-admin account, display name Manuel,
+  initial quota 10 GB. The owner-requested sign-in identifier is
+  **`manuellore05@gmail.com`**; this is the saved account email, and authenticated
+  OCS access using that email was verified on 2026-11-01. The internal ID,
+  existing data paths, and password are unchanged. Use the email login in Saber
+  on both devices; do not recreate the account merely to change its login label.
+- `ncadmin`: separate administrator for server maintenance only.
+- Initial random passwords are in the service's private `secrets/` directory,
+  mode 0600 within mode-0700 directories. Values are not in Git, chat or docs.
+- On a trusted Alpha SSH terminal, read the initial everyday-account password:
+
+```bash
+less /home/manuel/services/nextcloud/secrets/manuel_password
+```
+
+Use `secrets/admin_password` only for the separate administrator. Store these
+credentials in the owner's password manager. Change the ordinary account's
+password through its Nextcloud personal security settings after signing in;
+the initial-password file then becomes historical, not the current credential.
+App authorization uses Nextcloud's supported per-client Login Flow v2 tokens.
+Revoke a lost device's session/token in personal security settings.
+
+SMTP is **not configured**, so email password reset and notifications are not
+a verified recovery path. Keep the separate admin credential available; an
+administrator can reset a local user with `occ user:resetpassword`. Do not
+paste a password into chat or put it into a command-line argument.
+
+The sample-file skeleton is disabled for subsequently created users.
+Maintenance jobs are configured for cron, with the heavy-job window starting
+at 02:00 UTC. The unused external-app deployment AppAPI app is disabled; no
+Docker daemon endpoint was granted to Nextcloud.
+
+## Administration, passwords and storage quota
+
+While connected to WireGuard, sign in as **`ncadmin`** and open
+[Accounts / Users](https://nextcloud.zero-five.space/settings/users).
+The profile/avatar menu also exposes the Accounts/Users management entry.
+The installed application declares this route and the display-name, email and
+password-management endpoints; an interactive administrator browser session
+has not been exercised by the operator.
+
+From this page the administrator can create, disable or delete local accounts,
+change display names and email addresses, reset local-account passwords,
+manage groups and change each account's storage quota. Deletion is destructive;
+prefer disabling an account if preserving its files is important. SMTP is not
+configured, so use direct administrative password changes rather than relying
+on emailed recovery links. Store new passwords in the owner's password manager.
+Initial-password files do not automatically update after a password change.
+
+**Username distinction:** `manuel` is the immutable internal account ID. The
+standard user-management interface does not rename an existing internal ID.
+The display name and email are editable, and `manuellore05@gmail.com` is already
+a verified sign-in alias for this same account. Do not edit database rows or
+rename its data directory to simulate an account rename. A genuinely different
+internal ID would require a separately planned account/data migration.
+
+For the everyday account's own password and app sessions, use
+[Personal settings → Security](https://nextcloud.zero-five.space/settings/user/security).
+Changing a Nextcloud password is separate from changing Saber's encryption
+password; an administrator cannot recover forgotten Saber encryption credentials.
+
+### Quota decision
+
+The owner explicitly chose to **keep `manuel` at 10 GB** on 2026-11-01. This is
+a configurable per-account limit, not a Nextcloud product limit or the VPS disk
+size. It was verified live as `10GB`; no increase was applied. To change it
+later, edit this account's quota in the administrator's Accounts/Users page.
+No file migration is required just to increase the quota.
+
+For CLI administration, review the current account and then set an explicitly
+chosen value (the second command below retains the current limit):
+
+```bash
+cd /home/manuel/services/nextcloud
+docker compose exec -T -u www-data app php occ user:info manuel --output=json
+docker compose exec -T -u www-data app php occ user:setting manuel files quota 10GB
+```
+
+Before raising quotas or selecting unlimited, check host disk availability,
+other application usage, and space for local snapshots. A quota does not reserve
+physical disk; all services and recovery snapshots still share Alpha's storage.
+Avoid lowering a quota beneath current usage, which prevents further uploads.
+
+## Install and connect Saber
+
+Saber is a local handwriting application. Nextcloud is the sync backend;
+neither the Nextcloud desktop client nor a Nextcloud server-side Saber app
+is needed for this workflow.
+
+### iPad
+
+1. Install [Saber from the App Store](https://apps.apple.com/us/app/saber/id1671523739).
+2. Enable the existing [iPad WireGuard tunnel](/docs/ipad).
+3. Open Saber, choose its Nextcloud/custom-server sign-in option, and enter
+   `https://nextcloud.zero-five.space` (not a WebDAV subpath).
+4. Where the client opens Nextcloud in a browser, sign in as
+   `manuellore05@gmail.com` (the existing internal account `manuel`) and grant
+   the requested app access. Return to Saber. Older client builds may use
+   different labels or accept credentials directly; use the app's supported flow.
+5. Create a **separate Saber encryption password** on first setup. Keep it in
+   the owner's password manager; do not send it to the server operator or chat.
+
+### Linux
+
+The official project recommends the Flathub build:
+
+```bash
+flatpak install flathub com.adilhanney.saber
+flatpak run com.adilhanney.saber
+```
+
+If Flatpak/Flathub is not installed, install it using that Linux distribution's
+supported procedure first. Do not install a desktop application on the VPS.
+Use the same server, Nextcloud account, and **same Saber encryption password**
+as the iPad. Each device should get its own Nextcloud app authorization.
+
+Sources: [official installation wiki](https://github.com/saber-notes/saber/wiki/Install),
+[Flathub](https://flathub.org/apps/details/com.adilhanney.saber),
+[official project](https://github.com/saber-notes/saber).
+The latest GitHub release at setup was `v1.37.1`; store rollout versions may differ.
+
+### End-to-end acceptance
+
+1. On iPad create a new disposable note called `Zero Five sync test` and draw
+   a recognizable mark. Allow Saber to finish uploading over the VPN.
+2. On Linux sign in and sync. Confirm the note opens and the mark is intact.
+3. Add a second mark on Linux, wait for upload, and confirm it appears on iPad.
+4. Close/reopen the apps and confirm the saved note still decrypts.
+5. Disconnect the VPN and verify already-downloaded notes remain usable offline.
+   Reconnect, make a small change, and verify sync resumes.
+
+Avoid concurrent edits to the same note until conflict behavior is understood.
+A WebDAV probe is not proof of Saber's encryption/password handling or native
+client conflict resolution. Do not manually rearrange or modify its encrypted
+server files. Nextcloud admin access or a backup cannot replace a lost Saber
+encryption password.
+
+## Storage, backup and recovery boundary
+
+Named volumes are `nextcloud_html` (application, config, user files, custom apps)
+and `nextcloud_db_data` (PostgreSQL). Compose and credential files are private
+local deployment files under the service directory, not public-repo content.
+Never run `docker compose down -v` as routine maintenance.
+
+A **local consistent baseline snapshot** exists at:
+
+```text
+/home/manuel/services/nextcloud/backups/20261101T105557Z
+```
+
+It includes a PostgreSQL custom-format dump, the full HTML volume, local Compose
+and secrets, and a checksum manifest. The snapshot helper enables maintenance,
+stops the app and cron writers, dumps PostgreSQL, archives the volume read-only
+in a networkless helper, then restores the running service. The archive captures
+maintenance mode enabled; a restore must deliberately disable it after restoring
+both files and database. Redis caches are intentionally not backed up.
+
+Verified: manifest checksums, readable HTML archive with config/data, readable
+PostgreSQL dump table of contents, and healthy authenticated HTTPS after the
+snapshot. **A complete isolated restore rehearsal was not performed.**
+
+To create another manual local recovery point:
+
+```bash
+python3 /home/manuel/services/nextcloud/backup.py
+```
+
+This briefly interrupts Nextcloud. The snapshots contain sensitive credentials
+and potentially unencrypted ordinary Nextcloud files; do not publish them.
+They are on Alpha's own disk, **not an off-host backup**. There is no snapshot
+retention job, so repeated manual snapshots consume disk space.
+
+**Delta scheduled protection remains pending.** The existing
+[backup controller](/docs/raspberry/backup) does not auto-discover new apps.
+Do not treat its successful existing timer as Nextcloud coverage. Extend its
+explicit Alpha export to include a consistent Nextcloud snapshot, install the
+reviewed root-owned exporter/config with owner sudo, then verify a real Delta
+restic snapshot and an isolated application restore. Keep the existing
+single-destination controller rather than introducing a competing backup timer.
+
+## Operations and rollback
+
+```bash
+cd /home/manuel/services/nextcloud
+docker compose ps
+docker compose exec -T -u www-data app php occ status --output=json
+docker compose exec -T -u www-data app php occ setupchecks
+curl -fsS https://nextcloud.zero-five.space/status.php
+```
+
+`setupchecks` from the container CLI may report missing HSTS because its
+self-probe bypasses Traefik; inspect the actual external HTTPS headers before
+changing the edge. SMTP remains intentionally unconfigured. Do not expose
+Nextcloud publicly to fix a client DNS or VPN problem.
+
+Before an upgrade, create and verify a consistent snapshot, choose a supported
+explicit release/digest, follow Nextcloud's supported sequential-major upgrade
+path, and verify `occ`, WebDAV, public denial, cron, and real Saber sync.
+Do not pull/recreate directly from an unpinned moving major tag.
+
+To stop the deployment without deleting data, use `docker compose stop`.
+To retire it, preserve recovery exports first, remove the exact Nextcloud DNS
+record and routing labels, and remove volumes only with explicit data-deletion
+authorization. Do not alter the shared Traefik stack or unrelated VPN peers.
+Documentation edits remain local until commit/push is explicitly authorized.

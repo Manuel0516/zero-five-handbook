@@ -103,14 +103,67 @@ Verified Chromium touch gestures with normal and reduced motion: both cards move
 scrolling remains available. The same checks pass with CSS fetched from the live
 HTTPS asset URLs. This is not a physical iPhone/Safari certification.
 
-Only the web container was recreated; configuration, other services, and volumes
-were preserved. Previous frontend image retained as
+Only the web container was recreated for that change; configuration, other services,
+and volumes were preserved. Previous frontend image retained as
 `secondbrain-web:rollback-before-swipe-animation-fix`. Internal and HTTPS readiness
-passed after recreation. The normal checkout index remains root-owned and
-unreadable to `manuel`; the one-off deployment verified tracked source using a
-disposable index, synchronized only this commit's files, and rebuilt the web image
-without changing the existing index or permissions. An owner must still repair
-index ownership before normal Git/updater use.
+passed after recreation. The previously root-owned Git index was moved to a
+preserved `.git/index.root-owned-pre-mcp-*` backup and regenerated as `manuel` for
+the subsequent MCP deployment. Normal Git operations now work.
+
+## Private ChatGPT MCP code (2026-10-08)
+
+The VPS checkout now matches `origin/codex/development` commit
+`18a1226607ca4e10e940f692f6897bbafb7f0250`. The API container was rebuilt and
+recreated; web, bot, PostgreSQL, MinIO and their volumes were untouched. The new
+MCP SDK is installed and **`MCP_ENABLED=true`** with a scoped OAuth issuer and
+one explicit subject mapping. Unauthenticated internal requests return 401 and
+protected-resource metadata answers 200; a real user-signed request and ChatGPT
+connection remain unverified. The existing VPN HTTPS page returned 200, the
+public-IP path returned 403, `/api/ready` returned ready and the API was healthy.
+
+The code provides a private `/api/mcp` Streamable HTTP resource with scoped OAuth
+and human-approved write proposals. The self-hosted issuer is Keycloak (see below).
+The outbound Secure MCP Tunnel and end-user account password are still pending.
+`COMPOSE_FILE=compose.yaml:compose.mcp.yaml` is set in Second Brain's private `.env`
+so normal `docker compose` and the existing updater preserve the optional override
+on subsequent API rebuilds. Follow the repository runbook
+`docs/chatgpt-mcp-integration.md` for application behavior and the VPS-local
+`~/services/second-brain-auth/README.md` for actual deployment and handoff. Keep
+the main site VPN-only. No provider credentials or tunnel control-plane keys belong
+in Git or the handbook.
+
+### Self-hosted login boundary and unfinished gates
+
+`~/services/second-brain-auth/compose.yaml` runs Keycloak 26.8.0 and PostgreSQL 17.
+A separate public DNS-only `auth.zero-five.space` login hostname points at Alpha;
+Traefik serves only `/realms/second-brain` and `/resources/` for that name. Public
+`/admin/` and `/realms/master/` returned 404, while the public-IP request for
+`brain.zero-five.space/api/mcp` returned 403. The Keycloak container is healthy,
+realm discovery returns 200, and an anonymous dynamic client registration probe
+was denied 403. The realm disables self-registration and enables brute-force
+protection. The owner account's password has **not** been set by this operator;
+`~/services/second-brain-auth/scripts/set-owner-password.sh` prompts the owner
+interactively without putting it in chat. Do not issue a token before this step.
+
+The official OpenAI tunnel-client v0.0.16 binaries were downloaded with a SHA256
+match to the release checksum and staged under `second-brain-auth/tunnel/`.
+`compose.tunnel.yaml` is explicitly opt-in and has no published ports, read-only
+root, uid 1000, dropped capabilities, and private API/outbound egress networks.
+It is **not running**: an owner-created Platform tunnel ID, runtime API key, and
+ChatGPT OAuth interaction remain necessary. The runtime key belongs only in a
+local mode-0600 secret file. A read-only MCP call with a real user token, token
+revocation, tool discovery and a full ChatGPT connection are not yet verified.
+Treat this as a prepared, security-reviewed integration, not a completed one.
+
+Validation before deployment: frontend format/lint/build and 175 frontend tests
+passed (existing lint warnings); API format/lint/type-check and 200 API tests passed
+with the cloud embedding key blanked in the test process. With the live key inherited
+from `.env`, one MCP note-search test returns a semantically ranked, unrelated note
+instead of the test's expected empty list; this test-environment dependency should
+be made deterministic upstream. The production API image build and Compose
+validation succeeded. Rollback requires rebuilding the previous Git revision's API
+image; the old running image ID was not retained by Docker when the new tag was
+built, so no new rollback tag could be created for it.
 
 ## Setup from scratch
 
@@ -142,10 +195,14 @@ stages an application-consistent export to `/var/lib/zero-five-backup/alpha`:
 - the `bot-data` conversation-mapping volume (gzipped tar);
 - the exact deployed git commit + `git status`, plus `compose.yaml` and `.env`.
 
-The controller collects this export daily at 21:00. If you deploy a new
-database-bearing app alongside Second Brain, extend the exporter's staging
-logic (documented on the backup page) so it is included too — the controller
-does **not** auto-discover new containers.
+The controller collects the original Second Brain export daily at 21:00.
+The new Keycloak database is **not yet in that scheduled export**. A staged
+`zero-five-infra` exporter change passed a complete local test (including the
+Keycloak custom-format dump and mode-0600 `.env`), but the root-owned installed
+exporter/config still need an owner-run privileged update. Do not treat this as
+backed up until a scheduled or manual live export contains `second-brain-auth/`
+and a Delta restore rehearsal succeeds. See the VPS-local auth README for the
+pending installation and recovery gate.
 
 ## Development
 

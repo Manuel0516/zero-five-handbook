@@ -10,9 +10,10 @@
     "wireguard",
     "ollama",
     "second-brain",
+    "affine",
+    "nextcloud",
     "crypto-ledger",
     "telegram-bot",
-    "hermes-agent",
-    "pancakeswap-lp-manager"
+    "hermes-agent"
   ]
 }

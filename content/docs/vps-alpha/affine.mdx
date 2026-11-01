@@ -1,0 +1,353 @@
+---
+title: AFFiNE
+description: "VPN-only documents, whiteboards and long-term project planning on Alpha, with application-consistent backups collected by Delta."
+---
+
+## Purpose and status
+
+AFFiNE is the owner's platform to organize, sketch and draft ideas for Zero Five
+and a future Open Lab project. It is independent of Second Brain and its login
+services; no Keycloak or cloud AFFiNE account is required for this installation.
+
+**Verified deployment — 2026-10-25:** the application is running and returns
+`AFFiNE 0.27.4 Server` from `/info`. PostgreSQL and Redis are healthy, and the
+one-time migration completed with exit status zero. The owner has since created
+server workspaces: both persisted workspaces were indexed on 2026-10-25, yielding
+42 document records and 1,180 searchable block records. Authenticated
+agent/editor/canvas/attachment workflows have not yet been verified by the
+operator; the automation browser has no owner login.
+
+**Backup activation is pending privileged installation and a real Delta backup
+plus restore drill. Do not yet treat the instance as protected.** See the
+[Delta backup controller](/docs/raspberry/backup) for the existing schedule.
+
+## Access and security boundary
+
+- URL: `https://affine.zero-five.space`.
+- Host and deployment directory: Alpha, `~/services/affine`.
+- Cloudflare DNS-only A record: `10.40.0.1` (not Alpha's public IP).
+- Traefik Docker router: `affine`, with an allowlist of `10.40.0.0/24`.
+- TLS: Alpha's existing Let's Encrypt DNS-01 resolver; no new internal CA.
+- Database and Redis: isolated stack network, no published host ports.
+- Backend diagnostic port: `127.0.0.1:3010`, not publicly bound.
+- Hub: auto-discovered admin-visible AFFiNE card.
+
+Verified with trusted TLS: the VPN route redirects to `/admin/setup`; forcing
+the same hostname/SNI to Alpha's public IP returns **403**. The certificate is
+issued by Let's Encrypt. No AdGuard rewrite is required for this Alpha pattern.
+The router also carries WebSocket traffic using Traefik's native HTTP upgrade
+support; a logged-in collaborative-editing session is a separate test gate.
+
+Self-hosted accounts use AFFiNE's own authentication. General registration and
+OAuth registration are disabled. Initial owner setup is a separate first-run
+flow. SMTP and external OAuth are not configured; email invitations, email login
+links and password-recovery mail must not be assumed to work. Do not delete the
+owner credential or enable public registration as a workaround.
+
+Copilot was initially disabled and was enabled at the owner's request to unlock
+native workspace MCP on 2026-10-25. BYOK and public custom provider endpoints were
+subsequently enabled at the owner's request for an OpenRouter connection.
+Private-network AI endpoints remain blocked. An enabled workspace OpenRouter
+profile now exists with the DeepSeek model and text/tool-calling capabilities;
+credential values were not inspected. Metrics remain disabled. The local full-text
+indexer and private Manticore service were enabled on 2026-10-25 after the owner
+requested agent integration.
+
+## Native MCP access
+
+The native MCP endpoint is
+`/api/workspaces/WORKSPACE_ID/mcp`. Use the real workspace identifier from AFFiNE's
+integration settings, not its display name. It requires a workspace-scoped
+credential created by the signed-in owner under workspace **Settings →
+Integrations → MCP Server**. Prefer read-only credentials with a short practical
+expiry, store tokens only in a local secret store/environment, and never paste
+them into documentation, Git or chat.
+
+The server-side Copilot feature guard blocks this endpoint while
+`copilot.enabled=false`. Enabling that flag in `config/config.json` and restarting
+only `affine-server` changed an unauthenticated test from feature-denied `403` to
+credential-required `401`, with JSON-RPC `Authentication failed`. The public
+GraphQL `serverConfig.features` now includes `Copilot`. This verifies feature
+activation and the authentication boundary, not a successful credentialed tool
+call. Owner credential creation and a read/search test in the intended client
+remain required.
+
+The stable 0.27.4 MCP implementation supports read/search; write tools remain
+gated to development/canary and do not support database/image editing even
+there. Enabling Copilot does not enable MCP document-writing or canvas creation.
+No third-party connector, public tunnel, release-channel switch or Codex/ChatGPT
+client configuration was installed by this change.
+
+Keep the existing VPN-only route: a local Codex client must have WireGuard
+reachability. ChatGPT web requires a separately reviewed supported private-network
+connection; do not publish the application to solve reachability.
+
+Rollback: restore the pre-change configuration from
+`~/services/affine/backups/before-mcp-20261025T115547/config.json`, or set only
+`copilot.enabled=false` again, then restart `affine-server`. The backup is local
+and does not establish Delta backup activation.
+
+## OpenRouter AI BYOK — profile present, agent acceptance pending
+
+The native BYOK editor supports an OpenAI-compatible custom endpoint and
+explicit `chat_completions` dialect, including a custom model ID. No proxy,
+third-party integration or application-image change is needed.
+
+Server preparation enabled `copilot.byok.enabled` and
+`copilot.byok.allowCustomEndpoint`, while keeping
+`copilot.byok.allowPrivateEndpoint=false`. The earlier JSON-only preparation was
+insufficient for this image: the native runtime independently derives deployment
+identity from the process environment and uses its own config-file discovery.
+Without explicit wiring it reported `customEndpointMode=unavailable` (cloud
+policy), which hid the custom endpoint fields even though `/info` identified the
+JavaScript application as self-hosted.
+
+The local Compose application/migration environment now explicitly sets
+`DEPLOYMENT_TYPE=selfhosted` and
+`AFFINE_BACKEND_RUNTIME_CONFIG_PATH=/home/node/.affine/config/config.json`.
+Only the application container was recreated for the live fix. A native
+`BackendRuntime.getByokPolicy()` probe under the resulting live container
+environment/config changed from `unavailable` to `enabled`, with
+`privateEndpointSupported=false`. This probe does not start a second runtime or
+write database records. Reopen the BYOK connection dialog after refreshing the
+browser so it fetches the new policy.
+
+This enables configuration; it is **not a successful provider connection**
+until the owner supplies a key and the native connection probe plus an actual
+chat succeed.
+
+In the intended workspace's **Settings → Integrations → AI BYOK**, add a
+server-stored profile with:
+
+- Provider: **OpenAI**, using the custom/OpenAI-compatible endpoint option.
+- Name: **OpenRouter — DeepSeek budget**.
+- Base URL: `https://openrouter.ai/api/v1`.
+- API dialect: **Chat Completions**, not Responses.
+- Model: `deepseek/deepseek-v4-flash-0731`.
+- Use case: start with **Chat** only; do not declare unsupported embedding,
+  image-generation or transcription capabilities.
+- Credential: a dedicated, spending-capped OpenRouter key entered directly in
+  the password-type field by the owner. Never put it in chat, Git or this page.
+
+The public [OpenRouter model catalog](https://openrouter.ai/api/v1/models)
+listed this model at approximately USD 0.04444 per million input tokens and
+USD 0.13332 per million output tokens at inspection on 2026-10-25. This is a
+price snapshot, not a guaranteed rate; provider routing, reasoning/output usage,
+future prices and account charges can change actual cost. Do not use a batch
+model endpoint for interactive chat merely because its listed price is lower.
+
+Recommend an owner-set initial key spending limit (for example USD 1), no
+unapproved automatic top-ups, and a small test before normal use. The owner
+must decide the budget; no purchase or external account change was made here.
+The UI's **Test connection** action can incur a small provider charge.
+
+Notes and prompts selected for AI use leave the VPS and pass through OpenRouter
+to its routed model provider. VPN-only inbound hosting does not make cloud AI
+inference local. Review provider/data-routing policies and do not send secrets
+or sensitive unpublished research by default.
+
+Read-only metadata inspection now confirms an enabled workspace profile for the
+OpenAI-compatible endpoint, model `deepseek/deepseek-v4-flash-0731`, and text plus
+tool-calling capabilities. Credentials were not printed or extracted. This
+confirms the saved configuration, not a completed authenticated agent action.
+Rollback the server policy with
+`~/services/affine/backups/before-openrouter-20261025T132137/config.json`, then
+restart `affine-server`; revoke any later-created OpenRouter key/profile
+separately if retiring the connection.
+
+## Native agent search and capability limits
+
+The observed `DocSearchTool` failure `SEARCH_UNAVAILABLE` was caused by having
+neither lexical search nor a usable vector route. This is distinct from plain
+chat or model tool-calling capability. The native `doc_search` tool supports a
+lexical-only route; embeddings are optional, not a prerequisite for this fix.
+
+The local Compose now runs digest-pinned `manticoresearch/manticore:10.1.0`,
+with persistent state at `data/manticore`, a 768 MiB memory cap and no published
+ports. It joins only the internal backend network. Its HTTP port 9308 and SQL
+port 9306 are not exposed on the host or through Traefik. The image contains
+`wget`, not `curl`; the healthcheck uses `wget`.
+
+Both app and migration receive `AFFINE_INDEXER_ENABLED=true`,
+`AFFINE_INDEXER_SEARCH_PROVIDER=manticoresearch`, and
+`AFFINE_INDEXER_SEARCH_ENDPOINT=http://manticoresearch:9308`. Both wait for search
+health. The normal migration created `doc` and `block`; the automatic indexer
+then reconciled both existing workspaces without database modifications or
+content overwrite. Verified counts: 42 documents and 1,180 blocks. A real lexical
+query for `semiconductor` matched three document-title records and eleven block
+records. Restarting Manticore preserved all 42 document and 1,180 block records
+and the eleven block matches, verifying persistent storage. This verifies indexing
+and the search backend, **not authenticated
+Copilot execution**. VPN HTTPS `/info` succeeded and public access remained 403.
+
+### End-to-end acceptance still required
+
+In the signed-in workspace, start a new Copilot conversation and ask:
+
+> Search this workspace for semiconductor fabrication. Use document search and
+> return matching page links and excerpts.
+
+Require actual matching pages, no `SEARCH_UNAVAILABLE`, and a successful tool
+result with `retrieval_mode` of `lexical` or `hybrid`. `VECTOR_UNAVAILABLE` as a
+fallback/degradation reason is acceptable when lexical hits are returned. A
+successful raw Manticore query or normal chat alone does not pass this gate.
+The operator browser is unauthenticated and its secure login prompt is unavailable
+in this Telegram session; no user session was forged or database auth bypass used.
+
+### What stable 0.27.4 does and does not enable
+
+- Native persisted-document search/read: infrastructure configured; authenticated
+  agent and native MCP calls still require a member session/owner-issued token.
+- Active-editor tools: depend on a matching frontend tool lease. Keep the target
+  document open; their edit behavior remains an owner-session test gate.
+- Server-side `doc_create`, `doc_update`, and `doc_update_meta`: explicitly gated
+  to development/canary in this release. Neither enabling Copilot nor installing
+  search removes that gate. No release-channel spoofing or canary switch was made.
+- Semantic/vector retrieval: not configured; lexical search does not require a
+  new embedding model or paid provider route.
+- Web search/crawl: native Exa tools require a separate `copilot.exa.key`.
+  No Exa account, credential, purchase or third-party bridge was added.
+- The configured text model is not an image, audio or embedding model. Do not
+  advertise those capabilities simply to make routing appear complete.
+
+Consequently this is **native search infrastructure enabled**, not a claim that
+all agent actions or autonomous workspace creation are supported on stable.
+
+### Inspection, persistence and rollback
+
+```bash
+docker inspect affine-manticore --format '{{.State.Health.Status}}'
+docker exec affine-manticore mysql -h127.0.0.1 -P9306 -e 'SHOW TABLES; SELECT COUNT(*) FROM doc; SELECT COUNT(*) FROM block;'
+docker compose logs --since 10m affine
+```
+
+A private pre-change backup lives at
+`backups/before-agent-search-20261025T150245Z`, containing a PostgreSQL dump and
+matching storage/config/deployment files captured while the app was stopped.
+The dump catalog was validated. This is local rollback material, not a Delta
+snapshot or a full restore rehearsal.
+
+For configuration rollback, restore that backup's `compose.yaml`, recreate the
+app/migration with the original disabled-indexer environment, and stop the
+Manticore service using the newer Compose definition. Preserve `data/manticore`
+until recovery is complete; do not delete user data or restore the production
+database merely to disable search.
+
+The search data is derived but must be restored together with its versioned
+schema, or rebuilt through supported persisted document/workspace events. A fresh
+empty search volume plus an already-`indexed` restored database is not proof of a
+complete index; do not assume automatic discovery will reindex every page.
+
+## Runtime and persistent state
+
+Images are pinned by release tag and SHA-256 digest in the local-only Compose
+file. The initial versions are AFFiNE `0.27.4`, PostgreSQL/pgvector
+`0.8.1-pg16-trixie`, and Redis `7.4.7-alpine`. Record and test an upgrade before
+changing these pins; never replace them with floating `stable` or `latest`.
+
+- `compose.yaml`: deployment topology, security policy, image pins and routing.
+- `.env`: generated database password, mode `0600`; never publish it.
+- `config/config.json`: server name/HTTPS URL and application policy.
+- `config/private.key`: generated application signing/encryption identity;
+  preserve it with backups, mode `0600`.
+- `data/postgres`: live database files; do not copy these as a live SQL backup.
+- `data/storage`: filesystem attachments and avatars.
+- `data/redis`: Redis RDB persistence for queues/cache recovery.
+
+The AFFiNE server and migration run as UID/GID `1000:1000`, with all Linux
+capabilities dropped and no-new-privileges. `HOME=/home/node` and corresponding
+mount paths keep persistent files writable by that user. The image generates
+its GraphQL schema under `/app/src` on startup, so that one path has a small
+UID-1000 writable tmpfs; without it, non-root startup fails with `EACCES`.
+The database and Redis use their official image entrypoints.
+
+The server has a 2 GiB memory limit, PostgreSQL 768 MiB and Redis 256 MiB. Redis
+uses `noeviction` and a 192 MiB dataset cap. Container logs rotate at three
+10 MiB files. Alpha has no swap; monitor whole-host headroom, not only individual
+container limits. Filesystem capacity is not yet governed by an application
+storage quota, so watch disk usage as attachments accumulate.
+
+## Inspection
+
+```bash
+cd ~/services/affine
+docker compose ps -a
+curl -fsS http://127.0.0.1:3010/info
+docker logs --tail 100 affine-server
+docker stats --no-stream affine-server affine-postgres affine-redis
+df -h /
+```
+
+Normal state: server, PostgreSQL and Redis healthy; migration exited `0`.
+Do not print `docker compose config` without `-q` or dump container environment
+into chat or documentation: interpolated output contains the database secret.
+
+## Backup design and recovery gates
+
+AFFiNE must be explicitly added to Alpha's exporter; merely creating a service
+folder does not enroll it in Delta's 21:00 encrypted-restic schedule.
+The intended export is a coordinated PostgreSQL custom-format dump plus the
+matching attachments, configuration/private key, deployment file and database
+credential. A brief server stop during capture prevents attachment/database
+write races. Redis should be flushed and captured while the server is stopped;
+the exporter must restore the server's prior running state even after failure.
+
+The staged exporter also captures `affine/manticore.tar.gz` whenever
+`data/manticore` exists. While the app is stopped, it preserves search's prior
+running state, stops search for the archive, and restarts search before the app
+on success or error. An already-stopped search service remains stopped. Nine
+exporter behavior tests pass, including actual archive contents, stopped-state
+preservation and archive-failure recovery. These tests use fake Docker lifecycle
+calls and real filesystem archives; they do not replace a live Delta snapshot
+and restore drill. The installed root-owned exporter still differs from this
+source, and `/etc/zero-five-backup/affine.env` was absent at inspection.
+
+Owner-run activation on Alpha (password-sudo; never send the password in chat):
+
+```bash
+sudo cp -an /usr/local/sbin/zero-five-alpha-export /usr/local/sbin/zero-five-alpha-export.pre-affine
+sudo install -o root -g root -m 0755 /home/manuel/services/zero-five-infra/scripts/zero-five-alpha-export.sh /usr/local/sbin/zero-five-alpha-export
+sudo install -o root -g root -m 0600 /home/manuel/services/affine/backup.env /etc/zero-five-backup/affine.env
+```
+
+Then run on Delta:
+
+```bash
+sudo /usr/local/sbin/zero-five-backup alpha
+```
+
+Verify the new snapshot contains the AFFiNE SQL, storage, Redis, config,
+deployment credentials and Manticore archive, and rehearse restoration into
+isolated paths. Restore search with the matching pinned image and saved file
+ownership before starting the restored app. These commands are pending owner
+execution, not a completed backup enrollment.
+
+Activation must include installing and comparing the actual root-owned exporter,
+not only editing the infrastructure checkout. Test the Alpha source from Delta,
+read back the new snapshot, restore it into a separate directory, and restore
+PostgreSQL into an isolated temporary database/container. Verify documents,
+canvases and attachments through the restored application before declaring
+full workflow recovery. Never restore over the production database for a drill.
+
+Delta is one backup destination, not an independent second/off-site copy. A
+successful scheduled job is not a restore drill.
+
+## Upgrades and rollback
+
+1. Verify a recent restorable Delta snapshot and available disk/RAM.
+2. Record current image digests and configuration; retain the old database.
+3. Review the target release migration notes and test an isolated restore first.
+4. Update only the reviewed image pins, pull, and run the migration/start sequence.
+5. Verify HTTPS, authentication, documents, canvas, attachments and synchronization.
+
+Do not roll an application image backward against a database changed by a newer
+migration. Roll back by restoring a complete matched backup into a fresh data
+location and switching only after verification. `docker compose down` stops the
+stack without deleting the bind-mounted data. Never remove `data/` or run a
+volume/data purge as a troubleshooting shortcut.
+
+## Upstream references
+
+- [Official Docker Compose installation](https://docs.affine.pro/self-host-affine/install/docker-compose-recommended)
+- [Official backup and restore guidance](https://docs.affine.pro/self-host-affine/administer/backup-and-restore)
+- [Initial release](https://github.com/toeverything/AFFiNE/releases/tag/v0.27.4)

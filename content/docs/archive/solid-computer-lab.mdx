@@ -1,0 +1,32 @@
+---
+title: Solid Computer Lab (REMOVED)
+description: "Retired Alpha Jupyter deployment; coursework and notebooks remain intact."
+---
+
+## Retirement — 2026-10-25
+
+The owner requested removal of the Solid State Physics computer-lab service.
+The `solid-computer-lab` container was stopped and removed with Compose. Its
+Traefik labels disappeared with the container, retiring the HTTPS application
+route at `solid-computer-lab.zero-five.space`. The lab and experimental
+Ollama-bridge images were removed. Existing certificates were not deleted.
+
+## Preserved work
+
+The container mounted the actual course project at
+`~/physics-degree/courses/FYSC23-Solid-State-Physics/labs/computer_project`.
+That directory, its modified notebooks, untracked PDFs and other coursework were
+not deleted or reset. It is independent of the retired container image.
+
+Local deployment material remains under `~/physics-degree/docker/solid-computer-lab/`.
+The Compose file is renamed to `docker-compose.yml.disabled` so a normal
+`docker compose up` does not recreate the service accidentally. It contains
+historical deployment settings and must be reviewed before any deliberate reuse.
+Do not publish local deployment credentials or remove coursework during cleanup.
+
+## Recovery boundary
+
+Reinstallation is a new owner-approved deployment, not an automatic restart.
+Rebuild a reviewed image, configure new authentication, restore a reviewed
+Compose filename, and test the course workspace and exposure policy. Do not
+reuse the former password without rotating it.

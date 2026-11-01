@@ -1,0 +1,115 @@
+---
+title: iPad — WireGuard and Saber
+description: "Independent iPad identity, split-tunnel access through Alpha, and Saber sync prerequisites."
+---
+
+## Status
+
+On 2026-11-01 the owner supplied the iPad public key and authorized enrollment.
+Alpha's runtime peer was added and read back with `10.40.0.24/32`.
+Delta's runtime Alpha peer was extended with that return route, preserving
+`.1/32` and `.22/32`; its kernel route to `.24` was also verified through `wg0`.
+**Persistent files still require the owner-run sudo steps below.** A reboot or
+interface reload before persistence can remove these runtime changes.
+
+Alpha subsequently recorded a successful iPad handshake at
+`2026-11-01T10:41:54Z`, with nonzero receive/transmit counters.
+The owner subsequently confirmed the tunnel works and Safari can reach the
+handbook. That verifies owner-observed VPN application access, not every private
+DNS name. [Nextcloud](/docs/vps-alpha/nextcloud) is now deployed and server-side
+WebDAV is verified; actual encrypted Linux-to-iPad Saber note synchronization
+still requires the two native clients.
+
+## Device settings
+
+Create a tunnel in the official WireGuard iPad app, retaining its existing
+app-generated private key. Never clone the phone's tunnel or share private keys.
+
+- Tunnel name: `Zero Five`.
+- Interface address: `10.40.0.24/32`.
+- DNS server: `10.40.0.2` (AdGuard on Delta).
+- Interface listen port: automatic/empty.
+- iPad public key: `dbAF/F2xkHF9ViLv3s59DOnNxywXq0k/DcAO9M6TiVA=`.
+- One peer: Alpha, public key `ybeBkKyPMyUFuhfvoALDLxecTG+i6+5pmJ5Ysjzr0Qs=`.
+- Peer endpoint: `95.111.229.142:51820`.
+- Peer Allowed IPs: `10.40.0.1/32, 10.40.0.2/32`.
+- Persistent keepalive: `25` seconds.
+
+Only Alpha and Delta service addresses are routed over WireGuard. Normal
+internet traffic stays on the iPad's ordinary connection, although system DNS
+uses AdGuard while the tunnel is active. This is not a full internet tunnel.
+Do not use `0.0.0.0/0`, `::/0`, or the entire mesh subnet.
+
+The route to Delta is through Alpha, so Alpha must forward `wg0` to `wg0`,
+and Delta must authorize and route the iPad address through its Alpha peer.
+The existing Alpha forwarding rule was observed; no firewall changes or new
+public DNS records were made for this enrollment. Client routes are not a
+server-enforced application isolation policy: VPN-source access to Alpha
+services remains subject to existing firewall and Traefik rules.
+
+## Source and persistence
+
+The secret-free client template is
+`zero-five-infra/wireguard/ipad-alpha.conf.example`. It is separate from the
+legacy eight-node full-mesh examples; those examples contain existing phone
+and MacBook relay-address drift and must not overwrite live files wholesale.
+
+The narrowly scoped helper
+`zero-five-infra/scripts/persist_ipad_wireguard.py` runs on Alpha or Delta.
+It adds only the iPad peer (Alpha) or iPad return route (Delta), preserving
+existing peer configuration. It refuses conflicting addresses, creates a
+root-only rollback copy, writes a root-owned mode-0600 replacement, and checks
+the resulting file. It does not restart WireGuard or save unrelated runtime drift.
+
+From the owner's SSH session on Alpha:
+
+```bash
+sudo python3 /home/manuel/services/zero-five-infra/scripts/persist_ipad_wireguard.py --apply
+ssh -t manuel@10.40.0.2 'sudo python3 /home/manuel/services/zero-five-infra/scripts/persist_ipad_wireguard.py --apply'
+```
+
+The helper has been staged on both hosts; enter sudo passwords only in the
+trusted terminal, not in chat. After applying, rerun both commands without
+`--apply`: each must report that the persistent configuration is already present.
+The agent must read back the same verification results before calling this
+persistent enrollment complete. Do not bounce `wg0` over a mesh SSH connection.
+
+## Verification
+
+1. Activate the tunnel on the iPad.
+2. In Safari, open `https://docs.zero-five.space` and a normal internet site.
+3. Test an existing private AdGuard-only service appropriate for the iPad to
+   verify internal DNS; public DNS resolution of the handbook alone is not
+   proof that all private names resolve.
+4. On Alpha, check the exact public key with `sudo wg show wg0 latest-handshakes`
+   and `sudo wg show wg0 transfer`. Expect a recent nonzero handshake and
+   increasing transfer counts. A configured peer with handshake `0` is not
+   a working client.
+5. Check Delta's route with `ip route get 10.40.0.24` and verify the Alpha peer
+   includes `10.40.0.24/32` using `sudo wg show wg0 allowed-ips`.
+6. Confirm both persistent checks above. Verify persistence across the next
+   planned maintenance restart, not by interrupting an active admin connection.
+
+Alpha-to-handbook HTTPS returned HTTP 200 during setup, but that is a server-side
+smoke check, not an iPad end-to-end result.
+
+## Revocation and rollback
+
+On Alpha, remove only the iPad runtime peer:
+
+```bash
+sudo wg set wg0 peer dbAF/F2xkHF9ViLv3s59DOnNxywXq0k/DcAO9M6TiVA= remove
+```
+
+Remove its peer block from Alpha's persistent configuration with `sudoedit`.
+On Delta remove only `.24/32` from the Alpha peer's AllowedIPs, leaving all other
+routes intact, in both runtime and persistent state; then remove the explicit
+`.24/32` kernel route if present. Do not restore a whole rollback file if newer
+unrelated peer changes have since been made. Disable/delete the tunnel on the iPad.
+
+## Saber
+
+Saber runs locally on Linux and iPad. [Nextcloud](/docs/vps-alpha/nextcloud)
+now provides the deployed synchronization backend, not the handwriting UI. Keep the encryption password in the owner's
+password manager. VPN registration is not evidence of Nextcloud deployment,
+backup coverage, or successful encrypted note sync.

@@ -32,6 +32,8 @@ Records (subdomains are **DNS-only / grey cloud** so non-HTTP traffic works):
 | `ai` | A | `10.40.0.1` — VPN only (Open WebUI) |
 | `brain` | A | `10.40.0.1` — VPN only (second-brain) |
 | `hermes` | A | `10.40.0.1` — VPN only (Hermes dashboard) |
+| `affine` | A | `10.40.0.1` — VPN only (AFFiNE documents/whiteboards) |
+| `nextcloud` | A | `10.40.0.1` — VPN only (Nextcloud/Saber sync, added 2026-11-01) |
 | `mc` | A | `95.111.229.142` |
 | `ssh` | A | `95.111.229.142` |
 | `_minecraft._tcp.mc` | SRV | `mc.zero-five.space:25565` |
@@ -120,6 +122,8 @@ http:
 |-----|---------|--------|
 | `https://hub.zero-five.space` | hub-frontend container — **VPN only** (`ipWhiteList 10.40.0.0/24`, see [The VPN-only pattern](/docs/vps-alpha/handbook#the-vpn-only-pattern)) | labels |
 | `https://brain.zero-five.space` | secondbrain web container — **VPN only** | labels |
+| `https://affine.zero-five.space` | affine-server container — **VPN only**, verified public-IP rejection `403` | labels |
+| `https://nextcloud.zero-five.space` | Nextcloud `34.0.5` — **VPN only**, trusted TLS/WebDAV verified, public-IP rejection `403` | labels |
 | `https://ai.zero-five.space` | Open WebUI on **gamma** `10.40.0.3:3000` (mesh backend; since 2026-08-24) — **VPN only** | file provider |
 | `https://traefik.zero-five.space` | Traefik dashboard | labels (`api@internal`) |
 | `https://docs.zero-five.space` | handbook container — **VPN only** (`ipWhiteList 10.40.0.0/24`, see [Handbook deployment](/docs/vps-alpha/handbook)) | labels |

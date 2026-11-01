@@ -26,7 +26,7 @@ docker network create traefik    # the shared external network (see below)
 
 ## Running containers
 
-Verified live with `docker ps`:
+Verified live with `docker ps` on **2026-10-25**, after owner-requested service retirement:
 
 | Container | Image | Stack | Exposure |
 |-----------|-------|-------|----------|
@@ -37,10 +37,21 @@ Verified live with `docker ps`:
 | `traefik-socket-proxy` | same pinned proxy digest | hub | isolated internal network, Traefik GET-only discovery |
 | `secondbrain-web-1` | built from repo | secondbrain | via Traefik (`brain.zero-five.space`) |
 | `secondbrain-api-1` | built from repo | secondbrain | internal only |
-| `secondbrain-db-1` | `postgres:18.3-alpine` | secondbrain | internal only |
-| `secondbrain-minio-1` | `quay.io/minio/minio` | secondbrain | internal only |
+| `secondbrain-db-1` | `pgvector/pgvector:0.8.6-pg18-trixie` | secondbrain | internal only |
+| `secondbrain-minio-1` | `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` | secondbrain | internal only |
+| `secondbrain-bot-1` | built from repo | secondbrain | outbound bot |
+| `secondbrain-auth-db-1` | `postgres:17-alpine` | secondbrain-auth | internal only; retained login-service database |
+| `crypto-ledger-web-1` | built from repo | crypto-ledger | via Traefik |
+| `crypto-ledger-api-1` | built from repo | crypto-ledger | internal only |
 | `blissful_darwin` | `telegram-translation-bot` | standalone `docker run` | none (outbound only) |
 | `handbook` | built from repo | handbook | via Traefik (`docs.zero-five.space`, VPN only) |
+| `affine-server` | digest-pinned AFFiNE `0.27.4` | affine | VPN-only HTTPS; host diagnostic port loopback-only |
+| `affine-postgres` | digest-pinned pgvector `0.8.1-pg16-trixie` | affine | isolated backend network |
+| `affine-redis` | digest-pinned Redis `7.4.7-alpine` | affine | isolated backend network |
+| `nextcloud-app-1` | digest-pinned Nextcloud `34.0.5` Apache | nextcloud | VPN-only HTTPS, no published host port |
+| `nextcloud-cron-1` | same Nextcloud image | nextcloud | background jobs, backend network only |
+| `nextcloud-db-1` | digest-pinned PostgreSQL `17.11` Alpine | nextcloud | isolated backend network |
+| `nextcloud-redis-1` | digest-pinned Redis `7.4` Alpine | nextcloud | private cache/locking, no published host port |
 
 > **Removed 2026-08-24 (alpha cleanup):** the personal-ai containers
 > (`open-webui`, `ollama-router`, `searxng` — the stack moved to
@@ -48,6 +59,18 @@ Verified live with `docker ps`:
 > (`secondbrain-dev-db-1`, `secondbrain-dev-minio-1` — dev containers with
 > their volumes) were deleted from alpha. The `server_open-webui` volume is
 > also gone. See [archive AI stack](/docs/archive/ai-stack).
+
+The separate Keycloak identity-server container (`secondbrain-auth-keycloak-1`,
+image `quay.io/keycloak/keycloak:26.8.0`) was stopped at inspection. Its database
+remains running. Neither was removed during this cleanup. Keycloak provides
+centralized login/OAuth; its stopped state does not establish whether Second
+Brain currently depends on it.
+
+The [Solid Computer Lab](/docs/archive/solid-computer-lab) and
+[PancakeSwap observer/review](/docs/archive/pancakeswap-lp-manager) deployments
+were removed on 2026-10-25, including their service images. Coursework and LP
+history were retained; their Compose files were disabled. Neither is an active
+service. The LP HTTPS route and paused Hermes report/alert schedules were removed.
 
 Two services run as **native systemd user units**, not containers: the
 [Hermes Agent](/docs/vps-alpha/hermes-agent) gateway and web dashboard
@@ -62,6 +85,10 @@ host `:9119` and is routed through Traefik's file provider like Open WebUI).
 |---------|-------------|
 | `hub` | `~/services/hub/docker-compose.yml` |
 | `secondbrain` | `~/services/second-brain/compose.yaml` |
+| `secondbrain-auth` | `~/services/second-brain-auth/compose.yaml` (DB running, Keycloak stopped) |
+| `crypto-ledger` | `~/services/crypto-ledger/compose.prod.yaml` (local-only deployment) |
+| `affine` | `~/services/affine/compose.yaml` (local-only deployment; migration is a successful one-shot) |
+| `nextcloud` | `~/services/nextcloud/compose.yaml` (local-only, app + PostgreSQL + Redis + cron) |
 | `handbook` | `~/services/zero-five-handbook/docker-compose.yml` (repo clone, updated by [the deploy pipeline](/docs/vps-alpha/handbook)) |
 
 > **Note:** The Telegram bot is the one container **not** managed by Compose — it was started with `docker run` (hence the random name `blissful_darwin`). See [Telegram Bot](/docs/vps-alpha/telegram-bot).
@@ -129,7 +156,19 @@ Open WebUI and ollama-router use `network_mode: host` on purpose — they must r
 | Disk usage | `docker system df` |
 | Clean old images | `docker image prune -a` |
 
-> **Tip:** With 8 GB RAM and no swap, the box runs close to full memory. Check with `free -h` before adding new services, and consider stopping the Minecraft server (4–8 GB heap) when it is not in use.
+> **Capacity check — 2026-10-25:** Alpha had 7.8 GiB RAM, 5.3 GiB available,
+> and no swap before cleanup. Minecraft is not running on Alpha. Check memory
+> before adding workloads rather than treating old heap figures as current.
+
+### Owner-requested disk cleanup — 2026-10-25
+
+`docker builder prune -af` reported **66.91 GB** removed. Only build cache was
+pruned; active application images and persistent volumes were not broadly
+pruned. Retired lab/LP image tags were then explicitly removed. The retained
+LP history volume and course bind-mounted notebooks were not deleted.
+
+A later build must recreate the discarded cache and can take longer. Avoid
+`docker system prune --volumes` as a substitute: that can destroy retained data.
 
 ---
 
@@ -143,14 +182,14 @@ Named volumes hold the state worth backing up:
 | `hub_traefik-certs` | Let's Encrypt certificates (`acme.json`) |
 | `secondbrain_postgres-data` | Second-brain PostgreSQL data |
 | `secondbrain_minio-data` | Second-brain object storage |
-| `server_open-webui` | Open WebUI settings and chat history |
+| Open WebUI state | Not on Alpha; the former local volume was removed during migration |
 
-> **Status — 2026-07-21:** Backups are not operational yet.
-> `~/backups/docker-volumes/` exists but contains no current volume dumps. The
-> expired `gdrive:` rclone authorization was removed because Google Drive is not
-> part of the chosen design. The owner is building a Raspberry Pi backup target;
-> until current encrypted copies and a restore test exist, these volumes have no
-> verified recovery path.
+> **Status — 2026-10-25:** [Delta's backup controller](/docs/raspberry/backup)
+> is operational: the timer is active and its previous scheduled run completed
+> successfully. Applications are **not auto-discovered**. Alpha's exporter is
+> explicitly scoped; do not infer that every volume listed here is protected.
+> Application restore drills and a second independent copy remain separate gates.
+> AFFiNE is deployed; its backup activation and restore verification are pending.
 
 The Pi should initiate retrieval over a restricted identity where practical,
 and the backup set must be encrypted independently of transport. Include

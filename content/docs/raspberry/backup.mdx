@@ -14,6 +14,30 @@ Delta keeps this checkout at `/home/manuel/services/zero-five-infra`. Backup
 repositories, repository passwords, temporary exports, and runtime secrets
 are not stored in Git.
 
+## SSH trust and scheduler verification — 2026-10-25
+
+Alpha's user SSH client had no host-key entry for Delta at `10.40.0.2`.
+The ED25519 key presented at that address exactly matched the already trusted
+Delta key under the former address `10.8.0.2`. After backing up `known_hosts`,
+the verified key was added for the new address; strict host-key checking remained
+enabled. A fresh authenticated SSH session returned hostname `delta`.
+No server key was rotated and no WireGuard configuration was changed.
+
+Delta's timer was active, its last trigger was 2026-10-24 at 21:00, and the
+service reported `Result=success` and `ExecMainStatus=0`. The journal confirmed
+completion at 21:01:59 and restoration of Gamma's prior suspended state.
+The backup disk had approximately 3.4 TiB available. These checks do not prove
+an application restore drill. AFFiNE was subsequently deployed; its backup
+activation and restore verification remain pending privileged installation.
+
+[Nextcloud](/docs/vps-alpha/nextcloud) is deployed on Alpha as the sync backend;
+native Saber note synchronization remains pending device setup. It currently
+has a verified local baseline snapshot only, not scheduled Delta coverage.
+
+For future address changes, compare the presented public key with an independently
+trusted existing pin before adding the new address. Never disable
+`StrictHostKeyChecking` or blindly accept a changed key.
+
 ## Current scope
 
 The first implementation is an emergency safety net, not a fully tested
@@ -37,10 +61,10 @@ Fully deployed and smoke-tested end-to-end. All four sources back up cleanly
 | **Beta** source | `/usr/local/sbin/beta-suspend`, `backup@delta` key (root), scoped NOPASSWD sudoers (rsync + beta-suspend) |
 | **Gamma** source | `/usr/local/sbin/gamma-suspend`, `backup@delta` key (manuel), scoped NOPASSWD sudoers (rsync + gamma-suspend) |
 
-**Not yet done:** `sudo systemctl enable zero-five-backup.timer` still needs a
-one-time root command on Delta (the unit is installed and `daemon-reload`ed
-but not enabled). The controller's own sudo was re-locked to require a
-password, so this is a manual step.
+The earlier pending timer activation is resolved: on 2026-10-25 the live timer
+was active and showed a successful scheduled run the previous evening. The
+controller's root SSH identity and the human user's SSH pins are separate;
+repairing Alpha's user-level trust does not modify the controller identity.
 
 ## Wake/suspend — restore prior power state
 

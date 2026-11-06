@@ -70,7 +70,9 @@ sudo gamma-suspend
 ```
 
 That command detaches into systemd, closes every remote login session, confirms
-they are gone, and suspends. The SSH clients close instead of hanging.
+they are gone, and suspends. If systemd rejects suspend (for example, because a
+sleep inhibitor races the request), it retries up to ten times at 30-second
+intervals. The SSH clients close instead of hanging.
 
 Wake Gamma while the MacBook is on the home LAN:
 

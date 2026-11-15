@@ -1,6 +1,6 @@
 ---
 title: iPad — WireGuard and Saber
-description: "Independent iPad identity, split-tunnel access through Alpha, and Saber sync prerequisites."
+description: "Independent iPad identity and split-tunnel access through Alpha; Saber synchronization backend retired."
 ---
 
 ## Status
@@ -16,9 +16,9 @@ Alpha subsequently recorded a successful iPad handshake at
 `2026-11-01T10:41:54Z`, with nonzero receive/transmit counters.
 The owner subsequently confirmed the tunnel works and Safari can reach the
 handbook. That verifies owner-observed VPN application access, not every private
-DNS name. [Nextcloud](/docs/vps-alpha/nextcloud) is now deployed and server-side
-WebDAV is verified; actual encrypted Linux-to-iPad Saber note synchronization
-still requires the two native clients.
+DNS name. **Nextcloud was decommissioned on 2026-11-07; Saber remains a local
+client on user-managed devices, but its synchronization backend is unavailable.**
+No separate server-side Saber service existed.
 
 ## Device settings
 
@@ -109,7 +109,8 @@ unrelated peer changes have since been made. Disable/delete the tunnel on the iP
 
 ## Saber
 
-Saber runs locally on Linux and iPad. [Nextcloud](/docs/vps-alpha/nextcloud)
-now provides the deployed synchronization backend, not the handwriting UI. Keep the encryption password in the owner's
-password manager. VPN registration is not evidence of Nextcloud deployment,
-backup coverage, or successful encrypted note sync.
+Saber runs locally on Linux and iPad. It previously used the Nextcloud service
+(documented at [Nextcloud and Saber](/docs/vps-alpha/nextcloud)) for synchronization;
+that backend was decommissioned on 2026-11-07, so Saber sync is unavailable.
+Keep the encryption password in the owner's password manager. The client
+installations are not removed by server-side service decommissioning.

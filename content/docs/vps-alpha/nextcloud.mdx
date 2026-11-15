@@ -1,9 +1,21 @@
 ---
 title: Nextcloud and Saber
-description: "VPN-only Nextcloud on Alpha for encrypted Saber note synchronization between Linux and iPad."
+description: "Historical Nextcloud deployment and Saber sync record; server and local application data decommissioned on 2026-11-07."
 ---
 
-## Verified state — 2026-11-01
+## Decommissioned — 2026-11-07
+
+At the owner's request, the Nextcloud containers, `nextcloud_html` and
+`nextcloud_db_data` volumes, local service directory (including secrets and
+327 MiB of service-local backups) were removed from Alpha. Shared Alpha Restic
+history was retained. No separate Saber server existed: Saber is a client that
+used Nextcloud WebDAV; its iPad/Linux installations were not removed by this
+server-side decommission. Nextcloud sync is no longer available.
+
+The remainder of this page is historical deployment and verification context;
+its old access and setup instructions are not current.
+
+## Historical verified state — 2026-11-01
 
 Nextcloud **34.0.5** is deployed under `/home/manuel/services/nextcloud`.
 The stack contains Apache/PHP, PostgreSQL **17.11**, Redis, and a separate cron

@@ -1,13 +1,22 @@
 ---
 title: AFFiNE
-description: "VPN-only documents, whiteboards and long-term project planning on Alpha, with application-consistent backups collected by Delta."
+description: "Historical AFFiNE deployment record; service and local application data decommissioned on 2026-11-07."
 ---
 
 ## Purpose and status
 
-AFFiNE is the owner's platform to organize, sketch and draft ideas for Zero Five
-and a future Open Lab project. It is independent of Second Brain and its login
-services; no Keycloak or cloud AFFiNE account is required for this installation.
+**Decommissioned 2026-11-07:** AFFiNE containers, its PostgreSQL/Redis/Manticore
+state, local configuration, and local service backups were removed from Alpha at
+the owner's request. Shared Alpha Restic history was retained. No AFFiNE-specific
+archive is present in the current Alpha export. The former VPN-only route no
+longer has an AFFiNE container behind it.
+
+This page below is retained as historical deployment context; do not use its
+old setup instructions as the current live state.
+
+AFFiNE was the owner's platform to organize, sketch and draft ideas for Zero Five
+and a future Open Lab project. It was independent of Second Brain and its login
+services; no Keycloak or cloud AFFiNE account was required for this installation.
 
 **Verified deployment — 2026-10-25:** the application is running and returns
 `AFFiNE 0.27.4 Server` from `/info`. PostgreSQL and Redis are healthy, and the

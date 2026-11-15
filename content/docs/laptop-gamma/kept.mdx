@@ -1,0 +1,142 @@
+---
+title: Kept Inventory
+description: "Kept on Gamma, with private DNS and HTTPS through Delta's home-app gateway."
+---
+
+## Verified state — 2026-11-15
+
+The owner installed **Kept 1.14.7** under `/home/manuel/services/kept` on
+**Gamma**. This is an existing deployment, not a proposed Alpha service.
+Upstream: [keptinventory/kept](https://github.com/keptinventory/kept).
+
+The initial serving container could not start because its requested host port
+8080 was already allocated to Beatbump. The private settings were adjusted to
+publish **10.40.0.3:8082 → container 8080**, without changing the image, database
+or application volumes. Bootstrap and migration completed with exit code zero;
+PostgreSQL and Kept are healthy. An HTTP request **from Delta** to the Gamma
+backend returned **200**. Beatbump's port 8080 was left untouched.
+
+**Gateway activation verified:** AdGuard returns `10.40.0.2` for the hostname;
+HTTPS through Delta returns HTTP 200 with page title **Kept**, using normal
+certificate verification. The served certificate is for `kept.zero-five.space`,
+issued by Let's Encrypt YE1 and valid until **2027-02-13**. HTTP redirects to
+HTTPS with 301. An excluded loopback source receives 403, including when it
+forges `X-Forwarded-For: 10.40.0.21`. This tests the source middleware, not an
+external WAN penetration test. Music remains HTTP 200 and AdGuard's UI returns
+its expected 302. Certbot's timer is active and the deploy hook includes Kept.
+
+The initial installer omitted the rewrite's `enabled` field; AdGuard persisted
+it as disabled. Verification caught the resulting NXDOMAIN. The rewrite was
+explicitly enabled with other configuration unchanged, and a fresh DNS query
+then returned the correct address. Setup/login and inventory operations remain
+owner-side checks; backup/restore coverage remains unverified.
+
+## Access design
+
+```text
+LAN/VPN client using AdGuard
+  → kept.zero-five.space → 10.40.0.2 (Delta)
+  → Delta Traefik :443 (TLS)
+  → http://10.40.0.3:8082 (Gamma)
+```
+
+The intended permanent URL is **https://kept.zero-five.space**. DNS points to
+**Delta**, the HTTPS gateway, not Gamma, the backend. This is the private
+Zone-2 [home-app gateway](/docs/raspberry/home-app-gateway) pattern:
+
+- An **AdGuard-only** rewrite to `10.40.0.2`. Do not create a Cloudflare A record.
+- Delta's existing Traefik, with a per-name Let's Encrypt certificate obtained
+  through certbot DNS-01. DNS-01 uses TXT records, not public app A records.
+- The existing internal-CA wildcard remains the fallback; devices need its CA
+  installed if that fallback is served.
+- The Kept route permits mesh `10.40.0.0/24` and home LAN `192.168.1.0/24` sources.
+- Gamma publishes only its mesh address, not `0.0.0.0` or its LAN address.
+  Other authorized mesh clients can still reach that backend directly; an
+  exclusive Delta-only firewall restriction has not been installed.
+
+Clients must use the private AdGuard resolver and have a LAN/VPN path to Delta.
+Application authentication remains necessary; private DNS is not access control.
+
+## Gamma settings and storage
+
+The existing `.env` retains the owner's generated setup code and other secrets.
+Only these non-secret deployment settings were changed:
+
+```dotenv
+KEPT_PUBLIC_URL=https://kept.zero-five.space
+KEPT_HTTP_PORT=10.40.0.3:8082
+KEPT_TRUSTED_PROXIES=10.40.0.2
+KEPT_SIGNUP_OPEN=false
+```
+
+The upstream Compose file was retained. The `.env` and private rollback copy
+`.env.before-private-url` have mode 0600. Trusted proxy scope is Delta's mesh
+address only. Public registration is disabled. The database has no published
+host port.
+
+Keep all four upstream volumes: `kept_kept-db`, `kept_kept-data`,
+`kept_kept-config` and `kept_kept-owner`. They contain the database, uploads,
+encryption keys and database credentials. Never remove volumes during routine
+proxy configuration or startup repair.
+
+## Delta DNS and HTTPS operations
+
+The owner ran the privileged gateway installer on Delta. The one-time staging
+helper was removed after verification; operational state lives in the standard
+service directories:
+
+- Route: `/home/manuel/services/proxy/dynamic/kept.yml` (hot-reloaded).
+- Certificate: `/etc/letsencrypt/live/kept.zero-five.space/`, deployed into
+  `/home/manuel/services/proxy/certs/le/` by the existing renewal hook.
+- Renewal hook: `/etc/letsencrypt/renewal-hooks/deploy/zero-five.sh`, including
+  `kept.zero-five.space` in its name list.
+- DNS: the existing AdGuard configuration's Kept rewrite has
+  `answer: 10.40.0.2` and **`enabled: true`** explicitly.
+
+For future edits, use the authenticated AdGuard API or stop AdGuard before
+editing its YAML, then restart it even if the edit fails. Otherwise shutdown
+can overwrite changes. Always set rewrite enablement explicitly and query DNS
+afterward; a saved domain/answer pair alone does not prove it is active.
+Certbot must enroll new names in the deploy hook before issuance; when reusing
+an existing certificate, explicitly run the deploy hook if certbot skips it.
+No public A record was created by this setup.
+
+Rollback copies of changed existing Delta files are stored root-only under
+`/home/manuel/services/proxy/backups/before-kept-url`. Do not print or commit
+the AdGuard backup: it contains authentication configuration.
+
+For future maintenance, recheck the exact DNS answer, trusted HTTPS, certificate
+metadata, HTTP redirect, source middleware and existing music/DNS routes. Owner
+setup/login and an inventory create/read/delete test are separate acceptance
+checks, not established by a successful page request.
+
+## First use, recovery and backups
+
+After HTTPS is verified, open the URL while using private DNS and enter the
+**existing setup code** from the owner's installation. The first account is the
+instance admin. No account or replacement setup code was created by the agent.
+
+Store the recovery kit off-server; run privately on Gamma:
+
+```bash
+cd /home/manuel/services/kept
+docker compose exec kept kept admin recovery-kit
+```
+
+Treat all output as secret. Printed QR labels embed the public application URL,
+so retain the chosen hostname. SMTP, AI and other integrations were not configured.
+
+**Backup coverage is unverified.** Do not assume existing Gamma/Delta backups
+include this newly installed PostgreSQL database and the key-bearing volumes.
+A complete recovery requires an application-consistent database backup, uploads
+and keys, a durable off-host snapshot and an isolated restore rehearsal. This
+URL configuration does not establish that coverage.
+
+## Rollback
+
+Withdraw only `dynamic/kept.yml` and the Kept AdGuard rewrite to undo gateway
+publication; preserve unrelated routes and DNS rewrites. Restore the saved
+certificate hook only if it has no intervening unrelated changes. Do not restore
+the old Gamma port binding casually: it conflicts with Beatbump and prevents
+Kept from starting. Keep volumes and secrets intact; never use
+`docker compose down -v` as routine rollback.

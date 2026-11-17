@@ -142,30 +142,113 @@ Then verify from another machine that SSH and Minecraft still work, that `http:/
 
 ## fail2ban
 
-`fail2ban` watches the journal and bans IPs that fail SSH auth repeatedly. Config in `/etc/fail2ban/jail.local`:
+Fail2ban watches authentication logs, counts repeated failures from each source
+IP, and temporarily bans sources that exceed the jail's threshold. A **jail**
+combines a log filter with a firewall action. It supplements public-key-only SSH;
+it does not prevent provider-console access, detect every intrusion, or protect
+a stolen valid key by itself.
+
+### Observed configuration — 2026-11-17
+
+The live configuration is `/etc/fail2ban/jail.d/defaults-debian.conf`, not the
+historically documented `jail.local`. It enables the SSH jail, the systemd
+backend, and nftables actions. **The audit found an enforcement mismatch:** SSH
+listens on `2020`, but the Fail2ban rule initially targeted `22`. This was
+corrected and live-verified on 2026-11-17. A running daemon and increasing ban
+counters alone do not establish that the correct port is protected.
+
+**Deployed and verified:** `/etc/fail2ban/jail.d/99-zero-five-sshd.local`
+explicitly sets:
 
 ```ini
-[DEFAULT]
-banaction = nftables
-banaction_allports = nftables[type=allports]
-backend = systemd
-
 [sshd]
-enabled = true
+port = 2020
 ```
 
-| Command | Purpose |
-|---------|---------|
-| `sudo fail2ban-client status sshd` | Current and total bans |
-| `sudo fail2ban-client unban <ip>` | Unban an address |
-
-### Recreate
+It retains the existing backend, filters, thresholds, and ban durations. Only
+the Fail2ban SSH jail is reloaded with restart semantics; `sshd` itself is not
+restarted or reconfigured. A temporary ban of documentation-only address
+`192.0.2.123` must produce a live nftables rule for TCP `2020`, then be removed.
+Do not test by deliberately banning the current administrator's address.
 
 ```bash
-sudo apt install fail2ban
-# write /etc/fail2ban/jail.local as above
-sudo systemctl enable --now fail2ban
+sudo fail2ban-client -t
+sudo fail2ban-client status sshd
+sudo fail2ban-client get sshd actions
+sudo nft list table inet f2b-table
+# Remove a particular ban only after checking its reason:
+sudo fail2ban-client set sshd unbanip ADDRESS
 ```
+
+### Audited maintenance repairs — 2026-11-17
+
+**Status: deployed and verified on 2026-11-17 at approximately 10:15 CET.**
+The owner ran the privileged helper; its `complete: true` result was corroborated
+by independent live read-back: the nftables rule targets TCP `2020`, its test ban
+is absent, Fail2ban is active, `sudo -n -l` no longer emits a syntax error, the
+local logrotate diversion is registered, `logrotate.service` reports
+`Result=success` and `ExecMainStatus=0`, and SSH still listens on `2020`.
+The helper transcript additionally records successful `visudo -c`, Fail2ban
+configuration testing, the temporary ban/unban, and `sshd -t`.
+
+Rollback files for this application are in
+`/var/backups/zero-five-security/20261117T091503Z/`. No SSH or network restart
+was performed. Six regression tests and the handbook type/lint/production-build
+checks passed before application; the documentation is validated again after
+this status update. Source and documentation remain uncommitted unless separately
+authorized.
+
+Operational source:
+`zero-five-infra/scripts/repair-alpha-security.py`; regression tests:
+`zero-five-infra/tests/test_repair_alpha_security.py`.
+
+The approved repair is limited to:
+
+1. Replacing the unsupported sudoers argument
+   `/usr/bin/journalctl --unit=*` with the narrower literal
+   `/usr/bin/journalctl --unit=ssh.service`. Other grants are preserved; no
+   unrestricted journal or shell permission is added. Validate the candidate
+   and the complete policy using `visudo` before continuing.
+2. Keeping `/etc/logrotate.d/cloud-init-base` and registering a local
+   `dpkg-divert` for the byte-identical duplicate
+   `/etc/logrotate.d/cloud-init`, moved outside the include directory to
+   `/etc/logrotate.zero-five-disabled/cloud-init`. Both installed cloud-init
+   packages ship the same stanza; this caused the duplicate-entry error before
+   the provider incident. The diversion keeps package upgrades from silently
+   restoring that duplicate. Abort if the stanzas differ; do not discard unique
+   rotation settings.
+3. Installing and verifying the explicit Fail2ban SSH port override above.
+
+Run on Alpha, entering the sudo password only in the local terminal:
+
+```bash
+sudo /usr/bin/python3 /home/manuel/services/zero-five-infra/scripts/repair-alpha-security.py --apply
+```
+
+The helper preserves root-only rollback files under
+`/var/backups/zero-five-security/` and saves owner-readable verification output
+under `/home/manuel/services/security-maintenance/` with directory mode `0700`
+and file mode `0600`. It checks `visudo`, Fail2ban configuration, actual ban and
+unban behavior, logrotate debug validation, a normal non-forced
+`logrotate.service` execution, and the retained SSH listener. Review
+`status.json` and `verification.txt`; only `complete: true` plus independent
+read-back establishes completion. It does not restart networking or SSH.
+
+If a check fails, the helper attempts to restore its configuration changes and
+records any rollback failures. It cannot undo log rotation already performed;
+restoring the old sudoers file also restores its known syntax error. For manual
+rollback, use the timestamped backups to restore only the changed policy and
+Fail2ban override, reload the SSH jail, and reverse the local diversion:
+
+```bash
+sudo dpkg-divert --local --rename --remove \
+  --divert /etc/logrotate.zero-five-disabled/cloud-init \
+  /etc/logrotate.d/cloud-init
+```
+
+Reversing that diversion restores the known duplicate rotation error; do it only
+as part of a reviewed alternative fix. Keep backups private and do not publish
+raw authentication logs.
 
 ---
 

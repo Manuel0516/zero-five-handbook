@@ -110,6 +110,33 @@ rollback.
 
 ## Troubleshooting
 
+### Clean deployment checkout
+
+The VPS checkout is also used for maintenance edits. Before pushing a release,
+inspect `git status --porcelain` **in that checkout**, not just in CI. Both the
+forced deployment script and workflow refuse tracked or untracked local changes;
+SSH authentication and the application build can succeed while this guard blocks
+the deployment. Keep the guard intact.
+
+Preserve unrelated work in a named, path-scoped stash before deploying:
+
+```bash
+cd ~/services/zero-five-handbook
+git diff -- path/to/edited-page.mdx
+git stash push -m 'preserved maintenance documentation before deployment' -- path/to/edited-page.mdx
+git status --porcelain
+```
+
+Confirm the final command returns no entries, then rerun deployment. Retain the
+stash until its owner resumes the work; applying it in the production checkout
+makes that checkout dirty again. Use a separate worktree for unfinished edits
+instead of keeping the deployed checkout dirty. Never discard or publish another
+session's work merely to make a deployment pass.
+
+On 2026-11-17 an unrelated VPN documentation edit triggered this guard after
+validation and SSH succeeded. The edit was preserved in a named stash, and the
+unchanged fixed deployment procedure then built and started a healthy handbook.
+
 | Symptom | Check |
 |---------|-------|
 | 403 from Traefik | You are not on WireGuard, or the request reached the public IP — `dig docs.zero-five.space` should return `10.40.0.1` |
